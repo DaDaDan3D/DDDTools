@@ -366,6 +366,9 @@ def cleanupWeights(mesh, affectBoneMax=4):
     if not mesh or mesh.obj.type != 'MESH':
         return False
 
+    # delete unnecessary vertex groups before normalize
+    cleanupVertexGroups(mesh)
+
     # cleanup vertex weight
     bpy.context.view_layer.objects.active = mesh.obj
     modeChanger = iu.ModeChanger(mesh.obj, 'WEIGHT_PAINT')
@@ -376,8 +379,6 @@ def cleanupWeights(mesh, affectBoneMax=4):
     bpy.ops.object.vertex_group_sort(sort_type='BONE_HIERARCHY')
 
     del modeChanger
-
-    cleanupVertexGroups(mesh)
 
     return True
 
@@ -499,7 +500,7 @@ def cleanupVertexGroups(mesh):
     for vgName in result:
         vgs.remove(vgs[vgName])
 
-    print(sorted(result))
+    print('Deleted vertex groups: ', sorted(result))
 
     return result
 
