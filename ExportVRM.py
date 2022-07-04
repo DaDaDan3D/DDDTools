@@ -1,7 +1,7 @@
 import re
 import json
 from collections import OrderedDict
-import bpy
+import bpy, bmesh
 from . import internalUtils as iu
 from . import WeightTool as wt
 
@@ -14,114 +14,137 @@ def textblock2str(textblock):
     return "".join([line.body for line in textblock.lines])
 
 ################################################################
-def mergeForEachPose(arma, weightObj=None, triangulate=True):
+def mergeMeshes(arma, blendshapeJson, triangulate=True):
     """
-    Merge all child meshes of armature.
-    Also triangulate and apply all modifiers.
+    Based on the json, merge and triangulate the mesh.
     """
 
-    print('---------------- mergeForEachPose')
+    # A dictionary to get a set of actions from mesh names.
+    meshToActions = dict()
 
-    poses = bpy.data.actions.keys()
-    poses.append(None)          # for any
-    result = dict()
+    # read json and build meshToActions
+    dic = json.loads(textblock2str(bpy.data.texts[blendshapeJson]),object_pairs_hook=OrderedDict)
+    for od in dic:
+        binds = od.get('binds')
+        if binds:
+            for bind in binds:
+                mesh = bind.get('mesh')
+                index = bind.get('index')
+                if mesh and index:
+                    actions = meshToActions.get(mesh) or set()
+                    actions.add(index)
+                    meshToActions[mesh] = actions
+                else:
+                    print(f'Illegal binds in blendshape.json. mesh:{mesh} index:{index}')
+    print(meshToActions)
 
-    # save cursor and set location to origin
+    # For every child meshes, apply modifiers, set origin to (0,0,0) and
+    # truangulate.
     cursor_location_save = bpy.context.scene.cursor.location
     bpy.context.scene.cursor.location = (0, 0, 0)
-
-    # 1st step
-    # get child meshes
-    print('---------------- 1st step')
+    bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.select_all(action='DESELECT')
-    objs = iu.getAllChildMeshes(arma.obj)
-    if objs:
-        # 2nd step
-        # apply all modifiers and set origin to cursor
-        print('---------------- 2nd step')
-        for obj in objs:
-            bpy.context.view_layer.objects.active = obj.obj
-            obj.select_set(True)
-            bpy.ops.object.convert(target='MESH')
-            bpy.ops.object.origin_set(type='ORIGIN_CURSOR', center='BOUNDS')
-
-        # 3rd step
-        # join objects for each pose
-        print('---------------- 3rd step')
-        for pose in poses:
-            mergedObj = None
-            bpy.ops.object.select_all(action='DESELECT')
-            for obj in objs:
-                print(obj.name)
-                if weightObj and obj.name == weightObj.name:
-                    continue
-
-                # check header
-                ans = re_header.match(obj.name)
-                if ans:
-                    header = ans.group(1)
-                else:
-                    header = None
-                print(header)
-
-                if header == pose:
-                    obj.select_set(True)
-                    if mergedObj is None:
-                        bpy.context.view_layer.objects.active = obj.obj
-                        mergedObj = obj
-                        result[pose] = mergedObj
-
-            if mergedObj:
-                bpy.ops.object.join()
-                print(mergedObj, mergedObj.obj, bpy.context.active_object)
-    
-                # triangulate
-                if triangulate:
-                    print('---------------- triangulate')
-                    modeChanger = iu.ModeChanger(mergedObj.obj, 'EDIT')
-                    bpy.ops.mesh.reveal()
-                    bpy.ops.mesh.select_all(action='SELECT')
-                    bpy.ops.mesh.quads_convert_to_tris(quad_method='BEAUTY',
-                                                       ngon_method='BEAUTY')
-                    del modeChanger
-
-                # add armature modifier
-                print('---------------- add armature modifier')
-                bpy.ops.object.modifier_add(type='ARMATURE')
-                bpy.context.object.modifiers[-1].object = arma.obj
-
-
-        # apply pose to default
-        print('---------------- apply pose to default')
-        bpy.context.view_layer.objects.active = arma.obj
-        modeChanger = iu.ModeChanger(arma.obj, 'POSE')
-        bpy.ops.pose.armature_apply(selected=False)
-        del modeChanger
-
-    # restore cursor
+    for obj in iu.getAllChildMeshes(arma.obj):
+        bpy.context.view_layer.objects.active = obj.obj
+        obj.select_set(True)
+        bpy.ops.object.convert(target='MESH')
+        bpy.ops.object.origin_set(type='ORIGIN_CURSOR', center='BOUNDS')
+        if triangulate:
+            bm = bmesh.new()
+            bm.from_mesh(obj.obj.data)
+            bmesh.ops.triangulate(bm, faces=bm.faces,
+                                  quad_method='BEAUTY', ngon_method='BEAUTY')
+            bm.to_mesh(obj.obj.data)
+            bm.free()
     bpy.context.scene.cursor.location = cursor_location_save
 
-    print('---------------- finished')
-    return result
-
-################################################################
-def bakePose(arma, mergedObj, pose=None):
-    """
-    Bakes all poselibs to shapekeys.
-    """
-    if not arma or not mergedObj:
-        return
-    
-    print('---------------- bakePose start')
-    if pose:
-        bpy.context.view_layer.objects.active = arma.obj
-        bpy.context.active_object.pose_library = bpy.data.actions[pose]
-
-    bpy.context.view_layer.objects.active = mergedObj.obj
-    modeChanger = iu.ModeChanger(mergedObj.obj, 'OBJECT')
-    bpy.ops.pose.to_morph()
+    # clear pose
+    bpy.context.view_layer.objects.active = arma.obj
+    modeChanger = iu.ModeChanger(arma.obj, 'POSE')
+    for bone in arma.obj.data.bones:
+        bone.hide = False
+        bone.select = True
+    # for stretch bones, call twice
+    bpy.ops.pose.transforms_clear()
+    bpy.ops.pose.transforms_clear()
     del modeChanger
-    print('---------------- bakePose finished')
+
+    result = dict()
+
+    # Merge the meshes contained in the collection.
+    for mn in meshToActions.keys():
+        if mn in bpy.data.objects:
+            #print(f'{mn} is already a mesh')
+            continue
+
+        collection = bpy.data.collections.get(mn)
+        if not collection:
+            print(f'Warning! Cannot find {mn} in bpy.data.collections')
+            continue
+
+        bpy.ops.object.select_all(action='DESELECT')
+        target = None
+        for obj in collection.all_objects:
+            if obj.type == 'MESH':
+                obj.select_set(True)
+                target = obj
+        if target:
+            bpy.context.view_layer.objects.active = target
+            bpy.ops.object.join()
+            bpy.ops.object.modifier_add(type='ARMATURE')
+            bpy.context.object.modifiers[-1].object = arma.obj
+            target.name = mn
+            result[mn] = iu.ObjectWrapper(mn)
+    
+    # Merge rest of meshes.
+    bpy.ops.object.select_all(action='DESELECT')
+    target = None
+    for obj in iu.getAllChildMeshes(arma.obj):
+        if obj.obj.type == 'MESH' and obj.name not in meshToActions:
+            obj.select_set(True)
+            target = obj.obj
+    if target:
+        bpy.context.view_layer.objects.active = target
+        bpy.ops.object.join()
+        bpy.ops.object.modifier_add(type='ARMATURE')
+        bpy.context.object.modifiers[-1].object = arma.obj
+        result[None] = iu.ObjectWrapper(target.name)
+
+    # bake pose
+    anim = arma.obj.animation_data_create()
+    for mn, actions in meshToActions.items():
+        print(f'mesh: {mn}')
+        mesh = result[mn]
+        for an in sorted(actions):
+            print(f'action: {an}')
+            action = bpy.data.actions.get(an)
+            if not action:
+                print('Warning! Cannot find action {an}')
+                continue
+
+            bpy.context.view_layer.objects.active = mesh.obj
+
+            # for stretch bones, call twice
+            anim.action = action
+            anim.action = action
+            
+            # At this point, mesh has only a 'Armature' modifier
+            mod = mesh.obj.modifiers[-1]
+            modName = mod.name  # save
+            mod.name = an       # set to action's name
+            bpy.ops.object.modifier_apply_as_shapekey(keep_modifier=True, modifier=an)
+            mod.name = modName  # restore
+            
+            # Be sure to reset pose
+            anim.action=None
+            bpy.context.view_layer.objects.active = arma.obj
+            modeChanger = iu.ModeChanger(arma.obj, 'POSE')
+            # for stretch bones, call twice
+            bpy.ops.pose.transforms_clear()
+            bpy.ops.pose.transforms_clear()
+            del modeChanger
+
+    return result
 
 ################################################################
 def deleteBones(arma, boneGroupName):
@@ -179,7 +202,8 @@ def setNeutralToBasis(mergedObj, neutral='Neutral'):
 
 ################################################################
 def prepareToExportVRM(skeleton='skeleton',
-                       weightForJoint='WeightForJoint',
+                       triangulate=False,
+                       bs_json=None,
                        notExport='NotExport',
                        neutral='Neutral'):
     """
@@ -189,8 +213,8 @@ def prepareToExportVRM(skeleton='skeleton',
     ----------------
     skeleton : String
         Name of skeleton to export
-    weightForJoint : String
-        Name of object which contains weight data for joint mesh
+    bs_json : String
+        Name of textblock of blendshape_group.json
     notExport : String
         Name of bone_group
     neutral : String
@@ -199,24 +223,10 @@ def prepareToExportVRM(skeleton='skeleton',
     """
 
     arma = iu.ObjectWrapper(skeleton)
-    weightObj = iu.ObjectWrapper(weightForJoint)
-    mergedObjs = mergeForEachPose(arma, weightObj=weightObj, triangulate=True)
+    mergedObjs = mergeMeshes(arma, bs_json, triangulate=triangulate)
 
     print('---------------- mergedObjs:')
     print(mergedObjs)
-
-    for pose, obj in mergedObjs.items():
-        if pose:
-            obj.rename('Merged' + pose)
-        else:
-            obj.rename('MergedBody')
-
-    print('---------------- renamed:')
-    print(mergedObjs)
-
-    for pose, obj in mergedObjs.items():
-        if pose:
-            bakePose(arma, obj, pose)
 
     deleteBones(arma, notExport)
 
@@ -226,6 +236,4 @@ def prepareToExportVRM(skeleton='skeleton',
             #  not work...
             #setNeutralToBasis(obj, neutral=neutral)
             pass
-        else:
-            wt.transferWeights(obj, weightObj)
         wt.cleanupWeights(obj)
