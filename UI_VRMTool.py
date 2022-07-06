@@ -1,8 +1,8 @@
 import bpy
-from . import ColliderTool as ct
+from . import VRMTool as vt
 
 ################################################################
-class ColliderTool_propertyGroup(bpy.types.PropertyGroup):
+class VRMTool_propertyGroup(bpy.types.PropertyGroup):
     mesh: bpy.props.PointerProperty(
         name='Mesh',
         description='幅を計算するメッシュ',
@@ -11,7 +11,7 @@ class ColliderTool_propertyGroup(bpy.types.PropertyGroup):
     )        
 
 ################################################################
-class ColliderTool_OT_addCollider(bpy.types.Operator):
+class VRMTool_OT_addCollider(bpy.types.Operator):
     bl_idname = 'object.add_collider'
     bl_label = 'コライダ追加'
     bl_description = 'メッシュの大きさに合わせたコライダを追加します'
@@ -94,7 +94,7 @@ class ColliderTool_OT_addCollider(bpy.types.Operator):
 
     def execute(self, context):
         prop = context.scene.dddtools_ct_prop
-        return ct.addCollider(prop.mesh, bpy.context.active_object,
+        return vt.addCollider(prop.mesh, bpy.context.active_object,
                               numberOfColliders=self.numberOfColliders,
                               numberOfRays=self.numberOfRays,
                               radius=self.radius,
@@ -103,9 +103,9 @@ class ColliderTool_OT_addCollider(bpy.types.Operator):
                               offset=self.offset,
                               scale=self.scale)
       
-class ColliderTool_PT_ColliderTool(bpy.types.Panel):
-    bl_idname = 'CT_PT_ColliderTool'
-    bl_label = 'ColliderTool'
+class VRMTool_PT_VRMTool(bpy.types.Panel):
+    bl_idname = 'VT_PT_VRMTool'
+    bl_label = 'VRMTool'
     bl_category = "DDDTools"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -117,15 +117,15 @@ class ColliderTool_PT_ColliderTool(bpy.types.Panel):
         self.layout.operator('object.add_collider')
 
 classes = (
-    ColliderTool_propertyGroup,
-    ColliderTool_OT_addCollider,
-    ColliderTool_PT_ColliderTool,
+    VRMTool_propertyGroup,
+    VRMTool_OT_addCollider,
+    VRMTool_PT_VRMTool,
 )
 
 def registerClass():
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Scene.dddtools_ct_prop = bpy.props.PointerProperty(type=ColliderTool_propertyGroup)
+    bpy.types.Scene.dddtools_ct_prop = bpy.props.PointerProperty(type=VRMTool_propertyGroup)
 
 def unregisterClass():
     del bpy.types.Scene.dddtools_ct_prop
