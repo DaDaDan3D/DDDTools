@@ -200,7 +200,7 @@ class DividingLoopFinder:
                 for le in loop:
                     le.select_set(True)
 
-        bmesh.update_edit_mesh(meshObj.data)
+        bmesh.update_edit_mesh(mesh)
 
         self._bevel_weight = None
         self._crease = None
