@@ -4,6 +4,7 @@ from collections import OrderedDict
 import bpy, bmesh
 from . import internalUtils as iu
 from . import WeightTool as wt
+from VRM_Addon_for_Blender.editor.vrm0 import migration
 
 ################################################################
 # reg-exp for Header
@@ -14,17 +15,27 @@ def textblock2str(textblock):
     return "".join([line.body for line in textblock.lines])
 
 ################################################################
-def mergeMeshes(arma, blendshapeJson, triangulate=True):
+def mergeMeshes(arma, bs_dic, triangulate=True):
     """
     Based on the json, merge and triangulate the mesh.
+
+    Parameters
+    ----------------
+    arma : ObjectWrapper
+      Armature to export
+
+    bs_dic : dict
+      Dictionary of blendshape_group.json
+
+    triangulate : Boolean
+      Whether to triangulate meshes
     """
 
     # A dictionary to get a set of actions from mesh names.
     meshToActions = dict()
 
     # read json and build meshToActions
-    dic = json.loads(textblock2str(bpy.data.texts[blendshapeJson]),object_pairs_hook=OrderedDict)
-    for od in dic:
+    for od in bs_dic:
         binds = od.get('binds')
         if binds:
             for bind in binds:
@@ -189,7 +200,8 @@ def prepareToExportVRM(skeleton='skeleton',
     """
 
     arma = iu.ObjectWrapper(skeleton)
-    mergedObjs = mergeMeshes(arma, bs_json, triangulate=triangulate)
+    bs_dic = json.loads(textblock2str(bpy.data.texts[bs_json]),object_pairs_hook=OrderedDict)
+    mergedObjs = mergeMeshes(arma, bs_dic, triangulate=triangulate)
 
     print('---------------- mergedObjs:')
     print(mergedObjs)
@@ -203,3 +215,10 @@ def prepareToExportVRM(skeleton='skeleton',
             #iu.setShapekeyToBasis(obj, shapekey=neutral)
             pass
         wt.cleanupWeights(obj)
+
+    # migrate blendshape_group.json
+    ext = arma.obj.data.vrm_addon_extension
+    ext.vrm0.blend_shape_master.blend_shape_groups.clear()
+    migration.migrate_vrm0_blend_shape_groups(
+        ext.vrm0.blend_shape_master.blend_shape_groups,
+        bs_dic)
