@@ -57,6 +57,7 @@ VRM のコライダ用です。
 
 ポーズアセットを使って表情を付けるための仕組みです。  
 シェイプキーを使わないので、エクスポート後にモデルを修正するといった手戻りに強いです。  
+[blendshape_group.json のサンプル](https://github.com/DaDaDan3D/DDDTools/blob/main/sample/blendshape_group.json)
 
 
 ### BoneTool / 子ボーンをリネーム
