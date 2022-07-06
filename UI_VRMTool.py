@@ -153,7 +153,8 @@ class VRMTool_OT_prepareToExportVRM(bpy.types.Operator):
     @classmethod
     def poll(self, context):
         prop = context.scene.dddtools_vt_prop
-        return prop.skeleton and prop.skeleton.type=='ARMATURE' and prop.bs_json
+        return vt.getAddon() and\
+            prop.skeleton and prop.skeleton.type=='ARMATURE' and prop.bs_json
 
     def execute(self, context):
         prop = context.scene.dddtools_vt_prop
@@ -173,6 +174,17 @@ class VRMTool_OT_prepareToExportVRM(bpy.types.Operator):
 
     def invoke(self, context, event):
         return context.window_manager.invoke_confirm(self, event)
+
+################
+class VRMTool_OT_openAddonPage(bpy.types.Operator):
+    bl_idname = 'object.url_open_vrm_addon_for_blender'
+    bl_label = 'VRM_Addon_for_Blender のページを開く'
+    bl_description = 'VRM_Addon_for_Blender のサイトページを開きます'
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        bpy.ops.wm.url_open(url="https://vrm-addon-for-blender.info")
+        return {'FINISHED'}
 
 ################
 class VRMTool_PT_VRMTool(bpy.types.Panel):
@@ -200,20 +212,26 @@ class VRMTool_PT_VRMTool(bpy.types.Panel):
         split.operator(VRMTool_OT_prepareToExportVRM.bl_idname)
         if prop.display_prepareToExportVRM:
             col = layout.column(align=True).box().column(align=True)
-            col.prop_search(prop, 'skeleton', context.blend_data, 'objects')
-            col.prop(prop, 'triangulate')
-            col.prop_search(prop, 'bs_json', context.blend_data, 'texts')
-            if prop.skeleton:
-                col.prop_search(prop, 'notExportBoneGroup', prop.skeleton.pose,
-                                'bone_groups')
-            col.prop(prop, 'mergedName')
-            col.prop(prop, 'saveAsExport')
+            if vt.getAddon():
+                col.prop_search(prop, 'skeleton', context.blend_data, 'objects')
+                col.prop(prop, 'triangulate')
+                col.prop_search(prop, 'bs_json', context.blend_data, 'texts')
+                if prop.skeleton:
+                    col.prop_search(prop, 'notExportBoneGroup', prop.skeleton.pose,
+                                    'bone_groups')
+                col.prop(prop, 'mergedName')
+                col.prop(prop, 'saveAsExport')
+            else:
+                col.label(text='VRM_Addon_for_Blender がインストールされていません。',
+                          icon='INFO')
+                col.operator(VRMTool_OT_openAddonPage.bl_idname)
 
 ################
 classes = (
     VRMTool_propertyGroup,
     VRMTool_OT_addCollider,
     VRMTool_OT_prepareToExportVRM,
+    VRMTool_OT_openAddonPage,
     VRMTool_PT_VRMTool,
 )
 

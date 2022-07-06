@@ -1,3 +1,4 @@
+import sys
 import re
 import json
 from collections import OrderedDict
@@ -11,12 +12,26 @@ from mathutils import (
 import statistics
 from . import internalUtils as iu
 from . import WeightTool as wt
-from VRM_Addon_for_Blender.editor.vrm0 import migration
-
 
 ################################################################
 def textblock2str(textblock):
     return "".join([line.body for line in textblock.lines])
+
+################
+def getAddon(version=(2, 3, 26)):
+    """
+    Get add-on if specified version or later of VRM_Addon_for_Blender are installed.
+
+    Parameters
+    ----------------
+    version : tuple
+    """
+
+    va = sys.modules.get('VRM_Addon_for_Blender-release')
+    if va and va.bl_info['version'] >= version:
+        return va
+    else:
+        return None
 
 ################
 # from Blender/2.83/scripts/add_curve_ivygen.py
@@ -385,10 +400,12 @@ def prepareToExportVRM(skeleton='skeleton',
         wt.cleanupWeights(obj)
 
     # migrate blendshape_group.json
-    ext = arma.obj.data.vrm_addon_extension
-    ext.vrm0.blend_shape_master.blend_shape_groups.clear()
-    migration.migrate_vrm0_blend_shape_groups(
-        ext.vrm0.blend_shape_master.blend_shape_groups,
-        bs_dic)
+    va = getAddon()
+    if va:
+        ext = arma.obj.data.vrm_addon_extension
+        ext.vrm0.blend_shape_master.blend_shape_groups.clear()
+        va.editor.vrm0.migration.migrate_vrm0_blend_shape_groups(
+            ext.vrm0.blend_shape_master.blend_shape_groups,
+            bs_dic)
 
     return mergedObjs
