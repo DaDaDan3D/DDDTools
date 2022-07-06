@@ -1,3 +1,4 @@
+import os
 import bpy
 from . import VRMTool as vt
 
@@ -8,7 +9,46 @@ class VRMTool_propertyGroup(bpy.types.PropertyGroup):
         description='幅を計算するメッシュ',
         type=bpy.types.Object,
         poll=lambda self, obj: obj and obj.type=='MESH',
-    )        
+    )
+
+    display_prepareToExportVRM: bpy.props.BoolProperty(
+        name='prepareToExportVRMの設定',
+        default=True)
+
+    skeleton: bpy.props.PointerProperty(
+        name='Skeleton',
+        description='VRMのスケルトン',
+        type=bpy.types.Object,
+        poll=lambda self, obj: obj and obj.type=='ARMATURE',
+    )
+
+    triangulate: bpy.props.BoolProperty(
+        name='三角化',
+        description='ポリゴンを三角化します',
+        default=False,
+    )
+
+    bs_json: bpy.props.PointerProperty(
+        name='blendshape',
+        description='ブレインドシェイプを定義する.jsonテキスト',
+        type=bpy.types.Text,
+    )
+
+    notExportBoneGroup: bpy.props.StringProperty(
+        name='出力しないボーングループ',
+        description='指定したボーングループを溶解します',
+    )
+
+    mergedName: bpy.props.StringProperty(
+        name='マージしたメッシュに付ける名前',
+        description='blendshape に含まれない残りのメッシュをマージしたメッシュに付ける名前を指定します',
+        default='MergedBody',
+    )
+
+    saveAsExport: bpy.props.BoolProperty(
+        name='実行後セーブ',
+        description='実行後、*.export.blend として自動的に保存します',
+        default=True)
 
 ################################################################
 class VRMTool_OT_addCollider(bpy.types.Operator):
@@ -89,11 +129,11 @@ class VRMTool_OT_addCollider(bpy.types.Operator):
 
     @classmethod
     def poll(self, context):
-        prop = context.scene.dddtools_ct_prop
+        prop = context.scene.dddtools_vt_prop
         return prop.mesh and prop.mesh.type=='MESH' and bpy.context.active_object and bpy.context.active_object.type == 'ARMATURE' and bpy.context.active_object.mode=='EDIT' and bpy.context.active_bone
 
     def execute(self, context):
-        prop = context.scene.dddtools_ct_prop
+        prop = context.scene.dddtools_vt_prop
         return vt.addCollider(prop.mesh, bpy.context.active_object,
                               numberOfColliders=self.numberOfColliders,
                               numberOfRays=self.numberOfRays,
@@ -103,6 +143,38 @@ class VRMTool_OT_addCollider(bpy.types.Operator):
                               offset=self.offset,
                               scale=self.scale)
       
+################
+class VRMTool_OT_prepareToExportVRM(bpy.types.Operator):
+    bl_idname = 'object.prepare_to_export_vrm'
+    bl_label = 'VRM 出力前の準備'
+    bl_description = 'VRM を出力するために、メッシュをマージし、不要な骨を溶解し、ウェイトのクリーンアップを行い、ブレンドシェイプの設定を行います'
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        prop = context.scene.dddtools_vt_prop
+        return prop.skeleton and prop.skeleton.type=='ARMATURE' and prop.bs_json
+
+    def execute(self, context):
+        prop = context.scene.dddtools_vt_prop
+        mergedObjs = vt.prepareToExportVRM(skeleton=prop.skeleton.name,
+                                           triangulate=prop.triangulate,
+                                           bs_json=prop.bs_json.name,
+                                           notExport=prop.notExportBoneGroup)
+        if mergedObjs:
+            if None in mergedObjs:
+                mergedObjs[None].rename(prop.mergedName)
+
+            base, ext = os.path.splitext(bpy.data.filepath)
+            filepath = f'{base}.export{ext}'
+            return bpy.ops.wm.save_as_mainfile(filepath=filepath)
+        else:
+            return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+
+################
 class VRMTool_PT_VRMTool(bpy.types.Panel):
     bl_idname = 'VT_PT_VRMTool'
     bl_label = 'VRMTool'
@@ -111,24 +183,47 @@ class VRMTool_PT_VRMTool(bpy.types.Panel):
     bl_region_type = 'UI'
   
     def draw(self, context):
-        prop = context.scene.dddtools_ct_prop
+        prop = context.scene.dddtools_vt_prop
         layout = self.layout
         layout.prop_search(prop, 'mesh', context.blend_data, 'objects')
         self.layout.operator('object.add_collider')
 
+        layout.separator()
+        # prepareToExportVRM
+        split = layout.split(factor=0.15, align=True)
+        if prop.display_prepareToExportVRM:
+            split.prop(prop, 'display_prepareToExportVRM',
+                       text='', icon='DOWNARROW_HLT')
+        else:
+            split.prop(prop, 'display_prepareToExportVRM',
+                       text='', icon='RIGHTARROW')
+        split.operator(VRMTool_OT_prepareToExportVRM.bl_idname)
+        if prop.display_prepareToExportVRM:
+            col = layout.column(align=True).box().column(align=True)
+            col.prop_search(prop, 'skeleton', context.blend_data, 'objects')
+            col.prop(prop, 'triangulate')
+            col.prop_search(prop, 'bs_json', context.blend_data, 'texts')
+            if prop.skeleton:
+                col.prop_search(prop, 'notExportBoneGroup', prop.skeleton.pose,
+                                'bone_groups')
+            col.prop(prop, 'mergedName')
+            col.prop(prop, 'saveAsExport')
+
+################
 classes = (
     VRMTool_propertyGroup,
     VRMTool_OT_addCollider,
+    VRMTool_OT_prepareToExportVRM,
     VRMTool_PT_VRMTool,
 )
 
 def registerClass():
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Scene.dddtools_ct_prop = bpy.props.PointerProperty(type=VRMTool_propertyGroup)
+    bpy.types.Scene.dddtools_vt_prop = bpy.props.PointerProperty(type=VRMTool_propertyGroup)
 
 def unregisterClass():
-    del bpy.types.Scene.dddtools_ct_prop
+    del bpy.types.Scene.dddtools_vt_prop
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 

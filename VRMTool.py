@@ -104,12 +104,12 @@ def addCollider(meshObj,
     
     """
 
-    print('----------------')
+    #print('----------------')
     mesh = iu.ObjectWrapper(meshObj)
     arma = iu.ObjectWrapper(armaObj)
     if not mesh or not arma:
         return {'CANCELLED'}, "Please select Armature and Mesh"
-    print('mesh:', mesh.name, 'arma:', arma.name)
+    #print('mesh:', mesh.name, 'arma:', arma.name)
 
     if fitMode == 'MIN':
         fitFunc = min
@@ -130,7 +130,7 @@ def addCollider(meshObj,
 
     modeChanger = iu.ModeChanger(arma.obj, 'EDIT')
     selection = getSelectedEditableBones()
-    print(selection)
+    #print(selection)
 
     params = []
 
@@ -154,7 +154,7 @@ def addCollider(meshObj,
     del modeChanger
 
 
-    print(params)
+    #print(params)
     modeChanger = iu.ModeChanger(arma.obj, 'OBJECT')
     for param in params:
         bone = param['bone']
@@ -215,7 +215,7 @@ def mergeMeshes(arma, bs_dic, triangulate=True):
                     meshToActions[mesh] = actions
                 else:
                     print(f'Illegal binds in blendshape.json. mesh:{mesh} index:{index}')
-    print(meshToActions)
+    #print(meshToActions)
 
     # For every child meshes, apply modifiers, set origin to (0,0,0) and
     # truangulate.
@@ -293,13 +293,13 @@ def mergeMeshes(arma, bs_dic, triangulate=True):
     # bake pose
     anim = arma.obj.animation_data_create()
     for mn, actions in meshToActions.items():
-        print(f'mesh: {mn}')
+        #print(f'mesh: {mn}')
         mesh = result[mn]
         for an in sorted(actions):
-            print(f'action: {an}')
+            #print(f'action: {an}')
             action = bpy.data.actions.get(an)
             if not action:
-                print('Warning! Cannot find action {an}')
+                #print('Warning! Cannot find action {an}')
                 continue
 
             bpy.context.view_layer.objects.active = mesh.obj
@@ -332,7 +332,7 @@ def deleteBones(arma, boneGroupName):
     Deletes all bones which belongs to bone_groups[boneGroupName].
     """
 
-    print('---------------- deleteBones')
+    #print('---------------- deleteBones')
 
     # listup all bones to be deleted
     bpy.context.view_layer.objects.active = arma.obj
@@ -371,8 +371,8 @@ def prepareToExportVRM(skeleton='skeleton',
     bs_dic = json.loads(textblock2str(bpy.data.texts[bs_json]),object_pairs_hook=OrderedDict)
     mergedObjs = mergeMeshes(arma, bs_dic, triangulate=triangulate)
 
-    print('---------------- mergedObjs:')
-    print(mergedObjs)
+    #print('---------------- mergedObjs:')
+    #print(mergedObjs)
 
     deleteBones(arma, notExport)
 
@@ -390,3 +390,5 @@ def prepareToExportVRM(skeleton='skeleton',
     migration.migrate_vrm0_blend_shape_groups(
         ext.vrm0.blend_shape_master.blend_shape_groups,
         bs_dic)
+
+    return mergedObjs
