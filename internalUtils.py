@@ -216,6 +216,49 @@ def selectAllChildArmatures(obj):
     return selectAllChildren(obj, ['ARMATURE'])
 
 ################################################################
+def unhideVertsAndApplyFunc(meshObj, func):
+    """
+    Unhide and select all vertices, and applies function.
+
+    Parameters
+    ----------------
+    meshObj: Object
+      Mesh object
+
+    func : Function
+      Function to apply
+    """
+
+    if not meshObj or meshObj.type != 'MESH':
+        return
+
+    modeChanger = ModeChanger(meshObj, 'EDIT')
+
+    mesh = meshObj.data
+    bm = bmesh.from_edit_mesh(mesh)
+    bm.verts.ensure_lookup_table()
+    bm.select_mode = set(['VERT'])
+
+    for vtx in bm.verts:
+        # save hide status
+        vtx.tag = vtx.hide
+        # unhide
+        vtx.hide_set(False)
+        # select
+        vtx.select_set(True)
+
+    bmesh.update_edit_mesh(mesh)
+    func()
+
+    for vtx in bm.verts:
+        # restore hide status
+        vtx.hide_set(vtx.tag)
+
+    bmesh.update_edit_mesh(mesh)
+
+    del modeChanger
+
+################
 def propagateShapekey(meshObj, shapekey, remove_shapekey=True):
     """
     Applies shapekey to all other shape keys.
@@ -232,40 +275,47 @@ def propagateShapekey(meshObj, shapekey, remove_shapekey=True):
       Whether to delete the shapekey
     """
 
-    if not meshObj or meshObj.type != 'MESH':
-        return
+    idx = bpy.context.active_object.data.shape_keys.key_blocks.find(shapekey)
+    if idx < 0:
+        print(f'Failed to find shapekey({shapekey})')
+    else:
+        modeChanger = ModeChanger(meshObj, 'OBJECT')
+        bpy.context.active_object.active_shape_key_index = idx
+        unhideVertsAndApplyFunc(meshObj, bpy.ops.mesh.shape_propagate_to_all)
+
+        if remove_shapekey:
+            bpy.ops.object.shape_key_remove(all=False)
+
+        del modeChanger
+            
+################
+def blendShapekeyToBasis(meshObj, shapekey, blend=1.0, remove_shapekey=True):
+    """
+    Applies shapekey to basis(shapekey with index=0).
+
+    Parameters
+    ----------------
+    meshObj: Object
+      Mesh object
+
+    shapekey: String
+      Name of shapekey to propagate
+
+    remove_shapekey: Boolean
+      Whether to delete the shapekey
+    """
 
     idx = bpy.context.active_object.data.shape_keys.key_blocks.find(shapekey)
     if idx < 0:
         print(f'Failed to find shapekey({shapekey})')
     else:
-        bpy.context.view_layer.objects.active = meshObj
-        bpy.ops.object.mode_set(mode='OBJECT')
-        bpy.context.active_object.active_shape_key_index = idx
-        bpy.ops.object.mode_set(mode='EDIT')
+        modeChanger = ModeChanger(meshObj, 'OBJECT')
+        bpy.context.active_object.active_shape_key_index = 0
+        unhideVertsAndApplyFunc(meshObj,
+                                lambda: bpy.ops.mesh.blend_from_shape(shape=shapekey, blend=1.0, add=False))
 
-        mesh = meshObj.data
-        bm = bmesh.from_edit_mesh(mesh)
-        bm.verts.ensure_lookup_table()
-        bm.select_mode = set(['VERT'])
-
-        for vtx in bm.verts:
-            # save hide status
-            vtx.tag = vtx.hide
-            # unhide
-            vtx.hide_set(False)
-            # select
-            vtx.select_set(True)
-
-        bmesh.update_edit_mesh(mesh)
-        bpy.ops.mesh.shape_propagate_to_all()
-
-        for vtx in bm.verts:
-            # restore hide status
-            vtx.hide_set(vtx.tag)
-
-        bmesh.update_edit_mesh(mesh)
-        
-        bpy.ops.object.mode_set(mode='OBJECT')
         if remove_shapekey:
+            bpy.context.active_object.active_shape_key_index = idx
             bpy.ops.object.shape_key_remove(all=False)
+            
+        del modeChanger

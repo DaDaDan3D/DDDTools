@@ -164,7 +164,7 @@ def applyArmatureToRestPose(arma):
                     nameSave = mod.name
                     mod.name = str(uuid.uuid4())
                     bpy.ops.object.modifier_apply_as_shapekey(keep_modifier=True, modifier=mod.name)
-                    iu.propagateShapekey(co, mod.name, remove_shapekey=True)
+                    iu.blendShapekeyToBasis(co, mod.name, blend=1.0, remove_shapekey=True)
                     mod.name = nameSave
                     break
     del modeChanger
