@@ -1,0 +1,584 @@
+[
+    {
+        "name": "Neutral",
+        "presetName": "neutral",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "Neutral",
+                "weight": 1.0
+            }
+        ],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "A",
+        "presetName": "a",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "A",
+                "weight": 1.0
+            }
+        ],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "I",
+        "presetName": "i",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "I",
+                "weight": 1.0
+            }
+        ],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "U",
+        "presetName": "u",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "U",
+                "weight": 1.0
+            }
+        ],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "E",
+        "presetName": "e",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "E",
+                "weight": 1.0
+            }
+        ],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "O",
+        "presetName": "o",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "O",
+                "weight": 1.0
+            }
+        ],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "Blink",
+        "presetName": "blink",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "Blink_L",
+                "weight": 1.0
+            },
+            {
+                "mesh": "MergedHead",
+                "index": "Blink_R",
+                "weight": 1.0
+            }
+		],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "Joy",
+        "presetName": "joy",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "Joy",
+                "weight": 1.0
+            }
+		],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "Angry",
+        "presetName": "angry",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "Angry",
+                "weight": 1.0
+            }
+		],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "Sorrow",
+        "presetName": "sorrow",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "Sorrow",
+                "weight": 1.0
+            }
+        ],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "Fun",
+        "presetName": "fun",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "Smile",
+                "weight": 0.054
+            },
+            {
+                "mesh": "MergedHead",
+                "index": "E",
+                "weight": 0.121
+            },
+            {
+                "mesh": "MergedHead",
+                "index": "I",
+                "weight": 0.933
+            },
+            {
+                "mesh": "MergedHead",
+                "index": "Brows up",
+                "weight": 0.1
+            }
+		],
+        "materialValues": [
+            {
+                "materialName": "EyeHL",
+                "propertyName": "_MainTex_ST_T",
+                "targetValue": [
+                    1,
+                    1,
+                    0,
+                    0.083
+                ]
+            }
+		],
+        "isBinary": false
+    },
+    {
+        "name": "Smile",
+        "presetName": "unknown",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "Smile",
+                "weight": 1.0
+            }
+		],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "LookUp",
+        "presetName": "lookup",
+        "binds": [],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "LookDown",
+        "presetName": "lookdown",
+        "binds": [],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "LookLeft",
+        "presetName": "lookleft",
+        "binds": [],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "LookRight",
+        "presetName": "lookright",
+        "binds": [],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "Blink_L",
+        "presetName": "blink_l",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "Blink_L",
+                "weight": 1.0
+            }
+		],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "Blink_R",
+        "presetName": "blink_r",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "Blink_R",
+                "weight": 1.0
+            }
+		],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "Surprised",
+        "presetName": "unknown",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "Surprised",
+                "weight": 1.0
+            }
+		],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "Brows up",
+        "presetName": "unknown",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "Brows up",
+                "weight": 1.0
+            }
+		],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "Brows down",
+        "presetName": "unknown",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "Brows down",
+                "weight": 1.0
+            }
+		],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "HL up",
+        "presetName": "unknown",
+        "binds": [],
+        "materialValues": [
+            {
+                "materialName": "EyeHL",
+                "propertyName": "_MainTex_ST_T",
+                "targetValue": [
+                    1,
+                    1,
+                    0,
+                    -1
+                ]
+            }
+		],
+        "isBinary": false
+    },
+    {
+        "name": "HL down",
+        "presetName": "unknown",
+        "binds": [],
+        "materialValues": [
+            {
+                "materialName": "EyeHL",
+                "propertyName": "_MainTex_ST_T",
+                "targetValue": [
+                    1,
+                    1,
+                    0,
+                    1
+                ]
+            }
+		],
+        "isBinary": false
+    },
+    {
+        "name": "Glasses",
+        "presetName": "unknown",
+        "binds": [
+            {
+                "mesh": "MergedGlasses",
+                "index": "Glasses",
+                "weight": 1.0
+            }
+		],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "GlassesColor",
+        "presetName": "unknown",
+        "binds": [],
+        "materialValues": [
+            {
+                "materialName": "Glasses",
+                "propertyName": "_MainTex_ST_S",
+                "targetValue": [
+                    1,
+                    1,
+                    0.75,
+                    0
+                ]
+            }
+		],
+        "isBinary": false
+    },
+    {
+        "name": "Kamina",
+        "presetName": "unknown",
+        "binds": [
+            {
+                "mesh": "MergedKamina",
+                "index": "Glasses_Kamina",
+                "weight": 1.0
+            }
+		],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "KaminaHL",
+        "presetName": "unknown",
+        "binds": [],
+        "materialValues": [
+            {
+                "materialName": "Glasses.Kamina",
+                "propertyName": "_MainTex_ST_S",
+                "targetValue": [
+                    1,
+                    1,
+                    1,
+                    0
+                ]
+            }
+		],
+        "isBinary": false
+    },
+    {
+        "name": "Sunglass",
+        "presetName": "unknown",
+        "binds": [
+            {
+                "mesh": "MergedKinoko",
+                "index": "Glasses_Kinoko",
+                "weight": 1.0
+            }
+		],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "SunglassOnHead",
+        "presetName": "unknown",
+        "binds": [
+            {
+                "mesh": "MergedKinoko",
+                "index": "Glasses_Kinoko_Head",
+                "weight": 1.0
+            }
+		],
+        "materialValues": [],
+        "isBinary": false
+    },
+    {
+        "name": "SunglassHL",
+        "presetName": "unknown",
+        "binds": [],
+        "materialValues": [
+            {
+                "materialName": "Glasses.Kinoko.Glass",
+                "propertyName": "_MainTex_ST_S",
+                "targetValue": [
+                    1,
+                    1,
+                    0.3,
+                    0
+                ]
+            }
+		],
+        "isBinary": false
+    },
+    {
+        "name": "ME_toji",
+        "presetName": "unknown",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "HideEyes",
+                "weight": 1.0
+            },
+            {
+                "mesh": "MergedEyeMask",
+                "index": "SimpleEyes",
+                "weight": 1.0
+            }
+
+		],
+        "materialValues": [
+            {
+                "materialName": "SimpleEyes.left",
+                "propertyName": "_MainTex_ST_T",
+                "targetValue": [
+                    1,
+                    1,
+                    0,
+                    0
+                ]
+            },
+            {
+                "materialName": "SimpleEyes.right",
+                "propertyName": "_MainTex_ST_T",
+                "targetValue": [
+                    1,
+                    1,
+                    0,
+                    0
+                ]
+            }
+		],
+        "isBinary": true
+    },
+    {
+        "name": "ME_niko",
+        "presetName": "unknown",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "HideEyes",
+                "weight": 1.0
+            },
+            {
+                "mesh": "MergedEyeMask",
+                "index": "SimpleEyes",
+                "weight": 1.0
+            }
+
+		],
+        "materialValues": [
+            {
+                "materialName": "SimpleEyes.left",
+                "propertyName": "_MainTex_ST_T",
+                "targetValue": [
+                    1,
+                    1,
+                    0,
+                    0.25
+                ]
+            },
+            {
+                "materialName": "SimpleEyes.right",
+                "propertyName": "_MainTex_ST_T",
+                "targetValue": [
+                    1,
+                    1,
+                    0,
+                    0.25
+                ]
+            }
+		],
+        "isBinary": true
+    },
+    {
+        "name": "ME_><",
+        "presetName": "unknown",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "HideEyes",
+                "weight": 1.0
+            },
+            {
+                "mesh": "MergedEyeMask",
+                "index": "SimpleEyes",
+                "weight": 1.0
+            }
+
+		],
+        "materialValues": [
+            {
+                "materialName": "SimpleEyes.left",
+                "propertyName": "_MainTex_ST_T",
+                "targetValue": [
+                    1,
+                    1,
+                    0,
+                    0.5
+                ]
+            },
+            {
+                "materialName": "SimpleEyes.right",
+                "propertyName": "_MainTex_ST_T",
+                "targetValue": [
+                    1,
+                    1,
+                    0,
+                    0.5
+                ]
+            }
+		],
+        "isBinary": true
+    },
+    {
+        "name": "ME_mu-",
+        "presetName": "unknown",
+        "binds": [
+            {
+                "mesh": "MergedHead",
+                "index": "HideEyes",
+                "weight": 1.0
+            },
+            {
+                "mesh": "MergedEyeMask",
+                "index": "SimpleEyes",
+                "weight": 1.0
+            }
+
+		],
+        "materialValues": [
+            {
+                "materialName": "SimpleEyes.left",
+                "propertyName": "_MainTex_ST_T",
+                "targetValue": [
+                    1,
+                    1,
+                    0,
+                    0.75
+                ]
+            },
+            {
+                "materialName": "SimpleEyes.right",
+                "propertyName": "_MainTex_ST_T",
+                "targetValue": [
+                    1,
+                    1,
+                    0,
+                    0.75
+                ]
+            }
+		],
+        "isBinary": true
+    }
+]
