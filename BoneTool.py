@@ -153,17 +153,23 @@ def applyArmatureToRestPose(arma):
 
     # copy and apply armature modifier
     modeChanger = iu.ModeChanger(arma.obj, 'OBJECT')
-    for co in arma.obj.children:
+    for co in arma.obj.children_recursive:
         if co in bpy.context.selectable_objects:
             #print(co.name)
             bpy.context.view_layer.objects.active = co
-            bpy.ops.object.modifier_copy(modifier="Armature")
-            bpy.ops.object.modifier_set_active(modifier="Armature.001")
-            bpy.ops.object.modifier_apply(modifier="Armature.001", report=False)
+
+            # find ARMATURE modifier
+            for mod in co.modifiers:
+                if mod.type == 'ARMATURE':
+                    nameSave = mod.name
+                    mod.name = str(uuid.uuid4())
+                    bpy.ops.object.modifier_apply_as_shapekey(keep_modifier=True, modifier=mod.name)
+                    iu.propagateShapekey(co, mod.name, remove_shapekey=True)
+                    mod.name = nameSave
+                    break
     del modeChanger
             
-    # apply pose to default
-    #print('---------------- apply pose to default')
+    # apply pose
     bpy.context.view_layer.objects.active = arma.obj
     modeChanger = iu.ModeChanger(arma.obj, 'POSE')
     bpy.ops.pose.armature_apply(selected=False)

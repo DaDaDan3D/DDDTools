@@ -42,9 +42,10 @@ def mergeMeshes(arma, blendshapeJson, triangulate=True):
     # truangulate.
     cursor_location_save = bpy.context.scene.cursor.location
     bpy.context.scene.cursor.location = (0, 0, 0)
+    bpy.context.view_layer.objects.active = arma.obj
     bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.select_all(action='DESELECT')
-    for obj in iu.getAllChildMeshes(arma.obj):
+    for obj in iu.getAllChildren(arma.obj, ['MESH', 'CURVE'], selectable=True):
         bpy.context.view_layer.objects.active = obj.obj
         obj.select_set(True)
         bpy.ops.object.convert(target='MESH')
@@ -100,7 +101,7 @@ def mergeMeshes(arma, blendshapeJson, triangulate=True):
     bpy.ops.object.select_all(action='DESELECT')
     target = None
     for obj in iu.getAllChildMeshes(arma.obj):
-        if obj.obj.type == 'MESH' and obj.name not in meshToActions:
+        if obj.name not in meshToActions:
             obj.select_set(True)
             target = obj.obj
     if target:
@@ -166,41 +167,6 @@ def deleteBones(arma, boneGroupName):
     wt.dissolveWeightedBones(arma, bones)
 
 ################################################################
-def setNeutralToBasis(mergedObj, neutral='Neutral'):
-    """
-    Sets neutral shape key to the basis.
-    """
-
-    if not mergedObj:
-        return
-
-    modeChanger = iu.ModeChanger(mergedObj.obj, 'OBJECT')
-
-    # move neutral to [1]
-    idx = bpy.context.active_object.data.shape_keys.key_blocks.find(neutral)
-    if idx < 0:
-        print('Failed to find shapekey(', neutral, ')')
-    else:
-        bpy.context.active_object.active_shape_key_index = idx
-        bpy.ops.object.shape_key_move(type='TOP')
-        bpy.ops.object.shape_key_move(type='DOWN')
-
-        # delete Basis
-        bpy.context.active_object.active_shape_key_index = 0
-        bpy.ops.object.shape_key_remove(all=False)
-        # At this point, neutral becomes the basis without breaking
-        # any other shapekeys.
-
-        # copy neutral and rename to 'Basis'
-        bpy.ops.object.shape_key_add(from_mix=True)
-        # run twice to get to top
-        bpy.ops.object.shape_key_move(type='TOP')
-        bpy.ops.object.shape_key_move(type='TOP')
-        bpy.context.active_object.active_shape_key.name = 'Basis'
-
-    del modeChanger
-
-################################################################
 def prepareToExportVRM(skeleton='skeleton',
                        triangulate=False,
                        bs_json=None,
@@ -234,6 +200,6 @@ def prepareToExportVRM(skeleton='skeleton',
         if pose:
             # FIXME
             #  not work...
-            #setNeutralToBasis(obj, neutral=neutral)
+            #iu.setShapekeyToBasis(obj, shapekey=neutral)
             pass
         wt.cleanupWeights(obj)

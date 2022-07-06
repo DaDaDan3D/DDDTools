@@ -1,4 +1,5 @@
 import bpy
+import bmesh
 
 ################################################################
 class ObjectWrapper:
@@ -184,40 +185,87 @@ def listupTextPath():
     return sorted([text.filepath for text in bpy.data.texts])
 
 ################################################################
-def getAllChildMeshes(obj, selectable=True):
+def getAllChildren(obj, types, selectable=True):
     objs = set()
-    for co in obj.children:
-        if co.type == 'MESH':
+    for co in obj.children_recursive:
+        if co.type in types:
             if not(selectable and co not in bpy.context.selectable_objects):
                 objs.add(ObjectWrapper(co))
-        else:
-            objs |= getAllChildMeshes(co)
+    return objs
+
+def getAllChildMeshes(obj, selectable=True):
+    return getAllChildren(obj, ['MESH'], selectable=selectable)
+
+def getAllChildArmatures(obj, selectable=True):
+    return getAllChildren(obj, ['ARMATURE'], selectable=selectable)
+
+################
+def selectAllChildren(obj, types):
+    objs = getAllChildren(obj, types, selectable=True)
+
+    bpy.ops.object.select_all(action='DESELECT')
+    for obj in objs:
+        obj.select_set(True)
+
     return objs
 
 def selectAllChildMeshes(obj):
-    objs = getAllChildMeshes(obj)
-
-    bpy.ops.object.select_all(action='DESELECT')
-    for obj in objs:
-        obj.select_set(True)
-
-    return objs
-
-################################################################
-def getAllChildArmatures(obj):
-    objs = set()
-    for co in obj.children:
-        if co.type == 'ARMATURE':
-            objs.add(co)
-    return objs
+    return selectAllChildren(obj, ['MESH'])
 
 def selectAllChildArmatures(obj):
-    objs = getAllChildArmatures(obj)
-    objs &= set(bpy.context.selectable_objects)
+    return selectAllChildren(obj, ['ARMATURE'])
 
-    bpy.ops.object.select_all(action='DESELECT')
-    for obj in objs:
-        obj.select_set(True)
+################################################################
+def propagateShapekey(meshObj, shapekey, remove_shapekey=True):
+    """
+    Applies shapekey to all other shape keys.
 
-    return objs
+    Parameters
+    ----------------
+    meshObj: Object
+      Mesh object
 
+    shapekey: String
+      Name of shapekey to propagate
+
+    remove_shapekey: Boolean
+      Whether to delete the shapekey
+    """
+
+    if not meshObj or meshObj.type != 'MESH':
+        return
+
+    idx = bpy.context.active_object.data.shape_keys.key_blocks.find(shapekey)
+    if idx < 0:
+        print(f'Failed to find shapekey({shapekey})')
+    else:
+        bpy.context.view_layer.objects.active = meshObj
+        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.context.active_object.active_shape_key_index = idx
+        bpy.ops.object.mode_set(mode='EDIT')
+
+        mesh = meshObj.data
+        bm = bmesh.from_edit_mesh(mesh)
+        bm.verts.ensure_lookup_table()
+        bm.select_mode = set(['VERT'])
+
+        for vtx in bm.verts:
+            # save hide status
+            vtx.tag = vtx.hide
+            # unhide
+            vtx.hide_set(False)
+            # select
+            vtx.select_set(True)
+
+        bmesh.update_edit_mesh(mesh)
+        bpy.ops.mesh.shape_propagate_to_all()
+
+        for vtx in bm.verts:
+            # restore hide status
+            vtx.hide_set(vtx.tag)
+
+        bmesh.update_edit_mesh(mesh)
+        
+        bpy.ops.object.mode_set(mode='OBJECT')
+        if remove_shapekey:
+            bpy.ops.object.shape_key_remove(all=False)
