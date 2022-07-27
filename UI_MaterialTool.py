@@ -5,6 +5,12 @@ from . import MaterialTool as mt
 class MaterialTool_propertyGroup(bpy.types.PropertyGroup):
     texture: bpy.props.PointerProperty(name='Texture', type=bpy.types.Image)
     material: bpy.props.PointerProperty(name='Material', type=bpy.types.Material)
+    ior: bpy.props.FloatProperty(name='IOR',
+                                 default=1.45,
+                                 min=0,
+                                 max=100,
+                                 precision=2,
+                                 step=1)
 
 ################################################################
 class MaterialTool_OT_selectAllObjectsUsingTexture(bpy.types.Operator):
@@ -134,6 +140,20 @@ class MaterialTool_OT_listupAllObjectsUsingMaterial(bpy.types.Operator):
         return{'FINISHED'}
 
 ################################################################
+class MaterialTool_OT_calcSpecularFromIOR(bpy.types.Operator):
+    bl_idname = 'material.calc_specular_from_ior'
+    bl_label = 'スペキュラ計算'
+    bl_description = 'IOR からスペキュラを計算してクリップボードにコピーします'
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        prop = context.scene.dddtools_mt_prop
+        specular = mt.calcSpecularFromIOR(prop.ior)
+        self.report({'INFO'},
+                    f'IOR({prop.ior})のスペキュラ({specular})をクリップボードにコピーしました')
+        return {'FINISHED'}
+    
+################################################################
 class MaterialTool_PT_MaterialTool(bpy.types.Panel):
     bl_idname = 'MT_PT_MaterialTool'
     bl_label = 'MaterialTool'
@@ -159,7 +179,10 @@ class MaterialTool_PT_MaterialTool(bpy.types.Panel):
                         text='selectObjects')
         layout.operator(MaterialTool_OT_listupAllObjectsUsingMaterial.bl_idname,
                         text='listupObjects')
-        
+        layout.separator()
+        layout.prop(prop, 'ior')
+        layout.operator(MaterialTool_OT_calcSpecularFromIOR.bl_idname,
+                        text='スペキュラ計算')
 
 ################################################################
 classes = (
@@ -170,6 +193,7 @@ classes = (
     MaterialTool_OT_setupMaterialContainerObject,
     MaterialTool_OT_selectAllObjectsUsingMaterial,
     MaterialTool_OT_listupAllObjectsUsingMaterial,
+    MaterialTool_OT_calcSpecularFromIOR,
     MaterialTool_PT_MaterialTool,
 )
 

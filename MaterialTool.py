@@ -118,10 +118,16 @@ def setupMaterialContainerObject(textureName):
         obj.material_slots[idx].material = bpy.data.materials[mat]
         idx += 1
 
+################
+def calcSpecularFromIOR(ior):
+    """
+    Calculates the specular from the IOR, copies it to the clipboard, and returns it.
 
-if __name__ == '__main__':
-    print(listupAllObjectsUsingMaterial('Black'))
-    #textureName = 'Cloth'
-    #print(listupAllMaterialsUsingTexture(textureName))
-    #setupMaterialContainerObject(textureName)
-    #selectAllObjectsUsingTexture(textureName)
+    Parameters
+    ----------------
+    ior : number (>0)
+    """
+    tmp = (ior - 1) / (ior + 1)
+    specular = tmp * tmp / 0.08
+    bpy.context.window_manager.clipboard = str(specular)
+    return specular
