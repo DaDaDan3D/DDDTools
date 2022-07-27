@@ -12,7 +12,7 @@ bl_info = {
     "warning": "Not much error handling. Use at your own risk.",
     "support": "TESTING",
     "author": "DaDaDan3D",
-    "version": (0, 2, 0),
+    "version": (0, 3, 0),
     "blender": (3, 1, 0),
     "doc_url": "https://github.com/DaDaDan3D/DDDTools",
     "tracker_url": "https://github.com/DaDaDan3D/DDDTools/issues",
@@ -28,6 +28,7 @@ modules = [
     'MaterialTool',
     'WeightTool',
     'SelectTool',
+    'NormalTool',
 
     'UI_SelectTool',
     'UI_MaterialTool',
@@ -35,6 +36,7 @@ modules = [
     'UI_BoneTool',
     'UI_WeightTool',
     'CalcSphereFromSelectedVertices',
+    'UI_NormalTool',
 ]
 modules = [f'{__package__}.{mn}' for mn in modules]
 
