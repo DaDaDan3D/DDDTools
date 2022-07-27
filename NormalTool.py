@@ -22,6 +22,7 @@ def setCustomNormals(mesh, tf):
     bpy.context.view_layer.objects.active = mesh.obj
     if tf:
         bpy.ops.mesh.customdata_custom_splitnormals_add()
+        mesh.obj.data.use_auto_smooth = True
     else:
         bpy.ops.mesh.customdata_custom_splitnormals_clear()
     del modeChanger
