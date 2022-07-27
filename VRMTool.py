@@ -232,8 +232,8 @@ def mergeMeshes(arma, bs_dic, triangulate=True):
                     print(f'Illegal binds in blendshape.json. mesh:{mesh} index:{index}')
     #print(meshToActions)
 
-    # For every child meshes, apply modifiers, set origin to (0,0,0) and
-    # truangulate.
+    # For every child meshes, apply modifiers, set origin to (0,0,0),
+    # ensure custom normals, and truangulate.
     cursor_location_save = bpy.context.scene.cursor.location
     bpy.context.scene.cursor.location = (0, 0, 0)
     bpy.context.view_layer.objects.active = arma.obj
@@ -244,6 +244,8 @@ def mergeMeshes(arma, bs_dic, triangulate=True):
         obj.select_set(True)
         bpy.ops.object.convert(target='MESH')
         bpy.ops.object.origin_set(type='ORIGIN_CURSOR', center='BOUNDS')
+        bpy.ops.mesh.customdata_custom_splitnormals_add()
+        obj.obj.data.use_auto_smooth = True
         if triangulate:
             bm = bmesh.new()
             bm.from_mesh(obj.obj.data)
