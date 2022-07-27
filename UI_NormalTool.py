@@ -7,7 +7,7 @@ class NormalTool_OT_addCustomNormals(bpy.types.Operator):
     bl_idname = 'mesh.add_custom_normals'
     bl_label = 'カスタム法線の有効化'
     bl_description = 'カスタム法線を有効化します'
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'UNDO'}
 
     @classmethod
     def poll(self, context):
@@ -15,16 +15,14 @@ class NormalTool_OT_addCustomNormals(bpy.types.Operator):
         return obj and obj.type == 'MESH' and not obj.data.has_custom_normals
 
     def execute(self, context):
-        mesh = iu.ObjectWrapper(bpy.context.active_object)
-        nt.setCustomNormals(mesh, True)
-        return {'FINISHED'}
+        return bpy.ops.mesh.customdata_custom_splitnormals_add()
 
 ################################################################
 class NormalTool_OT_clearCustomNormals(bpy.types.Operator):
     bl_idname = 'mesh.clear_custom_normals'
     bl_label = 'カスタム法線のクリア'
     bl_description = 'カスタム法線を削除します'
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'UNDO'}
 
     @classmethod
     def poll(self, context):
@@ -32,9 +30,7 @@ class NormalTool_OT_clearCustomNormals(bpy.types.Operator):
         return obj and obj.type == 'MESH' and obj.data.has_custom_normals
 
     def execute(self, context):
-        mesh = iu.ObjectWrapper(bpy.context.active_object)
-        nt.setCustomNormals(mesh, False)
-        return {'FINISHED'}
+        return bpy.ops.mesh.customdata_custom_splitnormals_clear()
 
 ################################################################
 class NormalTool_PT_NormalTool(bpy.types.Panel):
@@ -47,8 +43,15 @@ class NormalTool_PT_NormalTool(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator(NormalTool_OT_addCustomNormals.bl_idname)
-        layout.operator(NormalTool_OT_clearCustomNormals.bl_idname)
+        obj = bpy.context.active_object
+        if obj and obj.type == 'MESH' and obj.data.has_custom_normals:
+            layout.operator(NormalTool_OT_clearCustomNormals.bl_idname,
+                            text='カスタム法線',
+                            icon='CHECKMARK', depress=True)
+        else:
+            layout.operator(NormalTool_OT_addCustomNormals.bl_idname,
+                            text='カスタム法線',
+                            icon='CHECKBOX_DEHLT', depress=False)
 
 ################################################################
 classes = (
