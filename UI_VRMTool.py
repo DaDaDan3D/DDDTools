@@ -4,6 +4,9 @@ from . import VRMTool as vt
 
 ################################################################
 class VRMTool_propertyGroup(bpy.types.PropertyGroup):
+    display_add_collider_settings: bpy.props.BoolProperty(
+        name='AddColliderSettings',
+        default=True)
     mesh: bpy.props.PointerProperty(
         name='Mesh',
         description='幅を計算するメッシュ',
@@ -197,10 +200,20 @@ class VRMTool_PT_VRMTool(bpy.types.Panel):
     def draw(self, context):
         prop = context.scene.dddtools_vt_prop
         layout = self.layout
-        layout.prop_search(prop, 'mesh', context.blend_data, 'objects')
-        self.layout.operator('object.add_collider')
 
-        layout.separator()
+        # addCollider
+        split = layout.split(factor=0.15, align=True)
+        if prop.display_add_collider_settings:
+            split.prop(prop, 'display_add_collider_settings',
+                       text='', icon='DOWNARROW_HLT')
+        else:
+            split.prop(prop, 'display_add_collider_settings',
+                       text='', icon='RIGHTARROW')
+        split.operator('object.add_collider')
+        if prop.display_add_collider_settings:
+            col = layout.box().column(align=True)
+            col.prop_search(prop, 'mesh', context.blend_data, 'objects')
+
         # prepareToExportVRM
         split = layout.split(factor=0.15, align=True)
         if prop.display_prepareToExportVRM:
@@ -211,7 +224,7 @@ class VRMTool_PT_VRMTool(bpy.types.Panel):
                        text='', icon='RIGHTARROW')
         split.operator(VRMTool_OT_prepareToExportVRM.bl_idname)
         if prop.display_prepareToExportVRM:
-            col = layout.column(align=True).box().column(align=True)
+            col = layout.box().column(align=True)
             if vt.getAddon():
                 col.prop_search(prop, 'skeleton', context.blend_data, 'objects')
                 col.prop(prop, 'triangulate')
