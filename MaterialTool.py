@@ -158,6 +158,10 @@ def replace_group_node(old_group_name, new_group_name):
                 new_group_node = nodes.new('ShaderNodeGroup')
                 new_group_node.node_tree = bpy.data.node_groups[new_group_name]
 
+                # Copy location and width
+                new_group_node.location = old_group_node.location
+                new_group_node.width = old_group_node.width
+
                 # Copy input connections and values
                 for input_socket, old_input in zip(new_group_node.inputs, old_group_node.inputs):
                     if old_input.is_linked:
