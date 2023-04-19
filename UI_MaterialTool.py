@@ -14,13 +14,25 @@ def shader_group_node_items(self, context):
 
     for group_name in sorted(node_groups):
         items.append((group_name, group_name, ""))
-    
+    if not items:
+        items = [('NONE', 'No ShaderGroupNodes', '')]
     return items
 
 ################################################################
 class MaterialTool_propertyGroup(bpy.types.PropertyGroup):
+    display_texture_tools: bpy.props.BoolProperty(
+        name='TextureTools',
+        default=True)
     texture: bpy.props.PointerProperty(name='Texture', type=bpy.types.Image)
+
+    display_material_tools: bpy.props.BoolProperty(
+        name='MaterialTools',
+        default=True)
     material: bpy.props.PointerProperty(name='Material', type=bpy.types.Material)
+
+    display_calc_specular_settings: bpy.props.BoolProperty(
+        name='CalcSpecularSettings',
+        default=True)
     ior: bpy.props.FloatProperty(name='IOR',
                                  default=1.45,
                                  min=0,
@@ -219,25 +231,60 @@ class MaterialTool_PT_MaterialTool(bpy.types.Panel):
     def draw(self, context):
         prop = context.scene.dddtools_mt_prop
         layout = self.layout
-        layout.prop_search(prop, 'texture', context.blend_data, 'images')
-        layout.operator(MaterialTool_OT_selectAllObjectsUsingTexture.bl_idname,
-                        text='selectObjects')
-        layout.operator(MaterialTool_OT_listupAllMaterialsUsingTexture.bl_idname,
-                        text='listupMaterials')
-        layout.operator(MaterialTool_OT_setupMaterialContainerObject.bl_idname,
-                        text='setupMaterialContainerObject')
-        layout.operator(MaterialTool_OT_selectAllImageNodesUsingTexture.bl_idname,
-                        text='selectNodes')
-        layout.separator()
-        layout.prop_search(prop, 'material', context.blend_data, 'materials')
-        layout.operator(MaterialTool_OT_selectAllObjectsUsingMaterial.bl_idname,
-                        text='selectObjects')
-        layout.operator(MaterialTool_OT_listupAllObjectsUsingMaterial.bl_idname,
-                        text='listupObjects')
-        layout.separator()
-        layout.prop(prop, 'ior')
-        layout.operator(MaterialTool_OT_calcSpecularFromIOR.bl_idname,
-                        text='スペキュラ計算')
+
+        # TextureTools
+        split = layout.split(factor=0.15, align=True)
+        if prop.display_texture_tools:
+            split.prop(prop, 'display_texture_tools',
+                       text='', icon='DOWNARROW_HLT')
+        else:
+            split.prop(prop, 'display_texture_tools',
+                       text='', icon='RIGHTARROW')
+        split.label(text='TextureTools')
+        if prop.display_texture_tools:
+            col = layout.box().column(align=True)
+
+            col.prop_search(prop, 'texture', context.blend_data, 'images')
+            col.operator(MaterialTool_OT_selectAllObjectsUsingTexture.bl_idname,
+                         text='selectObjects')
+            col.operator(MaterialTool_OT_listupAllMaterialsUsingTexture.bl_idname,
+                         text='listupMaterials')
+            col.operator(MaterialTool_OT_setupMaterialContainerObject.bl_idname,
+                         text='setupMaterialContainerObject')
+            col.operator(MaterialTool_OT_selectAllImageNodesUsingTexture.bl_idname,
+                         text='selectNodes')
+
+
+        # MaterialTools
+        split = layout.split(factor=0.15, align=True)
+        if prop.display_material_tools:
+            split.prop(prop, 'display_material_tools',
+                       text='', icon='DOWNARROW_HLT')
+        else:
+            split.prop(prop, 'display_material_tools',
+                       text='', icon='RIGHTARROW')
+        split.label(text='MaterialTools')
+        if prop.display_material_tools:
+            col = layout.box().column(align=True)
+            col.prop_search(prop, 'material', context.blend_data, 'materials')
+            col.operator(MaterialTool_OT_selectAllObjectsUsingMaterial.bl_idname,
+                         text='selectObjects')
+            col.operator(MaterialTool_OT_listupAllObjectsUsingMaterial.bl_idname,
+                         text='listupObjects')
+
+        # calcSpecularFromIOR
+        split = layout.split(factor=0.15, align=True)
+        if prop.display_calc_specular_settings:
+            split.prop(prop, 'display_calc_specular_settings',
+                       text='', icon='DOWNARROW_HLT')
+        else:
+            split.prop(prop, 'display_calc_specular_settings',
+                       text='', icon='RIGHTARROW')
+        split.operator(MaterialTool_OT_calcSpecularFromIOR.bl_idname,
+                       text='スペキュラ計算')
+        if prop.display_calc_specular_settings:
+            col = layout.box().column(align=True)
+            col.prop(prop, 'ior')
 
         # replace_group_node
         split = layout.split(factor=0.15, align=True)
@@ -249,8 +296,7 @@ class MaterialTool_PT_MaterialTool(bpy.types.Panel):
                        text='', icon='RIGHTARROW')
         split.operator(MaterialTool_OT_replace_group_node.bl_idname)
         if prop.display_replace_group_node:
-            box = layout.column(align=True).box().column()
-            col = box.column(align=True)
+            col = layout.box().column(align=True)
             col.prop(prop, "old_group_node")
             col.prop(prop, "new_group_node")
      
