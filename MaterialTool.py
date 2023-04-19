@@ -131,3 +131,49 @@ def calcSpecularFromIOR(ior):
     specular = tmp * tmp / 0.08
     bpy.context.window_manager.clipboard = str(specular)
     return specular
+
+################
+def replace_group_node(old_group_name, new_group_name):
+    """
+    Replaces shader_group, and returns modified material names.
+
+    Parameters
+    ----------------
+    old_group_name : string
+      The name of ShaderGroupNode to be replaced.
+    
+    new_group_name : string
+      The name of ShaderGroupNode to replace.
+    """
+
+    modified_materials = set()
+
+    for material in bpy.data.materials:
+        if material.use_nodes:
+            nodes = material.node_tree.nodes
+            links = material.node_tree.links
+            old_group_nodes = [node for node in nodes if node.type == 'GROUP' and node.node_tree.name == old_group_name]
+
+            for old_group_node in old_group_nodes:
+                new_group_node = nodes.new('ShaderNodeGroup')
+                new_group_node.node_tree = bpy.data.node_groups[new_group_name]
+
+                # Copy input connections and values
+                for input_socket, old_input in zip(new_group_node.inputs, old_group_node.inputs):
+                    if old_input.is_linked:
+                        old_link = old_input.links[0]
+                        links.new(old_link.from_socket, input_socket)
+                    else:
+                        input_socket.default_value = old_input.default_value
+
+                # Copy output connections
+                for output_socket, old_output in zip(new_group_node.outputs, old_group_node.outputs):
+                    for old_link in old_output.links:
+                        links.new(output_socket, old_link.to_socket)
+
+                # Remove old group node
+                nodes.remove(old_group_node)
+
+                modified_materials.add(material.name)
+
+    return modified_materials

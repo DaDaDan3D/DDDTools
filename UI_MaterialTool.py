@@ -2,6 +2,22 @@ import bpy
 from . import MaterialTool as mt
 
 ################################################################
+def shader_group_node_items(self, context):
+    items = []
+    node_groups = set()
+
+    for material in bpy.data.materials:
+        if material.use_nodes:
+            for node in material.node_tree.nodes:
+                if node.type == 'GROUP':
+                    node_groups.add(node.node_tree.name)
+
+    for group_name in sorted(node_groups):
+        items.append((group_name, group_name, ""))
+    
+    return items
+
+################################################################
 class MaterialTool_propertyGroup(bpy.types.PropertyGroup):
     texture: bpy.props.PointerProperty(name='Texture', type=bpy.types.Image)
     material: bpy.props.PointerProperty(name='Material', type=bpy.types.Material)
@@ -11,6 +27,21 @@ class MaterialTool_propertyGroup(bpy.types.PropertyGroup):
                                  max=100,
                                  precision=2,
                                  step=1)
+
+    display_replace_group_node: bpy.props.BoolProperty(
+        name='replace_group_node_settings',
+        default=True)
+    old_group_node: bpy.props.EnumProperty(
+        name='旧ノード',
+        description="置き換え元のグループノード",
+        items=shader_group_node_items
+    )
+    new_group_node: bpy.props.EnumProperty(
+        name='新ノード',
+        description="置き換え先のグループノード",
+        items=shader_group_node_items
+    )
+
 
 ################################################################
 class MaterialTool_OT_selectAllObjectsUsingTexture(bpy.types.Operator):
@@ -154,6 +185,30 @@ class MaterialTool_OT_calcSpecularFromIOR(bpy.types.Operator):
         return {'FINISHED'}
     
 ################################################################
+class MaterialTool_OT_replace_group_node(bpy.types.Operator):
+    bl_idname = 'material.replace_group_node'
+    bl_label = 'グループノード置換'
+    bl_description = '指定したシェーダーグループノードを新しいシェーダーグループノードに置き換えます'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        prop = context.scene.dddtools_mt_prop
+        return prop.old_group_node and prop.new_group_node and prop.old_group_node != prop.new_group_node
+
+    def execute(self, context):
+        prop = context.scene.dddtools_mt_prop
+        old_group_name = prop.old_group_node
+        new_group_name = prop.new_group_node
+        modified_materials = mt.replace_group_node(old_group_name, new_group_name)
+        if modified_materials:
+            self.report({'INFO'}, f'以下のマテリアルを修正しました: {sorted(modified_materials)}')
+        else:
+            self.report({'INFO'}, f'シェーダーグループ"{old_group_name}"を使用しているマテリアルはありません')
+
+        return {'FINISHED'}
+    
+################################################################
 class MaterialTool_PT_MaterialTool(bpy.types.Panel):
     bl_idname = 'MT_PT_MaterialTool'
     bl_label = 'MaterialTool'
@@ -184,6 +239,21 @@ class MaterialTool_PT_MaterialTool(bpy.types.Panel):
         layout.operator(MaterialTool_OT_calcSpecularFromIOR.bl_idname,
                         text='スペキュラ計算')
 
+        # replace_group_node
+        split = layout.split(factor=0.15, align=True)
+        if prop.display_replace_group_node:
+            split.prop(prop, 'display_replace_group_node',
+                       text='', icon='DOWNARROW_HLT')
+        else:
+            split.prop(prop, 'display_replace_group_node',
+                       text='', icon='RIGHTARROW')
+        split.operator(MaterialTool_OT_replace_group_node.bl_idname)
+        if prop.display_replace_group_node:
+            box = layout.column(align=True).box().column()
+            col = box.column(align=True)
+            col.prop(prop, "old_group_node")
+            col.prop(prop, "new_group_node")
+     
 ################################################################
 classes = (
     MaterialTool_propertyGroup,
@@ -194,6 +264,7 @@ classes = (
     MaterialTool_OT_selectAllObjectsUsingMaterial,
     MaterialTool_OT_listupAllObjectsUsingMaterial,
     MaterialTool_OT_calcSpecularFromIOR,
+    MaterialTool_OT_replace_group_node,
     MaterialTool_PT_MaterialTool,
 )
 
