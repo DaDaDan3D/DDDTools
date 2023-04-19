@@ -29,6 +29,7 @@ modules = [
     'WeightTool',
     'SelectTool',
     'NormalTool',
+    'UVTool',
 
     'UI_SelectTool',
     'UI_MaterialTool',
@@ -37,6 +38,7 @@ modules = [
     'UI_WeightTool',
     'CalcSphereFromSelectedVertices',
     'UI_NormalTool',
+    'UI_UVTool',
 ]
 modules = [f'{__package__}.{mn}' for mn in modules]
 
