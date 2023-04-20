@@ -2,8 +2,8 @@ import bpy
 from . import MaterialTool as mt
 
 ################################################################
-def shader_group_node_items(self, context):
-    items = []
+def used_shader_group_node_items(self, context):
+    items = [("(NONE)", "(NONE)", "")]
     node_groups = set()
 
     for material in bpy.data.materials:
@@ -14,8 +14,18 @@ def shader_group_node_items(self, context):
 
     for group_name in sorted(node_groups):
         items.append((group_name, group_name, ""))
-    if not items:
-        items = [('NONE', 'No ShaderGroupNodes', '')]
+    return items
+
+def shader_group_node_items(self, context):
+    items = [("(NONE)", "(NONE)", "")]
+    node_groups = set()
+
+    for group in bpy.data.node_groups:
+        if group.type == 'SHADER':
+            node_groups.add(group.name)
+            
+    for group_name in sorted(node_groups):
+        items.append((group_name, group_name, ""))
     return items
 
 ################################################################
@@ -46,7 +56,7 @@ class MaterialTool_propertyGroup(bpy.types.PropertyGroup):
     old_group_node: bpy.props.EnumProperty(
         name='旧ノード',
         description="置き換え元のグループノード",
-        items=shader_group_node_items
+        items=used_shader_group_node_items
     )
     new_group_node: bpy.props.EnumProperty(
         name='新ノード',
@@ -206,7 +216,7 @@ class MaterialTool_OT_replace_group_node(bpy.types.Operator):
     @classmethod
     def poll(self, context):
         prop = context.scene.dddtools_mt_prop
-        return prop.old_group_node and prop.new_group_node and prop.old_group_node != prop.new_group_node
+        return prop.old_group_node != "(NONE)" and prop.new_group_node != "(NONE)" and prop.old_group_node != prop.new_group_node
 
     def execute(self, context):
         prop = context.scene.dddtools_mt_prop
@@ -218,8 +228,21 @@ class MaterialTool_OT_replace_group_node(bpy.types.Operator):
         else:
             self.report({'INFO'}, f'シェーダーグループ"{old_group_name}"を使用しているマテリアルはありません')
 
+        prop.old_group_node = "(NONE)"
+        prop.new_group_node = new_group_name
         return {'FINISHED'}
     
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+    def draw(self, context):
+        prop = context.scene.dddtools_mt_prop
+        row = self.layout
+        row.label(text='全マテリアルのグループノードを置き換えます')
+        row.label(text='よろしいですか？')
+        row.prop(prop, 'old_group_node')
+        row.prop(prop, 'new_group_node')
+
 ################################################################
 class MaterialTool_PT_MaterialTool(bpy.types.Panel):
     bl_idname = 'MT_PT_MaterialTool'
