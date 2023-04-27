@@ -2,6 +2,7 @@ import sys
 import re
 import json
 from collections import OrderedDict
+from dataclasses import dataclass
 import bpy, bmesh
 import math
 from mathutils.bvhtree import BVHTree
@@ -12,6 +13,7 @@ from mathutils import (
 import statistics
 from . import internalUtils as iu
 from . import WeightTool as wt
+import numpy as np
 
 ################################################################
 def textblock2str(textblock):
@@ -198,7 +200,56 @@ def addCollider(meshObj,
     return{'FINISHED'}
     
 ################################################################
-def mergeMeshes(arma, bs_dic, triangulate=True):
+@dataclass
+class MaterialInfo:
+    material_name: str
+    alpha_array: np.ndarray
+    alpha_threshold: float
+
+################################################################
+def delete_transparent_faces(obj, removeMatDic):
+    bpy.ops.object.mode_set(mode='OBJECT')
+    mesh = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.faces.ensure_lookup_table()
+
+    uv_layer = bm.loops.layers.uv.active
+
+    faces_to_remove = []
+
+    # Initialize progress bar
+    bpy.context.window_manager.progress_begin(0, 100)
+
+    for face_idx, face in enumerate(bm.faces):
+        mat_idx = face.material_index
+        material = obj.material_slots[mat_idx].material
+
+        info = removeMatDic.get(material)
+        if not info:
+            continue
+
+        if not iu.scan_face_alpha(face, uv_layer,
+                                  info.alpha_array, info.alpha_threshold):
+            faces_to_remove.append(face)
+            #print(f'remove face {face_idx} in {obj.name}')
+
+        # Update progress bar
+        face_total = len(bm.faces)
+        progress = face_idx / face_total * 100
+        bpy.context.window_manager.progress_update(progress)
+
+    # Remove transparent faces
+    for face in faces_to_remove:
+        bm.faces.remove(face)
+
+    bm.to_mesh(mesh)
+    bm.free()
+
+    return len(faces_to_remove)
+
+################################################################
+def mergeMeshes(arma, bs_dic, triangulate=True, removeMatDic=None):
     """
     Based on the json, merge and triangulate the mesh.
 
@@ -212,6 +263,9 @@ def mergeMeshes(arma, bs_dic, triangulate=True):
 
     triangulate : Boolean
       Whether to triangulate meshes
+
+    removeMatDic : dict of MaterialInfo
+      Material informations to remove transparent polygons.
     """
 
     # A dictionary to get a set of actions from mesh names.
@@ -253,6 +307,10 @@ def mergeMeshes(arma, bs_dic, triangulate=True):
                                   quad_method='BEAUTY', ngon_method='BEAUTY')
             bm.to_mesh(obj.obj.data)
             bm.free()
+        if removeMatDic:
+            delete_transparent_faces(obj.obj, removeMatDic)
+            iu.remove_isolated_edges_and_vertices(obj.obj)
+
     bpy.context.scene.cursor.location = cursor_location_save
 
     # clear pose
@@ -365,6 +423,9 @@ def deleteBones(arma, boneGroupName):
 ################################################################
 def prepareToExportVRM(skeleton='skeleton',
                        triangulate=False,
+                       removeTransparentPolygons=True,
+                       interval=4,
+                       excludeMaterials=set(),
                        bs_json=None,
                        notExport='NotExport',
                        neutral='Neutral'):
@@ -386,7 +447,55 @@ def prepareToExportVRM(skeleton='skeleton',
 
     arma = iu.ObjectWrapper(skeleton)
     bs_dic = json.loads(textblock2str(bpy.data.texts[bs_json]),object_pairs_hook=OrderedDict)
-    mergedObjs = mergeMeshes(arma, bs_dic, triangulate=triangulate)
+
+    # Build material dictionary to remove polygons
+    removeMatDic = dict()
+    if removeTransparentPolygons:
+        # get VRM_Addon_for_Blender
+        va = getAddon()
+        if not va:
+            raise ValueError("VRM addon is not found")
+        shader = va.common.shader
+        search = va.editor.search
+
+        for mat in bpy.data.materials:
+            # Skip opaque and excludeMaterials
+            if mat.blend_method == 'OPAQUE' or mat.name in excludeMaterials:
+                continue
+
+            if mat.blend_method == 'CLIP':
+                alpha_threshold = mat.alpha_threshold
+            else:
+                alpha_threshold = 0.01
+
+            # Skip non-VRM-shader material
+            node = search.vrm_shader_node(mat)
+            if not isinstance(node, bpy.types.Node):
+                continue
+
+            # Skip auto_scroll material
+            if shader.get_float_value(node, "UV_Scroll_X") != 0 or\
+               shader.get_float_value(node, "UV_Scroll_Y") != 0 or\
+                   shader.get_float_value(node, "UV_Scroll_Rotation") != 0:
+                continue
+
+            # Find MainTextureAlpha image
+            image = None
+            img_wt_ft = shader.get_image_name_and_sampler_type(node,
+                                                               'MainTextureAlpha')
+            image_name, wrap_type, filter_type = img_wt_ft
+            image = bpy.data.images.get(image_name)
+            if not image:
+                print(f'Material({mat.name}): MainTextureAlpha is not linked to a image. ')
+                continue
+
+            # This material is transparent and has alpha-image.
+            removeMatDic[mat] = MaterialInfo(mat.name,
+                                             iu.image_to_alpha_array(image, interval),
+                                             alpha_threshold)
+    print(removeMatDic)
+
+    mergedObjs = mergeMeshes(arma, bs_dic, triangulate=triangulate, removeMatDic=removeMatDic)
 
     #print('---------------- mergedObjs:')
     #print(mergedObjs)
