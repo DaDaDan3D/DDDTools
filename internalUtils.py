@@ -388,137 +388,102 @@ def image_to_alpha_array(image: bpy.types.Image, interval: int) -> np.ndarray:
     return thinned_alpha_array
 
 ################
-def rasterize_triangle_half(alpha_array, alpha_threshold, s0_s, t0_s, s1_s, t1_s, s0_l, t0_l, s1_l, t1_l, y0_in, y1_in, is_mid_right):
-    """
-    Rasterize the half of the triangle.
-
-    Parameters
-    ----------
-    alpha_array : numpy.ndarray
-        A 2D numpy array containing the thinned alpha channel.
-    alpha_threshold : float
-        The alpha threshold to determine the opacity of the triangle.
-    s0_s, t0_s, s1_s, t1_s : float
-        Coordinates of the short edge.
-    s0_l, t0_l, s1_l, t1_l : float
-        Coordinates of the long edge.
-    y0_in, y1_in : int
-        The Y-axis range for rasterization.
-    is_mid_right : bool
-        True if the middle point is on the right of the lo-hi edge, False otherwise.
-
-    Returns
-    -------
-    bool
-        True if any pixel in the rasterized area has an alpha value greater than the alpha_threshold, False otherwise.
-    """
-
+def scan_face_alpha_old(face, uv_layer, alpha_array, alpha_threshold=0.5):
     width, height = alpha_array.shape
 
-    for y in range(y0_in, y1_in):
-        x_l = s0_s if abs(t1_s - t0_s) <= 1e-6 else s0_s + ((s1_s - s0_s) * (y - t0_s)) / (t1_s - t0_s)
-        x_r = s0_l if abs(t1_l - t0_l) <= 1e-6 else s0_l + ((s1_l - s0_l) * (y - t0_l)) / (t1_l - t0_l)
+    def scan_triangle_alpha(triangle):
+        st = [width * uv.uv.x - 0.5 for uv in triangle]
+        tt = [height * uv.uv.y - 0.5 for uv in triangle]
 
-        if is_mid_right:
-            x_l, x_r = x_r, x_l
+        st0, st1, st2 = st[0], st[1], st[2]
+        tt0, tt1, tt2 = tt[0], tt[1], tt[2]
 
-        iXl = int(np.floor(x_l))
-        iXr = int(np.ceil(x_r))
+        if (st0 == st1 and tt0 == tt1) or (st0 == st2 and tt0 == tt2) or (st1 == st2 and tt1 == tt2):
+            return False
 
-        uy = y % height
-        for x in range(iXl, iXr):
-            ux = x % width
-            alpha = alpha_array[uy, ux]
-            if alpha > alpha_threshold:
-                return True
+        if tt0 > tt1 and tt0 > tt2:
+            st0, st2 = st2, st0
+            tt0, tt2 = tt2, tt0
+        elif tt1 > tt2:
+            st1, st2 = st2, st1
+            tt1, tt2 = tt2, tt1
+
+        if tt0 > tt1:
+            st0, st1 = st1, st0
+            tt0, tt1 = tt1, tt0
+
+        is_mid_right = (-(st2 - st0) * (tt1 - tt2) + (tt2 - tt0) * (st1 - st2)) > 0
+        def rasterize_triangle_half(s0_s, t0_s, s1_s, t1_s, s0_l, t0_l, s1_l, t1_l, y0_in, y1_in):
+            for y in range(y0_in, y1_in):
+                x_l = s0_s if abs(t1_s - t0_s) <= 1e-6 else s0_s + ((s1_s - s0_s) * (y - t0_s)) / (t1_s - t0_s)
+                x_r = s0_l if abs(t1_l - t0_l) <= 1e-6 else s0_l + ((s1_l - s0_l) * (y - t0_l)) / (t1_l - t0_l)
+
+                if is_mid_right:
+                    x_l, x_r = x_r, x_l
+
+                iXl = int(np.floor(x_l))
+                iXr = int(np.ceil(x_r))
+
+                uy = y % height
+                for x in range(iXl, iXr):
+                    ux = x % width
+                    alpha = alpha_array[uy, ux]
+                    if alpha > alpha_threshold:
+                        return True
+            return False
+
+        ylo = int(np.floor(tt0))
+        yhi_beg = int(np.round(tt1))
+        yhi = int(np.ceil(tt2))
+
+        # Rasterize the triangle
+        result1 = rasterize_triangle_half(
+            st0, tt0, st1, tt1, st0, tt0, st2, tt2, ylo, yhi_beg
+        )
+        if result1:
+            return True
+
+        result2 = rasterize_triangle_half(
+            st1, tt1, st2, tt2, st0, tt0, st2, tt2, yhi_beg, yhi
+        )
+        return result2
+
+    uv_coords = [loop[uv_layer] for loop in face.loops]
+    for idx in range(2, len(uv_coords)):
+        result = scan_triangle_alpha([uv_coords[0],
+                                      uv_coords[idx - 1],
+                                      uv_coords[idx]])
+        if result:
+            return True
     return False
 
 ################
-def scan_triangle_alpha(alpha_array, triangle, alpha_threshold):
-    """
-    Rasterize the triangle and scan the alpha values of the pixels.
-
-    Parameters
-    ----------
-    alpha_array : numpy.ndarray
-        A 2D numpy array containing the thinned alpha channel.
-    triangle : List[Vector]
-        A list of 3 Vector instances representing the UV coordinates of the triangle.
-    alpha_threshold : float
-        The alpha threshold to determine the opacity of the triangle.
-
-    Returns
-    -------
-    bool
-        True if any pixel in the rasterized area has an alpha value greater than the alpha_threshold, False otherwise.
-    """
+def scan_face_alpha(face, uv_layer, alpha_array, alpha_threshold=0.5):
     width, height = alpha_array.shape
 
-    st = [width * uv.uv.x - 0.5 for uv in triangle]
-    tt = [height * uv.uv.y - 0.5 for uv in triangle]
+    st = np.array([loop[uv_layer].uv for loop in face.loops])
+    st[:, 0] = width  * st[:, 0]
+    st[:, 1] = height * st[:, 1]
+    
+    for idx in range(2, st.shape[0]):
+        triangle = np.array([st[0], st[idx - 1], st[idx]])
 
-    st0, st1, st2 = st[0], st[1], st[2]
-    tt0, tt1, tt2 = tt[0], tt[1], tt[2]
+        s_min, t_min = np.amin(triangle, axis=0)
+        s_max, t_max = np.amax(triangle, axis=0)
 
-    if (st0 == st1 and tt0 == tt1) or (st0 == st2 and tt0 == tt2) or (st1 == st2 and tt1 == tt2):
-        return False
+        s_size = max(1, int(np.ceil(s_max - s_min)))
+        t_size = max(1, int(np.ceil(t_max - t_min)))
 
-    if tt0 > tt1 and tt0 > tt2:
-        st0, st2 = st2, st0
-        tt0, tt2 = tt2, tt0
-    elif tt1 > tt2:
-        st1, st2 = st2, st1
-        tt1, tt2 = tt2, tt1
+        ss, tt = np.meshgrid(np.linspace(s_min, s_max, s_size),
+                             np.linspace(t_min, t_max, t_size))
 
-    if tt0 > tt1:
-        st0, st1 = st1, st0
-        tt0, tt1 = tt1, tt0
-
-    is_mid_right = (-(st2 - st0) * (tt1 - tt2) + (tt2 - tt0) * (st1 - st2)) > 0
-    ylo = int(np.floor(tt0))
-    yhi_beg = int(np.round(tt1))
-    yhi = int(np.ceil(tt2))
-
-    # Rasterize the triangle
-    result1 = rasterize_triangle_half(
-        alpha_array, alpha_threshold, st0, tt0, st1, tt1, st0, tt0, st2, tt2, ylo, yhi_beg, is_mid_right
-    )
-    if result1:
-        return True
-
-    result2 = rasterize_triangle_half(
-        alpha_array, alpha_threshold, st1, tt1, st2, tt2, st0, tt0, st2, tt2, yhi_beg, yhi, is_mid_right
-    )
-    return result2
-
-################
-def scan_face_alpha(face, uv_layer, alpha_array, alpha_threshold=0.5):
-    """
-    Rasterize the face and scan the alpha values of the pixels.
-    Parameters
-    ----------
-    face : bmesh.types.BMFace
-        The face to rasterize and scan the alpha values.
-    uv_layer : bmesh.types.BMLoopUV
-        The active UV layer.
-    alpha_array : numpy.ndarray
-        A 2D numpy array containing the thinned alpha channel.
-    alpha_threshold : float, optional
-        The alpha threshold to determine the opacity of the face, by default 0.5.
-
-    Returns
-    -------
-    bool
-        True if any pixel in the rasterized area has an alpha value greater than the alpha_threshold, False otherwise.
-    """
-    uv_coords = [loop[uv_layer] for loop in face.loops]
-
-    for idx in range(2, len(uv_coords)):
-        result = scan_triangle_alpha(alpha_array,
-                                     [uv_coords[0],
-                                      uv_coords[idx - 1],
-                                      uv_coords[idx]],
-                                     alpha_threshold)
-        if result:
+        points = np.vstack((ss.ravel(), tt.ravel())).T
+        indices = np.where(np.all(np.dot(triangle - points[:, None], [-1, 1]) <= 0, axis=1))
+        if len(indices[0]) > 0:
+            mesh_points = points[indices[0]].astype(int)
+        else:
+            mesh_points = np.array([np.mean(triangle, axis=0)]).astype(int)
+        
+        if (alpha_array[np.mod(mesh_points[:, 1], height), np.mod(mesh_points[:, 0], width)] > alpha_threshold).any():
             return True
     return False
