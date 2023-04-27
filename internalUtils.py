@@ -464,15 +464,16 @@ def scan_face_alpha(face, uv_layer, alpha_array, alpha_threshold=0.5):
     st = np.array([loop[uv_layer].uv for loop in face.loops])
     st[:, 0] = width  * st[:, 0]
     st[:, 1] = height * st[:, 1]
+    st = st.astype(int)
     
-    for idx in range(2, st.shape[0]):
+    for idx in range(2, len(st)):
         triangle = np.array([st[0], st[idx - 1], st[idx]])
 
         s_min, t_min = np.amin(triangle, axis=0)
         s_max, t_max = np.amax(triangle, axis=0)
 
-        s_size = max(1, int(np.ceil(s_max - s_min)))
-        t_size = max(1, int(np.ceil(t_max - t_min)))
+        s_size = max(1, s_max - s_min)
+        t_size = max(1, t_max - t_min)
 
         ss, tt = np.meshgrid(np.linspace(s_min, s_max, s_size),
                              np.linspace(t_min, t_max, t_size))
