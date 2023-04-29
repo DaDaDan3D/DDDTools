@@ -201,6 +201,10 @@ def sort_material_slots(obj, material_order, remove_unused_slots=False):
     None
     """
 
+    # Remove unused material slots if specified
+    if remove_unused_slots:
+        bpy.ops.object.material_slot_remove_unused()
+
     # Ensure the object has material slots
     if len(obj.material_slots) == 0:
         print("No material slots found in the object.")
@@ -228,7 +232,3 @@ def sort_material_slots(obj, material_order, remove_unused_slots=False):
         while obj.active_material_index > idx:
             bpy.ops.object.material_slot_move(direction='UP')
             #print(f'up {obj.active_material_index}')
-
-    # Remove unused material slots if specified
-    if remove_unused_slots:
-        bpy.ops.object.material_slot_remove_unused()
