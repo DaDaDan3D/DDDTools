@@ -183,9 +183,9 @@ def replace_group_node(old_group_name, new_group_name):
     return modified_materials
 
 ################################################################
-def sort_material_slots(obj, material_order, remove_unused_slots=False):
+def sort_material_slots(obj, material_order):
     """
-    Sort the material slots of the specified object according to the given material_order list and optionally remove unused material slots.
+    Sort the material slots of the specified object according to the given material_order list.
 
     Parameters
     ----------
@@ -193,17 +193,11 @@ def sort_material_slots(obj, material_order, remove_unused_slots=False):
         The object whose material slots need to be sorted.
     material_order : list of str
         List of material names in the desired order.
-    remove_unused_slots : bool, optional
-        Whether to remove unused material slots, by default False.
 
     Returns
     -------
     None
     """
-
-    # Remove unused material slots if specified
-    if remove_unused_slots:
-        bpy.ops.object.material_slot_remove_unused()
 
     # Ensure the object has material slots
     if len(obj.material_slots) == 0:
