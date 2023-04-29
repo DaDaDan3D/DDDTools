@@ -241,6 +241,8 @@ class DDDVT_OT_openAddonPage(Operator):
 
 ################
 class DDDVT_UL_MaterialList(UIList):
+    bl_idname = 'DDDVT_UL_MaterialList'
+
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         material = item.material
         if material:
@@ -371,7 +373,7 @@ class DDDVT_PT_VRMTool(Panel):
 
                     box.separator()
                     box.label(text='除外マテリアルリスト')
-                    box.template_list('DDDVT_UL_MaterialList', '',
+                    box.template_list(DDDVT_UL_MaterialList.bl_idname, '',
                                       prop, 'excludeMaterials',
                                       prop, 'excludeMaterialsIndex')
                     
