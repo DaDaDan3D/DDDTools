@@ -13,6 +13,7 @@ from mathutils import (
 import statistics
 from . import internalUtils as iu
 from . import WeightTool as wt
+from . import MaterialTool as mt
 import numpy as np
 
 ################################################################
@@ -492,6 +493,8 @@ def prepareToExportVRM(skeleton='skeleton',
                        excludeMaterials=set(),
                        bs_json=None,
                        notExport='NotExport',
+                       materialOrderList=None,
+                       removeUnusedMaterialSlots=False,
                        neutral='Neutral'):
     """
     Prepares to export.
@@ -531,6 +534,16 @@ def prepareToExportVRM(skeleton='skeleton',
             #iu.setShapekeyToBasis(obj, shapekey=neutral)
             pass
         wt.cleanupWeights(obj)
+
+        if removeUnusedMaterialSlots:
+            print(f'removeUnusedMaterialSlots obj:{obj.name}')
+            modeChanger = iu.ModeChanger(obj.obj, 'OBJECT')
+            bpy.ops.object.material_slot_remove_unused()
+            del modeChanger
+
+        if materialOrderList:
+            print(f'sort_material_slots obj:{obj.name}')
+            mt.sort_material_slots(obj.obj, materialOrderList)
 
     # migrate blendshape_group.json
     va = getAddon()

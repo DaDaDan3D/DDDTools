@@ -60,6 +60,15 @@ class DDDVT_propertyGroup(PropertyGroup):
         description='実行後、*.export.blend として自動的に保存します',
         default=True)
 
+    sortMaterialSlot: BoolProperty(
+        name='マテリアルをソート',
+        description='マテリアルをリストで指定した順番にソートします。マテリアル順指定リストは MaterialTool パネルにあります',
+        default=False)
+    removeUnusedMaterialSlots: BoolProperty(
+        name='未使用マテリアルを削除',
+        description='未使用のマテリアルをスロットから削除します',
+        default=False)
+
     display_removePolygons_settings: BoolProperty(
         name='RemovePolygonsSettings',
         default=False)
@@ -68,8 +77,8 @@ class DDDVT_propertyGroup(PropertyGroup):
         description='条件によってポリゴンを削除します',
         default=False)
     interval: IntProperty(
-        name='間引き量',
-        description='透明ポリゴン判定時に何分の一のテクスチャで作業するかを指定します。大きくすると高速になりますが、判定が粗くなります',
+        name='判定の粗さ',
+        description='透明ポリゴン判定時に何分の一のサイズのテクスチャで作業するかを指定します。大きくすると高速になりますが、判定が粗くなります',
         min=1,
         max=16,
         default=4,
@@ -207,6 +216,14 @@ class DDDVT_OT_prepareToExportVRM(Operator):
         prop = context.scene.dddtools_vt_prop
         excludeMaterials = set([mat.material.name for mat in prop.excludeMaterials])
         print(excludeMaterials)
+
+        mt_prop = context.scene.dddtools_mt_prop
+        if prop.sortMaterialSlot and mt_prop.orderList:
+            materialOrderList = [item.material.name for item in mt_prop.orderList]
+
+        else:
+            materialOrderList = None
+
         mergedObjs = vt.prepareToExportVRM(skeleton=prop.skeleton.name,
                                            triangulate=prop.triangulate,
                                            removeTransparentPolygons=prop.removePolygons,
@@ -214,7 +231,10 @@ class DDDVT_OT_prepareToExportVRM(Operator):
                                            alphaThreshold=prop.alphaThreshold,
                                            excludeMaterials=excludeMaterials,
                                            bs_json=prop.bs_json.name,
-                                           notExport=prop.notExportBoneGroup)
+                                           notExport=prop.notExportBoneGroup,
+                                           materialOrderList=materialOrderList,
+                                           removeUnusedMaterialSlots=prop.removeUnusedMaterialSlots)
+        
         if mergedObjs:
             if None in mergedObjs:
                 mergedObjs[None].rename(prop.mergedName)
@@ -355,7 +375,9 @@ class DDDVT_PT_VRMTool(Panel):
                                     'bone_groups')
                 col.prop(prop, 'mergedName')
                 col.prop(prop, 'saveAsExport')
-
+                col.prop(prop, 'sortMaterialSlot')
+                col.prop(prop, 'removeUnusedMaterialSlots')
+                
                 # removePolygons
                 col.separator()
                 split = col.split(factor=0.15, align=True)
