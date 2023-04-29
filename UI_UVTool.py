@@ -1,9 +1,12 @@
 import bpy
+from bpy.props import FloatProperty, PointerProperty
+from bpy.types import Panel, Operator, PropertyGroup
+
 from . import UVTool as ut
 
 ################################################################
-class UVTool_propertyGroup(bpy.types.PropertyGroup):
-    originX: bpy.props.FloatProperty(
+class DDDUT_propertyGroup(PropertyGroup):
+    originX: FloatProperty(
         name='原点X座標',
         description='原点のX座標',
         default=0.5,
@@ -13,7 +16,7 @@ class UVTool_propertyGroup(bpy.types.PropertyGroup):
         step=0.05,
         unit='NONE',
     )
-    originY: bpy.props.FloatProperty(
+    originY: FloatProperty(
         name='原点Y座標',
         description='原点のY座標',
         default=0.5,
@@ -25,8 +28,8 @@ class UVTool_propertyGroup(bpy.types.PropertyGroup):
     )
     
 ################################################################
-class UVTool_OT_alignUVLeft(bpy.types.Operator):
-    bl_idname = 'object.align_uv_left'
+class DDDUT_OT_alignUVLeft(Operator):
+    bl_idname = 'dddut.align_uv_left'
     bl_label = '左を付ける'
     bl_description = 'UVの左端が原点になるように移動します'
     bl_options = {'UNDO'}
@@ -39,8 +42,8 @@ class UVTool_OT_alignUVLeft(bpy.types.Operator):
         prop = context.scene.dddtools_ut_prop
         return ut.offsetSelectedUVIsland('ALIGN_LEFT', prop.originX, 0)
 
-class UVTool_OT_alignUVRight(bpy.types.Operator):
-    bl_idname = 'object.align_uv_right'
+class DDDUT_OT_alignUVRight(Operator):
+    bl_idname = 'dddut.align_uv_right'
     bl_label = '右を付ける'
     bl_description = 'UVの右端が原点になるように移動します'
     bl_options = {'UNDO'}
@@ -53,8 +56,8 @@ class UVTool_OT_alignUVRight(bpy.types.Operator):
         prop = context.scene.dddtools_ut_prop
         return ut.offsetSelectedUVIsland('ALIGN_RIGHT', prop.originX, 0)
 
-class UVTool_OT_alignUVTop(bpy.types.Operator):
-    bl_idname = 'object.align_uv_top'
+class DDDUT_OT_alignUVTop(Operator):
+    bl_idname = 'dddut.align_uv_top'
     bl_label = '上を付ける'
     bl_description = 'UVの上端が原点になるように移動します'
     bl_options = {'UNDO'}
@@ -67,8 +70,8 @@ class UVTool_OT_alignUVTop(bpy.types.Operator):
         prop = context.scene.dddtools_ut_prop
         return ut.offsetSelectedUVIsland('ALIGN_TOP', 0, prop.originY)
 
-class UVTool_OT_alignUVBottom(bpy.types.Operator):
-    bl_idname = 'object.align_uv_bottom'
+class DDDUT_OT_alignUVBottom(Operator):
+    bl_idname = 'dddut.align_uv_bottom'
     bl_label = '下を付ける'
     bl_description = 'UVの下端が原点になるように移動します'
     bl_options = {'UNDO'}
@@ -82,8 +85,8 @@ class UVTool_OT_alignUVBottom(bpy.types.Operator):
         return ut.offsetSelectedUVIsland('ALIGN_BOTTOM', 0, prop.originY)
 
 ################################################################
-class UVTool_OT_setCursorToOrigin(bpy.types.Operator):
-    bl_idname = 'object.set_cursor_to_origin'
+class DDDUT_OT_setCursorToOrigin(Operator):
+    bl_idname = 'dddut.set_cursor_to_origin'
     bl_label = '2Dカーソルを移動'
     bl_description = '2Dカーソルの位置を指定の位置に移動します'
     bl_options = {'UNDO'}
@@ -95,7 +98,7 @@ class UVTool_OT_setCursorToOrigin(bpy.types.Operator):
         return {'FINISHED'}
         
 ################################################################
-class UVTool_PT_UVTool(bpy.types.Panel):
+class DDDUT_PT_UVTool(Panel):
     bl_idname = 'UT_PT_UVTool'
     bl_label = 'UVTool'
     bl_category = "DDDTools"
@@ -108,32 +111,32 @@ class UVTool_PT_UVTool(bpy.types.Panel):
 
         box = layout.column(align=True).box().column()
         col = box.column(align=True)
-        col.operator(UVTool_OT_alignUVBottom.bl_idname)
+        col.operator(DDDUT_OT_alignUVBottom.bl_idname)
         row = col.row(align=True)
-        row.operator(UVTool_OT_alignUVRight.bl_idname)
+        row.operator(DDDUT_OT_alignUVRight.bl_idname)
         row.prop(prop, 'originX')
         row.prop(prop, 'originY')
-        row.operator(UVTool_OT_alignUVLeft.bl_idname)
-        col.operator(UVTool_OT_alignUVTop.bl_idname)
+        row.operator(DDDUT_OT_alignUVLeft.bl_idname)
+        col.operator(DDDUT_OT_alignUVTop.bl_idname)
 
         col.separator()
-        col.operator(UVTool_OT_setCursorToOrigin.bl_idname)
+        col.operator(DDDUT_OT_setCursorToOrigin.bl_idname)
         
 ################################################################
 classes = (
-    UVTool_propertyGroup,
-    UVTool_OT_alignUVLeft,
-    UVTool_OT_alignUVRight,
-    UVTool_OT_alignUVTop,
-    UVTool_OT_alignUVBottom,
-    UVTool_OT_setCursorToOrigin,
-    UVTool_PT_UVTool,
+    DDDUT_propertyGroup,
+    DDDUT_OT_alignUVLeft,
+    DDDUT_OT_alignUVRight,
+    DDDUT_OT_alignUVTop,
+    DDDUT_OT_alignUVBottom,
+    DDDUT_OT_setCursorToOrigin,
+    DDDUT_PT_UVTool,
 )
 
 def registerClass():
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Scene.dddtools_ut_prop = bpy.props.PointerProperty(type=UVTool_propertyGroup)
+    bpy.types.Scene.dddtools_ut_prop = PointerProperty(type=DDDUT_propertyGroup)
 
 def unregisterClass():
     del bpy.types.Scene.dddtools_ut_prop

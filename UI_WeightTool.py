@@ -1,13 +1,16 @@
 import bpy
+from bpy.props import BoolProperty, IntProperty, PointerProperty, FloatProperty, StringProperty, EnumProperty
+from bpy.types import Panel, Operator, PropertyGroup
+
 from . import internalUtils as iu
 from . import WeightTool as wt
 
 ################################################################
-class WeightTool_propertyGroup(bpy.types.PropertyGroup):
-    display_cleanupWeightsOfSelectedObjects: bpy.props.BoolProperty(
+class DDDWT_propertyGroup(PropertyGroup):
+    display_cleanupWeightsOfSelectedObjects: BoolProperty(
         name='cleanupWeightsOfSelectedObjects_settings',
         default=True)
-    affectBoneMax: bpy.props.IntProperty(
+    affectBoneMax: IntProperty(
         name='影響ボーンの数',
         description='ウェイトの影響ボーンの数を設定します',
         min=1,
@@ -15,25 +18,25 @@ class WeightTool_propertyGroup(bpy.types.PropertyGroup):
         default=4,
     )
 
-    display_transferWeightsForSelectedObjects: bpy.props.BoolProperty(
+    display_transferWeightsForSelectedObjects: BoolProperty(
         name='transferWeightsForSelectedObjects_settings',
         default=True)
-    weightObj: bpy.props.PointerProperty(
+    weightObj: PointerProperty(
         name='転送元',
         description='ウェイトの転送元のメッシュオブジェクト',
         type=bpy.types.Object,
         poll=lambda self, obj: obj and obj.type=='MESH',
     )
-    vertexGroup: bpy.props.StringProperty(
+    vertexGroup: StringProperty(
         name='頂点グループ',
         description='影響する範囲を選択する頂点グループ名',
     )
-    invertVertexGroup: bpy.props.BoolProperty(
+    invertVertexGroup: BoolProperty(
         name='反転',
         description='頂点グループの影響を反転します',
         default=False,
     )
-    vertMapping: bpy.props.EnumProperty(
+    vertMapping: EnumProperty(
         name='頂点マッピング',
         description='頂点を探す方法',
         items=[('NEAREST', '最も近い頂点', '一番近い頂点からコピーします', 'VERTEXSEL', 0),
@@ -42,7 +45,7 @@ class WeightTool_propertyGroup(bpy.types.PropertyGroup):
                ('POLYINTERP_VNORPROJ', '投影面の補間', '法線方向に投影して一番近くにヒットした面から補間します', 'SNAP_NORMAL', 3)],
         default='POLYINTERP_NEAREST',
     )
-    maxDistance: bpy.props.FloatProperty(
+    maxDistance: FloatProperty(
         name='最大距離',
         description='転送できる最大距離(0で無限)',
         subtype='DISTANCE',
@@ -55,8 +58,8 @@ class WeightTool_propertyGroup(bpy.types.PropertyGroup):
 
 
 ################################################################
-class WeightTool_OT_resetWeightOfSelectedObjects(bpy.types.Operator):
-    bl_idname = 'object.reset_weight_of_selected_objects'
+class DDDWT_OT_resetWeightOfSelectedObjects(bpy.types.Operator):
+    bl_idname = 'dddwt.reset_weight_of_selected_objects'
     bl_label = 'ウェイトのリセット'
     bl_description = '選択メッシュのウェイトを取り除きます'
     bl_options = {'UNDO'}
@@ -79,8 +82,8 @@ class WeightTool_OT_resetWeightOfSelectedObjects(bpy.types.Operator):
         return context.window_manager.invoke_confirm(self, event)
 
 ################################################################
-class WeightTool_OT_cleanupWeightsOfSelectedObjects(bpy.types.Operator):
-    bl_idname = 'object.cleanup_weights_of_selected_objects'
+class DDDWT_OT_cleanupWeightsOfSelectedObjects(bpy.types.Operator):
+    bl_idname = 'dddwt.cleanup_weights_of_selected_objects'
     bl_label = 'ウェイトのクリーンアップ'
     bl_description = '選択メッシュのウェイトをクリーンアップします'
     bl_options = {'UNDO'}
@@ -104,8 +107,8 @@ class WeightTool_OT_cleanupWeightsOfSelectedObjects(bpy.types.Operator):
         return context.window_manager.invoke_confirm(self, event)
 
 ################################################################
-class WeightTool_OT_transferWeightsForSelectedObjects(bpy.types.Operator):
-    bl_idname = 'object.transfer_weights_for_selected_objects'
+class DDDWT_OT_transferWeightsForSelectedObjects(bpy.types.Operator):
+    bl_idname = 'dddwt.transfer_weights_for_selected_objects'
     bl_label = 'ウェイトの転送'
     bl_description = '指定したメッシュのウェイトを選択メッシュに転送します'
     bl_options = {'UNDO'}
@@ -128,8 +131,8 @@ class WeightTool_OT_transferWeightsForSelectedObjects(bpy.types.Operator):
         return {'FINISHED'}
 
 ################################################################
-class WeightTool_OT_equalizeVertexWeightsForMirroredBones(bpy.types.Operator):
-    bl_idname = 'object.equalize_vertex_weights_for_mirrored_bones'
+class DDDWT_OT_equalizeVertexWeightsForMirroredBones(bpy.types.Operator):
+    bl_idname = 'dddwt.equalize_vertex_weights_for_mirrored_bones'
     bl_label = '頂点の左右ウェイト均一化'
     bl_description = '指定したメッシュの選択された頂点のウェイトを左右のボーンに対して均等に割り振る'
     bl_options = {'UNDO'}
@@ -147,8 +150,8 @@ class WeightTool_OT_equalizeVertexWeightsForMirroredBones(bpy.types.Operator):
         return {'FINISHED'}
 
 ################################################################
-class WeightTool_OT_dissolveWeightedBones(bpy.types.Operator):
-    bl_idname = 'object.dissolve_weighted_bones'
+class DDDWT_OT_dissolveWeightedBones(bpy.types.Operator):
+    bl_idname = 'dddwt.dissolve_weighted_bones'
     bl_label = '選択した骨の溶解'
     bl_description = '選択した骨のウェイトを直近祖先の変形ボーンに移した後、溶解する'
     bl_options = {'UNDO'}
@@ -167,7 +170,7 @@ class WeightTool_OT_dissolveWeightedBones(bpy.types.Operator):
         return {'FINISHED'}
 
 ################################################################
-class WeightTool_PT_WeightTool(bpy.types.Panel):
+class DDDWT_PT_WeightTool(bpy.types.Panel):
     bl_idname = 'WT_PT_WeightTool'
     bl_label = 'WeightTool'
     bl_category = "DDDTools"
@@ -179,7 +182,7 @@ class WeightTool_PT_WeightTool(bpy.types.Panel):
         layout = self.layout
 
         # resetWeightOfSelectedObjects
-        layout.operator(WeightTool_OT_resetWeightOfSelectedObjects.bl_idname)
+        layout.operator(DDDWT_OT_resetWeightOfSelectedObjects.bl_idname)
 
         # cleanupWeightsOfSelectedObjects
         split = layout.split(factor=0.15, align=True)
@@ -189,7 +192,7 @@ class WeightTool_PT_WeightTool(bpy.types.Panel):
         else:
             split.prop(prop, 'display_cleanupWeightsOfSelectedObjects',
                        text='', icon='RIGHTARROW')
-        split.operator(WeightTool_OT_cleanupWeightsOfSelectedObjects.bl_idname)
+        split.operator(DDDWT_OT_cleanupWeightsOfSelectedObjects.bl_idname)
         if prop.display_cleanupWeightsOfSelectedObjects:
             box = layout.column(align=True).box().column()
             col = box.column(align=True)
@@ -203,7 +206,7 @@ class WeightTool_PT_WeightTool(bpy.types.Panel):
         else:
             split.prop(prop, 'display_transferWeightsForSelectedObjects',
                        text='', icon='RIGHTARROW')
-        split.operator(WeightTool_OT_transferWeightsForSelectedObjects.bl_idname)
+        split.operator(DDDWT_OT_transferWeightsForSelectedObjects.bl_idname)
         mesh = bpy.context.active_object
         if prop.display_transferWeightsForSelectedObjects and mesh and mesh.type=='MESH':
             box = layout.column(align=True).box().column()
@@ -219,26 +222,26 @@ class WeightTool_PT_WeightTool(bpy.types.Panel):
             col.prop(prop, 'maxDistance')
         
         # equalizeVertexWeightsForMirroredBones
-        layout.operator(WeightTool_OT_equalizeVertexWeightsForMirroredBones.bl_idname)
+        layout.operator(DDDWT_OT_equalizeVertexWeightsForMirroredBones.bl_idname)
 
         # dissolveWeightedBones
-        layout.operator(WeightTool_OT_dissolveWeightedBones.bl_idname)
+        layout.operator(DDDWT_OT_dissolveWeightedBones.bl_idname)
     
 ################################################################
 classes = (
-    WeightTool_propertyGroup,
-    WeightTool_OT_resetWeightOfSelectedObjects,
-    WeightTool_OT_cleanupWeightsOfSelectedObjects,
-    WeightTool_OT_transferWeightsForSelectedObjects,
-    WeightTool_OT_equalizeVertexWeightsForMirroredBones,
-    WeightTool_OT_dissolveWeightedBones,
-    WeightTool_PT_WeightTool,
+    DDDWT_propertyGroup,
+    DDDWT_OT_resetWeightOfSelectedObjects,
+    DDDWT_OT_cleanupWeightsOfSelectedObjects,
+    DDDWT_OT_transferWeightsForSelectedObjects,
+    DDDWT_OT_equalizeVertexWeightsForMirroredBones,
+    DDDWT_OT_dissolveWeightedBones,
+    DDDWT_PT_WeightTool,
 )
 
 def registerClass():
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Scene.dddtools_wt_prop = bpy.props.PointerProperty(type=WeightTool_propertyGroup)
+    bpy.types.Scene.dddtools_wt_prop = PointerProperty(type=DDDWT_propertyGroup)
 
 def unregisterClass():
     del bpy.types.Scene.dddtools_wt_prop

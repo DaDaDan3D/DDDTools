@@ -1,15 +1,18 @@
 import bpy
+from bpy.props import StringProperty
+from bpy.types import Panel, Operator
+
 from . import internalUtils as iu
 from . import BoneTool as bt
 
 ################################################################
-class BoneTool_OT_renameChildBonesWithNumber(bpy.types.Operator):
-    bl_idname = 'object.rename_child_bones_with_number'
+class DDDBT_OT_renameChildBonesWithNumber(Operator):
+    bl_idname = 'dddbt.rename_child_bones_with_number'
     bl_label = '子ボーンをリネーム'
     bl_description = '全ての子ボーンを番号付きでリネームします'
     bl_options = {'REGISTER', 'UNDO'}
 
-    baseName: bpy.props.StringProperty(
+    baseName: StringProperty(
         name='ベースネーム',
         description='基本となる名前',
     )
@@ -27,8 +30,8 @@ class BoneTool_OT_renameChildBonesWithNumber(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
 ################
-class BoneTool_OT_resetStretchTo(bpy.types.Operator):
-    bl_idname = 'object.reset_stretch_to'
+class DDDBT_OT_resetStretchTo(Operator):
+    bl_idname = 'dddbt.reset_stretch_to'
     bl_label = 'リセットストレッチ'
     bl_description = 'アーマチュアに含まれる全てのストレッチモディファイアの長さを 0 にリセットします'
     bl_options = {'UNDO'}
@@ -45,8 +48,8 @@ class BoneTool_OT_resetStretchTo(bpy.types.Operator):
         return {'FINISHED'}
 
 ################
-class BoneTool_OT_applyArmatureToRestPose(bpy.types.Operator):
-    bl_idname = 'object.apply_armature_to_rest_pose'
+class DDDBT_OT_applyArmatureToRestPose(Operator):
+    bl_idname = 'dddbt.apply_armature_to_rest_pose'
     bl_label = '現在の姿勢をレストポーズに'
     bl_description = 'アクティブなアーマチュアの現在のポーズをレストポーズとして設定します'
     bl_options = {'UNDO'}
@@ -64,7 +67,7 @@ class BoneTool_OT_applyArmatureToRestPose(bpy.types.Operator):
         return {'FINISHED'}
 
 ################
-class BoneTool_PT_BoneTool(bpy.types.Panel):
+class DDDBT_PT_BoneTool(Panel):
     bl_idname = 'BT_PT_BoneTool'
     bl_label = 'BoneTool'
     bl_category = "DDDTools"
@@ -73,16 +76,16 @@ class BoneTool_PT_BoneTool(bpy.types.Panel):
   
     def draw(self, context):
         layout = self.layout
-        layout.operator(BoneTool_OT_renameChildBonesWithNumber.bl_idname)
-        layout.operator(BoneTool_OT_resetStretchTo.bl_idname)
-        layout.operator(BoneTool_OT_applyArmatureToRestPose.bl_idname)
+        layout.operator(DDDBT_OT_renameChildBonesWithNumber.bl_idname)
+        layout.operator(DDDBT_OT_resetStretchTo.bl_idname)
+        layout.operator(DDDBT_OT_applyArmatureToRestPose.bl_idname)
     
 ################################################################
 classes = (
-    BoneTool_OT_renameChildBonesWithNumber,
-    BoneTool_OT_resetStretchTo,
-    BoneTool_OT_applyArmatureToRestPose,
-    BoneTool_PT_BoneTool,
+    DDDBT_OT_renameChildBonesWithNumber,
+    DDDBT_OT_resetStretchTo,
+    DDDBT_OT_applyArmatureToRestPose,
+    DDDBT_PT_BoneTool,
 )
 
 def registerClass():

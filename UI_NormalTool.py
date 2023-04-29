@@ -1,10 +1,12 @@
 import bpy
+from bpy.types import Panel, Operator
+
 from . import internalUtils as iu
 from . import NormalTool as nt
 
 ################################################################
-class NormalTool_OT_addCustomNormals(bpy.types.Operator):
-    bl_idname = 'mesh.add_custom_normals'
+class DDDNT_OT_addCustomNormals(Operator):
+    bl_idname = 'dddnt.add_custom_normals'
     bl_label = 'カスタム法線の有効化'
     bl_description = 'カスタム法線を有効化します'
     bl_options = {'UNDO'}
@@ -18,8 +20,8 @@ class NormalTool_OT_addCustomNormals(bpy.types.Operator):
         return bpy.ops.mesh.customdata_custom_splitnormals_add()
 
 ################################################################
-class NormalTool_OT_clearCustomNormals(bpy.types.Operator):
-    bl_idname = 'mesh.clear_custom_normals'
+class DDDNT_OT_clearCustomNormals(Operator):
+    bl_idname = 'dddnt.clear_custom_normals'
     bl_label = 'カスタム法線のクリア'
     bl_description = 'カスタム法線を削除します'
     bl_options = {'UNDO'}
@@ -33,7 +35,7 @@ class NormalTool_OT_clearCustomNormals(bpy.types.Operator):
         return bpy.ops.mesh.customdata_custom_splitnormals_clear()
 
 ################################################################
-class NormalTool_PT_NormalTool(bpy.types.Panel):
+class DDDNT_PT_NormalTool(Panel):
     bl_idname = 'NT_PT_NormalTool'
     bl_label = 'NormalTool'
     bl_category = "DDDTools"
@@ -45,19 +47,19 @@ class NormalTool_PT_NormalTool(bpy.types.Panel):
 
         obj = bpy.context.active_object
         if obj and obj.type == 'MESH' and obj.data.has_custom_normals:
-            layout.operator(NormalTool_OT_clearCustomNormals.bl_idname,
+            layout.operator(DDDNT_OT_clearCustomNormals.bl_idname,
                             text='カスタム法線',
                             icon='CHECKMARK', depress=True)
         else:
-            layout.operator(NormalTool_OT_addCustomNormals.bl_idname,
+            layout.operator(DDDNT_OT_addCustomNormals.bl_idname,
                             text='カスタム法線',
                             icon='CHECKBOX_DEHLT', depress=False)
 
 ################################################################
 classes = (
-    NormalTool_OT_addCustomNormals,
-    NormalTool_OT_clearCustomNormals,
-    NormalTool_PT_NormalTool,
+    DDDNT_OT_addCustomNormals,
+    DDDNT_OT_clearCustomNormals,
+    DDDNT_PT_NormalTool,
 )
 
 def registerClass():

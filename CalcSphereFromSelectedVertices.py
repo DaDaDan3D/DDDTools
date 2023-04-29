@@ -1,5 +1,8 @@
 import bpy
 import bmesh
+from bpy.props import IntProperty
+from bpy.types import Panel, Operator
+
 from mathutils import Vector, Matrix
 import numpy as np
 from . import internalUtils as iu
@@ -57,13 +60,13 @@ def calcCenterOfSphereFromSelectedVertices():
         return fitting.sphere_fit(np.array(verts))
     
 ################
-class CSFSV_OT_addApproximateSphere(bpy.types.Operator):
-    bl_idname = 'object.add_approximate_sphere'
+class DDD_OT_addApproximateSphere(Operator):
+    bl_idname = 'ddd.add_approximate_sphere'
     bl_label = '近似球の追加'
     bl_description = '選択した頂点群に近似した球を追加します'
     bl_options = {'REGISTER', 'UNDO'}
 
-    segments: bpy.props.IntProperty(
+    segments: IntProperty(
         name='セグメント',
         description='追加する球のセグメントの数を指定します',
         min=3,
@@ -71,7 +74,7 @@ class CSFSV_OT_addApproximateSphere(bpy.types.Operator):
         default=32,
     )
 
-    ring_count: bpy.props.IntProperty(
+    ring_count: IntProperty(
         name='リング',
         description='追加する球のリングの数を指定します',
         min=3,
@@ -109,8 +112,8 @@ class CSFSV_OT_addApproximateSphere(bpy.types.Operator):
 
 
 ################
-class CSFSV_PT_tool(bpy.types.Panel):
-    bl_idname = 'CSFSV_PT_tool'
+class DDD_PT_tool(Panel):
+    bl_idname = 'DDD_PT_tool'
     bl_label = 'Aproximate'
     bl_category = "DDDTools"
     bl_space_type = 'VIEW_3D'
@@ -118,13 +121,13 @@ class CSFSV_PT_tool(bpy.types.Panel):
   
     def draw(self, context):
         layout = self.layout
-        layout.operator('object.add_approximate_sphere')
+        layout.operator(DDD_OT_addApproximateSphere.bl_idname)
 
 ################
 
 classes = (
-    CSFSV_OT_addApproximateSphere,
-    CSFSV_PT_tool,
+    DDD_OT_addApproximateSphere,
+    DDD_PT_tool,
 )
 
 def registerClass():

@@ -99,7 +99,7 @@ class DDDVT_propertyGroup(PropertyGroup):
 
 ################################################################
 class DDDVT_OT_addCollider(Operator):
-    bl_idname = 'object.add_collider'
+    bl_idname = 'dddvt.add_collider'
     bl_label = 'コライダ追加'
     bl_description = 'メッシュの大きさに合わせたコライダを追加します'
     bl_options = {'REGISTER', 'UNDO'}
@@ -192,7 +192,7 @@ class DDDVT_OT_addCollider(Operator):
       
 ################
 class DDDVT_OT_prepareToExportVRM(Operator):
-    bl_idname = 'object.prepare_to_export_vrm'
+    bl_idname = 'dddvt.prepare_to_export_vrm'
     bl_label = 'VRM 出力前の準備'
     bl_description = 'VRM を出力するために、メッシュをマージし、不要な骨を溶解し、ウェイトのクリーンアップを行い、ブレンドシェイプの設定を行います'
     bl_options = {'UNDO'}
@@ -230,7 +230,7 @@ class DDDVT_OT_prepareToExportVRM(Operator):
 
 ################
 class DDDVT_OT_openAddonPage(Operator):
-    bl_idname = 'object.url_open_vrm_addon_for_blender'
+    bl_idname = 'dddvt.url_open_vrm_addon_for_blender'
     bl_label = 'VRM_Addon_for_Blender のページを開く'
     bl_description = 'VRM_Addon_for_Blender のサイトページを開きます'
     bl_options = {'INTERNAL'}
@@ -251,7 +251,7 @@ class DDDVT_UL_MaterialList(UIList):
 
 ################
 class DDDVT_OT_AddExcludeMaterial(Operator):
-    bl_idname = 'dddtools.add_exclude_material'
+    bl_idname = 'dddvt.add_exclude_material'
     bl_label = 'Add'
     bl_description = '除外マテリアルリストにマテリアルを追加します'
     
@@ -271,7 +271,7 @@ class DDDVT_OT_AddExcludeMaterial(Operator):
         return {'FINISHED'}
 
 class DDDVT_OT_RemoveExcludeMaterial(Operator):
-    bl_idname = 'dddtools.remove_exclude_material'
+    bl_idname = 'dddvt.remove_exclude_material'
     bl_label = 'Remove Exclude Material'
     bl_description = '除外マテリアルリストからマテリアルを削除します'
     
@@ -284,7 +284,7 @@ class DDDVT_OT_RemoveExcludeMaterial(Operator):
 
 ################
 class DDDVT_OT_RemoveTransparentPolygons(Operator):
-    bl_idname = 'object.remove_transparent_polygons'
+    bl_idname = 'dddvt.remove_transparent_polygons'
     bl_label = '削除実行'
     bl_description = 'VRM のマテリアルを使用している指定したオブジェクトから、透明なポリゴンを削除します'
     bl_options = {'UNDO'}

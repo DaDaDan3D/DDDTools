@@ -1,4 +1,6 @@
 import bpy
+from bpy.props import StringProperty, EnumProperty, CollectionProperty, PointerProperty, BoolProperty, FloatProperty, IntProperty
+from bpy.types import PropertyGroup, Operator, Panel, UIList
 from . import MaterialTool as mt
 
 ################################################################
@@ -29,36 +31,36 @@ def shader_group_node_items(self, context):
     return items
 
 ################################################################
-class MaterialTool_propertyGroup(bpy.types.PropertyGroup):
-    display_texture_tools: bpy.props.BoolProperty(
+class DDDMT_propertyGroup(PropertyGroup):
+    display_texture_tools: BoolProperty(
         name='TextureTools',
         default=True)
-    texture: bpy.props.PointerProperty(name='Texture', type=bpy.types.Image)
+    texture: PointerProperty(name='Texture', type=bpy.types.Image)
 
-    display_material_tools: bpy.props.BoolProperty(
+    display_material_tools: BoolProperty(
         name='MaterialTools',
         default=True)
-    material: bpy.props.PointerProperty(name='Material', type=bpy.types.Material)
+    material: PointerProperty(name='Material', type=bpy.types.Material)
 
-    display_calc_specular_settings: bpy.props.BoolProperty(
+    display_calc_specular_settings: BoolProperty(
         name='CalcSpecularSettings',
         default=True)
-    ior: bpy.props.FloatProperty(name='IOR',
-                                 default=1.45,
-                                 min=0,
-                                 max=100,
-                                 precision=2,
-                                 step=1)
+    ior: FloatProperty(name='IOR',
+                       default=1.45,
+                       min=0,
+                       max=100,
+                       precision=2,
+                       step=1)
 
-    display_replace_group_node: bpy.props.BoolProperty(
-        name='replace_group_node_settings',
+    display_replaceGroupNode: BoolProperty(
+        name='replaceGroupNode_settings',
         default=True)
-    old_group_node: bpy.props.EnumProperty(
+    old_group_node: EnumProperty(
         name='旧ノード',
         description="置き換え元のグループノード",
         items=used_shader_group_node_items
     )
-    new_group_node: bpy.props.EnumProperty(
+    new_group_node: EnumProperty(
         name='新ノード',
         description="置き換え先のグループノード",
         items=shader_group_node_items
@@ -66,8 +68,8 @@ class MaterialTool_propertyGroup(bpy.types.PropertyGroup):
 
 
 ################################################################
-class MaterialTool_OT_selectAllObjectsUsingTexture(bpy.types.Operator):
-    bl_idname = 'object.select_all_objects_using_texture'
+class DDDMT_OT_selectAllObjectsUsingTexture(Operator):
+    bl_idname = 'dddmt.select_all_objects_using_texture'
     bl_label = 'テクスチャを使用するオブジェクトの選択'
     bl_description = '指定したテクスチャを使用しているオブジェクトを選択します'
     bl_options = {'REGISTER', 'UNDO'}
@@ -84,8 +86,8 @@ class MaterialTool_OT_selectAllObjectsUsingTexture(bpy.types.Operator):
         return{'FINISHED'}
 
 ################################################################
-class MaterialTool_OT_selectAllImageNodesUsingTexture(bpy.types.Operator):
-    bl_idname = 'object.select_all_image_nodes_using_texture'
+class DDDMT_OT_selectAllImageNodesUsingTexture(Operator):
+    bl_idname = 'dddmt.select_all_image_nodes_using_texture'
     bl_label = 'テクスチャを使用するイメージシェーダーノードの選択'
     bl_description = '指定したテクスチャを使用しているイメージシェーダーノードを選択します'
     bl_options = {'REGISTER', 'UNDO'}
@@ -102,8 +104,8 @@ class MaterialTool_OT_selectAllImageNodesUsingTexture(bpy.types.Operator):
         return{'FINISHED'}
 
 ################################################################
-class MaterialTool_OT_listupAllMaterialsUsingTexture(bpy.types.Operator):
-    bl_idname = 'object.listup_all_materials_using_texture'
+class DDDMT_OT_listupAllMaterialsUsingTexture(Operator):
+    bl_idname = 'dddmt.listup_all_materials_using_texture'
     bl_label = 'テクスチャを使用するマテリアルの列挙'
     bl_description = '指定したテクスチャを使用しているマテリアルをコンソールに列挙します'
     bl_options = {'REGISTER'}
@@ -127,8 +129,8 @@ class MaterialTool_OT_listupAllMaterialsUsingTexture(bpy.types.Operator):
         return{'FINISHED'}
 
 ################################################################
-class MaterialTool_OT_setupMaterialContainerObject(bpy.types.Operator):
-    bl_idname = 'object.setup_material_container_object'
+class DDDMT_OT_setupMaterialContainerObject(Operator):
+    bl_idname = 'dddmt.setup_material_container_object'
     bl_label = 'テクスチャを使用する全マテリアルをオブジェクトに設定'
     bl_description = '指定したテクスチャを使用している全マテリアルを、アクティブなメッシュに登録します'
     bl_options = {'REGISTER', 'UNDO'}
@@ -150,8 +152,8 @@ class MaterialTool_OT_setupMaterialContainerObject(bpy.types.Operator):
         return context.window_manager.invoke_confirm(self, event)
 
 ################################################################
-class MaterialTool_OT_selectAllObjectsUsingMaterial(bpy.types.Operator):
-    bl_idname = 'object.select_all_objects_using_material'
+class DDDMT_OT_selectAllObjectsUsingMaterial(Operator):
+    bl_idname = 'dddmt.select_all_objects_using_material'
     bl_label = 'マテリアルを使用するオブジェクトの選択'
     bl_description = '指定したマテリアルを使用しているオブジェクトを選択します'
     bl_options = {'REGISTER', 'UNDO'}
@@ -168,8 +170,8 @@ class MaterialTool_OT_selectAllObjectsUsingMaterial(bpy.types.Operator):
         return{'FINISHED'}
 
 ################################################################
-class MaterialTool_OT_listupAllObjectsUsingMaterial(bpy.types.Operator):
-    bl_idname = 'object.listup_all_objects_using_material'
+class DDDMT_OT_listupAllObjectsUsingMaterial(Operator):
+    bl_idname = 'dddmt.listup_all_objects_using_material'
     bl_label = 'マテリアルを使用するオブジェクトの列挙'
     bl_description = '指定したマテリアルを使用しているオブジェクトをコンソールに列挙します'
     bl_options = {'REGISTER'}
@@ -193,8 +195,8 @@ class MaterialTool_OT_listupAllObjectsUsingMaterial(bpy.types.Operator):
         return{'FINISHED'}
 
 ################################################################
-class MaterialTool_OT_calcSpecularFromIOR(bpy.types.Operator):
-    bl_idname = 'material.calc_specular_from_ior'
+class DDDMT_OT_calcSpecularFromIOR(Operator):
+    bl_idname = 'dddmt.calc_specular_from_ior'
     bl_label = 'スペキュラ計算'
     bl_description = 'IOR からスペキュラを計算してクリップボードにコピーします'
     bl_options = {'INTERNAL'}
@@ -207,8 +209,8 @@ class MaterialTool_OT_calcSpecularFromIOR(bpy.types.Operator):
         return {'FINISHED'}
     
 ################################################################
-class MaterialTool_OT_replace_group_node(bpy.types.Operator):
-    bl_idname = 'material.replace_group_node'
+class DDDMT_OT_replaceGroupNode(Operator):
+    bl_idname = 'dddmt.replace_group_node'
     bl_label = 'グループノード置換'
     bl_description = '指定したシェーダーグループノードを新しいシェーダーグループノードに置き換えます'
     bl_options = {'REGISTER', 'UNDO'}
@@ -244,7 +246,7 @@ class MaterialTool_OT_replace_group_node(bpy.types.Operator):
         row.prop(prop, 'new_group_node')
 
 ################################################################
-class MaterialTool_PT_MaterialTool(bpy.types.Panel):
+class DDDMT_PT_MaterialTool(Panel):
     bl_idname = 'MT_PT_MaterialTool'
     bl_label = 'MaterialTool'
     bl_category = "DDDTools"
@@ -268,13 +270,13 @@ class MaterialTool_PT_MaterialTool(bpy.types.Panel):
             col = layout.box().column(align=True)
 
             col.prop_search(prop, 'texture', context.blend_data, 'images')
-            col.operator(MaterialTool_OT_selectAllObjectsUsingTexture.bl_idname,
+            col.operator(DDDMT_OT_selectAllObjectsUsingTexture.bl_idname,
                          text='selectObjects')
-            col.operator(MaterialTool_OT_listupAllMaterialsUsingTexture.bl_idname,
+            col.operator(DDDMT_OT_listupAllMaterialsUsingTexture.bl_idname,
                          text='listupMaterials')
-            col.operator(MaterialTool_OT_setupMaterialContainerObject.bl_idname,
+            col.operator(DDDMT_OT_setupMaterialContainerObject.bl_idname,
                          text='setupMaterialContainerObject')
-            col.operator(MaterialTool_OT_selectAllImageNodesUsingTexture.bl_idname,
+            col.operator(DDDMT_OT_selectAllImageNodesUsingTexture.bl_idname,
                          text='selectNodes')
 
 
@@ -290,9 +292,9 @@ class MaterialTool_PT_MaterialTool(bpy.types.Panel):
         if prop.display_material_tools:
             col = layout.box().column(align=True)
             col.prop_search(prop, 'material', context.blend_data, 'materials')
-            col.operator(MaterialTool_OT_selectAllObjectsUsingMaterial.bl_idname,
+            col.operator(DDDMT_OT_selectAllObjectsUsingMaterial.bl_idname,
                          text='selectObjects')
-            col.operator(MaterialTool_OT_listupAllObjectsUsingMaterial.bl_idname,
+            col.operator(DDDMT_OT_listupAllObjectsUsingMaterial.bl_idname,
                          text='listupObjects')
 
         # calcSpecularFromIOR
@@ -303,7 +305,7 @@ class MaterialTool_PT_MaterialTool(bpy.types.Panel):
         else:
             split.prop(prop, 'display_calc_specular_settings',
                        text='', icon='RIGHTARROW')
-        split.operator(MaterialTool_OT_calcSpecularFromIOR.bl_idname,
+        split.operator(DDDMT_OT_calcSpecularFromIOR.bl_idname,
                        text='スペキュラ計算')
         if prop.display_calc_specular_settings:
             col = layout.box().column(align=True)
@@ -311,36 +313,36 @@ class MaterialTool_PT_MaterialTool(bpy.types.Panel):
 
         # replace_group_node
         split = layout.split(factor=0.15, align=True)
-        if prop.display_replace_group_node:
-            split.prop(prop, 'display_replace_group_node',
+        if prop.display_replaceGroupNode:
+            split.prop(prop, 'display_replaceGroupNode',
                        text='', icon='DOWNARROW_HLT')
         else:
-            split.prop(prop, 'display_replace_group_node',
+            split.prop(prop, 'display_replaceGroupNode',
                        text='', icon='RIGHTARROW')
-        split.operator(MaterialTool_OT_replace_group_node.bl_idname)
-        if prop.display_replace_group_node:
+        split.operator(DDDMT_OT_replaceGroupNode.bl_idname)
+        if prop.display_replaceGroupNode:
             col = layout.box().column(align=True)
             col.prop(prop, "old_group_node")
             col.prop(prop, "new_group_node")
      
 ################################################################
 classes = (
-    MaterialTool_propertyGroup,
-    MaterialTool_OT_selectAllObjectsUsingTexture,
-    MaterialTool_OT_selectAllImageNodesUsingTexture,
-    MaterialTool_OT_listupAllMaterialsUsingTexture,
-    MaterialTool_OT_setupMaterialContainerObject,
-    MaterialTool_OT_selectAllObjectsUsingMaterial,
-    MaterialTool_OT_listupAllObjectsUsingMaterial,
-    MaterialTool_OT_calcSpecularFromIOR,
-    MaterialTool_OT_replace_group_node,
-    MaterialTool_PT_MaterialTool,
+    DDDMT_propertyGroup,
+    DDDMT_OT_selectAllObjectsUsingTexture,
+    DDDMT_OT_selectAllImageNodesUsingTexture,
+    DDDMT_OT_listupAllMaterialsUsingTexture,
+    DDDMT_OT_setupMaterialContainerObject,
+    DDDMT_OT_selectAllObjectsUsingMaterial,
+    DDDMT_OT_listupAllObjectsUsingMaterial,
+    DDDMT_OT_calcSpecularFromIOR,
+    DDDMT_OT_replaceGroupNode,
+    DDDMT_PT_MaterialTool,
 )
 
 def registerClass():
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Scene.dddtools_mt_prop = bpy.props.PointerProperty(type=MaterialTool_propertyGroup)
+    bpy.types.Scene.dddtools_mt_prop = PointerProperty(type=DDDMT_propertyGroup)
 
 def unregisterClass():
     del bpy.types.Scene.dddtools_mt_prop
