@@ -386,7 +386,7 @@ class DDDMT_PT_MaterialTool(Panel):
         else:
             split.prop(prop, 'display_texture_tools',
                        text='', icon='RIGHTARROW')
-        split.label(text='TextureTools')
+        split.label(text='テクスチャ関係')
         if prop.display_texture_tools:
             col = layout.box().column(align=True)
 
@@ -409,7 +409,7 @@ class DDDMT_PT_MaterialTool(Panel):
         else:
             split.prop(prop, 'display_material_tools',
                        text='', icon='RIGHTARROW')
-        split.label(text='MaterialTools')
+        split.label(text='マテリアル関係')
         if prop.display_material_tools:
             col = layout.box().column(align=True)
             col.prop_search(prop, 'material', context.blend_data, 'materials')
