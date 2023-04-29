@@ -31,6 +31,10 @@ def shader_group_node_items(self, context):
     return items
 
 ################################################################
+class DDDMT_MaterialListItem(PropertyGroup):
+    material: PointerProperty(type=bpy.types.Material)
+
+################
 class DDDMT_propertyGroup(PropertyGroup):
     display_texture_tools: BoolProperty(
         name='TextureTools',
@@ -66,6 +70,21 @@ class DDDMT_propertyGroup(PropertyGroup):
         items=shader_group_node_items
     )
 
+    display_sortMaterialSlots_settings: BoolProperty(
+        name='sortMaterialSlots_settings',
+        default=True)
+    orderList: CollectionProperty(
+        type=DDDMT_MaterialListItem,
+        name='マテリアル順指定リスト',
+        description='マテリアルをソートする時に順番を指定するためのリスト',
+    )
+    orderList_index: IntProperty()
+
+    materialSelectorForOrderList: PointerProperty(
+        type=bpy.types.Material,
+        name='マテリアル選択',
+        description='マテリアル順指定リストに追加するマテリアルを選択します',
+    )
 
 ################################################################
 class DDDMT_OT_selectAllObjectsUsingTexture(Operator):
@@ -246,6 +265,108 @@ class DDDMT_OT_replaceGroupNode(Operator):
         row.prop(prop, 'new_group_node')
 
 ################################################################
+class DDDMT_UL_materialList(UIList):
+    bl_idname = 'DDDMT_UL_materialList'
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        material = item.material
+        if material:
+            layout.label(text=material.name, translate=False)
+
+################
+class DDDMT_OT_addMaterialToOrderList(Operator):
+    bl_idname = 'dddmt.add_material_to_order_list'
+    bl_label = 'マテリアル追加'
+    bl_description = 'マテリアル順指定リストに、ドロップダウンで選択しているマテリアルを追加します'
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        prop = context.scene.dddtools_mt_prop
+        material = prop.materialSelectorForOrderList
+        return material and material.name not in [x.material.name for x in prop.orderList]
+
+    def execute(self, context):
+        prop = context.scene.dddtools_mt_prop
+        material = prop.materialSelectorForOrderList
+        if material:
+            orderList = prop.orderList
+            new_item = orderList.add()
+            new_item.material = material
+        return {'FINISHED'}
+
+################
+class DDDMT_OT_removeMaterialFromOrderList(Operator):
+    bl_idname = 'dddmt.remove_material_from_order_list'
+    bl_label = 'マテリアル削除'
+    bl_description = 'マテリアル順指定リストで選択中のマテリアルを削除します'
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        prop = context.scene.dddtools_mt_prop
+        orderList = prop.orderList
+        index = prop.orderList_index
+        return index < len(orderList)
+
+    def execute(self, context):
+        prop = context.scene.dddtools_mt_prop
+        orderList = prop.orderList
+        index = prop.orderList_index
+        if index < len(orderList):
+            orderList.remove(index)
+        return {'FINISHED'}
+
+################
+class DDDMT_OT_moveMaterialInOrderList(Operator):
+    bl_idname = 'dddmt.move_material_in_order_list'
+    bl_label = 'Move Material'
+    bl_description = 'マテリアル順指定リストで選択中のマテリアルの位置を移動します'
+    bl_options = {'UNDO'}
+
+    direction: EnumProperty(items=[('UP', 'Up', '選択中のマテリアルを上に移動'),
+                                   ('DOWN', 'Down', '選択中のマテリアルを下に移動'),
+                                   ('TOP', 'Top', '選択中のマテリアルを一番上に移動'),
+                                   ('BOTTOM', 'Bottom', '選択中のマテリアルを一番下に移動')])
+
+    def execute(self, context):
+        prop = context.scene.dddtools_mt_prop
+        orderList = prop.orderList
+        index = prop.orderList_index
+        if self.direction == 'UP':
+            orderList.move(index, index-1)
+            prop.orderList_index = max(0, index-1)
+        elif self.direction == 'DOWN':
+            orderList.move(index, index+1)
+            prop.orderList_index = min(len(orderList)-1, index+1)
+        elif self.direction == 'TOP':
+            orderList.move(index, 0)
+            prop.orderList_index = 0
+        elif self.direction == 'BOTTOM':
+            orderList.move(index, len(orderList)-1)
+            prop.orderList_index = len(orderList)-1
+        return {'FINISHED'}
+
+################
+class DDDMT_OT_sortMaterialSlots(Operator):
+    bl_idname = 'dddmt.sort_material_slots'
+    bl_label = 'Execute Sort'
+    bl_description = '選択中のオブジェクトのマテリアルスロットを、指定順にソートします。マテリアル順指定リストに含まれるマテリアルをリストの順で→それ以外のマテリアルを名前順で、という順に並べます'
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        prop = context.scene.dddtools_mt_prop
+        return bpy.context.selected_objects and prop.orderList
+
+    def execute(self, context):
+        prop = context.scene.dddtools_mt_prop
+        obj = bpy.context.active_object
+        material_order = [item.material.name for item in prop.orderList]
+        mt.sort_material_slots(obj, material_order)
+        return {'FINISHED'}
+
+################################################################
 class DDDMT_PT_MaterialTool(Panel):
     bl_idname = 'MT_PT_MaterialTool'
     bl_label = 'MaterialTool'
@@ -325,8 +446,55 @@ class DDDMT_PT_MaterialTool(Panel):
             col.prop(prop, "old_group_node")
             col.prop(prop, "new_group_node")
      
+        # sortMaterialSlots
+        split = layout.split(factor=0.15, align=True)
+        if prop.display_sortMaterialSlots_settings:
+            split.prop(prop, 'display_sortMaterialSlots_settings',
+                       text='', icon='DOWNARROW_HLT')
+        else:
+            split.prop(prop, 'display_sortMaterialSlots_settings',
+                       text='', icon='RIGHTARROW')
+        split.operator(DDDMT_OT_sortMaterialSlots.bl_idname,
+                       icon='SORTALPHA', text='マテリアルのソート')
+        if prop.display_sortMaterialSlots_settings:
+            col = layout.box().column(align=True)
+
+            col.label(text='マテリアル順指定リスト')
+
+            # Draw material list
+            row = col.row()
+            row.template_list(DDDMT_UL_materialList.bl_idname, '',
+                              prop, 'orderList',
+                              prop, 'orderList_index',
+                              sort_lock=True)
+
+            # Draw move buttons
+            move_col = row.column(align=True)
+            move_col.operator(DDDMT_OT_moveMaterialInOrderList.bl_idname,
+                              icon='TRIA_UP_BAR', text='').direction = 'TOP'
+            move_col.operator(DDDMT_OT_moveMaterialInOrderList.bl_idname,
+                              icon='TRIA_UP', text='').direction = 'UP'
+            move_col.operator(DDDMT_OT_moveMaterialInOrderList.bl_idname,
+                              icon='TRIA_DOWN', text='').direction = 'DOWN'
+            move_col.operator(DDDMT_OT_moveMaterialInOrderList.bl_idname,
+                              icon='TRIA_DOWN_BAR', text='').direction = 'BOTTOM'
+
+            # Draw remove button
+            move_col.separator()
+            move_col.operator(DDDMT_OT_removeMaterialFromOrderList.bl_idname,
+                              icon='REMOVE', text='')
+
+            # Draw material dropdown and add button
+            split = col.split(factor=0.8)
+            split.prop_search(prop, 'materialSelectorForOrderList',
+                              context.blend_data, 'materials',
+                              text='')
+            split.operator(DDDMT_OT_addMaterialToOrderList.bl_idname,
+                           icon='ADD', text='')
+
 ################################################################
 classes = (
+    DDDMT_MaterialListItem,
     DDDMT_propertyGroup,
     DDDMT_OT_selectAllObjectsUsingTexture,
     DDDMT_OT_selectAllImageNodesUsingTexture,
@@ -337,6 +505,11 @@ classes = (
     DDDMT_OT_calcSpecularFromIOR,
     DDDMT_OT_replaceGroupNode,
     DDDMT_PT_MaterialTool,
+    DDDMT_UL_materialList,
+    DDDMT_OT_addMaterialToOrderList,
+    DDDMT_OT_removeMaterialFromOrderList,
+    DDDMT_OT_moveMaterialInOrderList,
+    DDDMT_OT_sortMaterialSlots,
 )
 
 def registerClass():
