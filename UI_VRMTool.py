@@ -1,7 +1,8 @@
 import os
 import bpy
 from bpy.types import Panel, Operator, PropertyGroup, UIList, Object, Text
-from bpy.props import PointerProperty, CollectionProperty, StringProperty, EnumProperty
+from bpy.props import PointerProperty, CollectionProperty, StringProperty, EnumProperty, BoolProperty, IntProperty, FloatProperty
+
 from . import VRMTool as vt
 
 ################################################################
@@ -10,74 +11,84 @@ class DDDVT_MaterialListItem(PropertyGroup):
 
 ################
 class DDDVT_propertyGroup(PropertyGroup):
-    display_add_collider_settings: bpy.props.BoolProperty(
+    display_add_collider_settings: BoolProperty(
         name='AddColliderSettings',
         default=True)
-    mesh: bpy.props.PointerProperty(
+    mesh: PointerProperty(
         name='Mesh',
         description='幅を計算するメッシュ',
         type=Object,
         poll=lambda self, obj: obj and obj.type=='MESH',
     )
 
-    display_prepareToExportVRM: bpy.props.BoolProperty(
+    display_prepareToExportVRM: BoolProperty(
         name='prepareToExportVRMの設定',
         default=True)
 
-    skeleton: bpy.props.PointerProperty(
+    skeleton: PointerProperty(
         name='Skeleton',
         description='VRMのスケルトン',
         type=Object,
         poll=lambda self, obj: obj and obj.type=='ARMATURE',
     )
 
-    triangulate: bpy.props.BoolProperty(
+    triangulate: BoolProperty(
         name='三角化',
         description='ポリゴンを三角化します',
         default=False,
     )
 
-    bs_json: bpy.props.PointerProperty(
+    bs_json: PointerProperty(
         name='blendshape',
         description='ブレインドシェイプを定義する.jsonテキスト',
         type=Text,
     )
 
-    notExportBoneGroup: bpy.props.StringProperty(
+    notExportBoneGroup: StringProperty(
         name='出力しないボーングループ',
         description='指定したボーングループを溶解します',
     )
 
-    mergedName: bpy.props.StringProperty(
+    mergedName: StringProperty(
         name='マージしたメッシュに付ける名前',
         description='blendshape に含まれない残りのメッシュをマージしたメッシュに付ける名前を指定します',
         default='MergedBody',
     )
 
-    saveAsExport: bpy.props.BoolProperty(
+    saveAsExport: BoolProperty(
         name='実行後セーブ',
         description='実行後、*.export.blend として自動的に保存します',
         default=True)
 
-    display_removePolygons_settings: bpy.props.BoolProperty(
+    display_removePolygons_settings: BoolProperty(
         name='RemovePolygonsSettings',
         default=False)
-    removePolygons: bpy.props.BoolProperty(
+    removePolygons: BoolProperty(
         name='ポリゴン削除',
         description='条件によってポリゴンを削除します',
         default=False)
-    interval: bpy.props.IntProperty(
+    interval: IntProperty(
         name='間引き量',
         description='透明ポリゴン判定時に何分の一のテクスチャで作業するかを指定します。大きくすると高速になりますが、判定が粗くなります',
         min=1,
         max=16,
         default=4,
     )
+    alphaThreshold: FloatProperty(
+        name='アルファ値の閾値',
+        description='透明ポリゴン判定時に、この値以下のアルファ値を透明と見なします',
+        #subtype='FACTOR',
+        default=0.05,
+        min=0.00,
+        max=1.00,
+        precision=2,
+        step=1,
+    )
     excludeMaterials: CollectionProperty(
         name='除外マテリアルリスト',
         description='透明ポリゴンを削除する際、透明でも削除しないマテリアルのリストです',
         type=DDDVT_MaterialListItem)
-    excludeMaterialsIndex: bpy.props.IntProperty(
+    excludeMaterialsIndex: IntProperty(
         name='除外マテリアルリストインデックス'
     )
     excludeMaterialSelector: PointerProperty(
@@ -93,7 +104,7 @@ class DDDVT_OT_addCollider(Operator):
     bl_description = 'メッシュの大きさに合わせたコライダを追加します'
     bl_options = {'REGISTER', 'UNDO'}
 
-    numberOfColliders: bpy.props.IntProperty(
+    numberOfColliders: IntProperty(
         name='コライダの数',
         description='追加するコライダの数を設定します',
         min=1,
@@ -101,7 +112,7 @@ class DDDVT_OT_addCollider(Operator):
         default=4,
     )
 
-    numberOfRays: bpy.props.IntProperty(
+    numberOfRays: IntProperty(
         name='レイの本数',
         description='レイを投射する本数を設定します',
         min=1,
@@ -109,7 +120,7 @@ class DDDVT_OT_addCollider(Operator):
         default=8,
     )
 
-    radius: bpy.props.FloatProperty(
+    radius: FloatProperty(
         name='レイの最大半径',
         description='レイを投射する円の最大半径を設定します',
         subtype='DISTANCE',
@@ -121,7 +132,7 @@ class DDDVT_OT_addCollider(Operator):
         unit='LENGTH',
     )
     
-    insideToOutside: bpy.props.EnumProperty(
+    insideToOutside: EnumProperty(
         name='レイの方向',
         description='レイを投射する向きを設定します',
         items=[('IN_TO_OUT', '内から広がる', 'レイを内側から外側へ投射します'),
@@ -129,7 +140,7 @@ class DDDVT_OT_addCollider(Operator):
         default='IN_TO_OUT',
     )
 
-    fitMode: bpy.props.EnumProperty(
+    fitMode: EnumProperty(
         name='算出方法',
         description='コライダの大きさの算出方法を設定します',
         items=[('MIN', 'min', '最小'),
@@ -140,7 +151,7 @@ class DDDVT_OT_addCollider(Operator):
         default='MEDIAN',
     )
 
-    offset: bpy.props.FloatProperty(
+    offset: FloatProperty(
         name='オフセット',
         description='コライダの大きさを全体的にオフセット調整します',
         subtype='DISTANCE',
@@ -152,7 +163,7 @@ class DDDVT_OT_addCollider(Operator):
         unit='LENGTH',
     )
 
-    scale: bpy.props.FloatProperty(
+    scale: FloatProperty(
         name='倍率',
         description='コライダの大きさを全体的に倍率調整します',
         #subtype='FACTOR',
@@ -200,6 +211,7 @@ class DDDVT_OT_prepareToExportVRM(Operator):
                                            triangulate=prop.triangulate,
                                            removeTransparentPolygons=prop.removePolygons,
                                            interval=prop.interval,
+                                           alphaThreshold=prop.alphaThreshold,
                                            excludeMaterials=excludeMaterials,
                                            bs_json=prop.bs_json.name,
                                            notExport=prop.notExportBoneGroup)
@@ -263,12 +275,38 @@ class DDDVT_OT_RemoveExcludeMaterial(Operator):
     bl_label = 'Remove Exclude Material'
     bl_description = '除外マテリアルリストからマテリアルを削除します'
     
-    index: bpy.props.IntProperty()
+    index: IntProperty()
 
     def execute(self, context):
         prop = context.scene.dddtools_vt_prop
         prop.excludeMaterials.remove(self.index)
         return {'FINISHED'}
+
+################
+class DDDVT_OT_RemoveTransparentPolygons(Operator):
+    bl_idname = 'object.remove_transparent_polygons'
+    bl_label = '削除実行'
+    bl_description = 'VRM のマテリアルを使用している指定したオブジェクトから、透明なポリゴンを削除します'
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        prop = context.scene.dddtools_vt_prop
+        return vt.getAddon() and bpy.context.selected_objects
+
+    def execute(self, context):
+        prop = context.scene.dddtools_vt_prop
+        excludeMaterials = set([mat.material.name for mat in prop.excludeMaterials])
+        print(excludeMaterials)
+        for obj in bpy.context.selected_objects:
+            vt.removeTransparentPolygons(obj,
+                                         interval=prop.interval,
+                                         alphaThreshold=prop.alphaThreshold,
+                                         excludeMaterials=excludeMaterials)
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
 
 ################
 class DDDVT_PT_VRMTool(Panel):
@@ -329,6 +367,7 @@ class DDDVT_PT_VRMTool(Panel):
                 if prop.display_removePolygons_settings:
                     box = col.box().column(align=True)
                     box.prop(prop, 'interval')
+                    box.prop(prop, 'alphaThreshold')
 
                     box.separator()
                     box.label(text='除外マテリアルリスト')
@@ -340,6 +379,10 @@ class DDDVT_PT_VRMTool(Panel):
                                     bpy.data, 'materials', text='')
                     box.operator(DDDVT_OT_AddExcludeMaterial.bl_idname,
                                  text='Add', icon='ADD')
+
+                    box.separator()
+                    box.operator(DDDVT_OT_RemoveTransparentPolygons.bl_idname)
+
             else:
                 col.label(text='VRM_Addon_for_Blender がインストールされていません。',
                           icon='INFO')
@@ -355,13 +398,14 @@ classes = (
     DDDVT_UL_MaterialList,
     DDDVT_OT_AddExcludeMaterial,
     DDDVT_OT_RemoveExcludeMaterial,
+    DDDVT_OT_RemoveTransparentPolygons,
     DDDVT_PT_VRMTool,
 )
 
 def registerClass():
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Scene.dddtools_vt_prop = bpy.props.PointerProperty(type=DDDVT_propertyGroup)
+    bpy.types.Scene.dddtools_vt_prop = PointerProperty(type=DDDVT_propertyGroup)
 
 def unregisterClass():
     del bpy.types.Scene.dddtools_vt_prop

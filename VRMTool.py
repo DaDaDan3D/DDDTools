@@ -207,6 +207,59 @@ class MaterialInfo:
     alpha_threshold: float
 
 ################################################################
+def buildRemoveMatDic(interval, alphaThreshold, excludeMaterials):
+    """
+    Returns material dictionary to remove polygons
+    """
+
+    result = dict()
+
+    # get VRM_Addon_for_Blender
+    va = getAddon()
+    if not va:
+        raise ValueError("VRM addon is not found")
+    shader = va.common.shader
+    search = va.editor.search
+
+    for mat in bpy.data.materials:
+        # Skip opaque and excludeMaterials
+        if mat.blend_method == 'OPAQUE' or mat.name in excludeMaterials:
+            continue
+
+        if mat.blend_method == 'CLIP':
+            alpha_threshold = mat.alpha_threshold
+        else:
+            alpha_threshold = alphaThreshold
+
+        # Skip non-VRM-shader material
+        node = search.vrm_shader_node(mat)
+        if not isinstance(node, bpy.types.Node):
+            continue
+
+        # Skip auto_scroll material
+        if shader.get_float_value(node, "UV_Scroll_X") != 0 or\
+           shader.get_float_value(node, "UV_Scroll_Y") != 0 or\
+               shader.get_float_value(node, "UV_Scroll_Rotation") != 0:
+            continue
+
+        # Find MainTextureAlpha image
+        image = None
+        img_wt_ft = shader.get_image_name_and_sampler_type(node,
+                                                           'MainTextureAlpha')
+        image_name, wrap_type, filter_type = img_wt_ft
+        image = bpy.data.images.get(image_name)
+        if not image:
+            print(f'Material({mat.name}): MainTextureAlpha is not linked to a image. ')
+            continue
+
+        # This material is transparent and has alpha-image.
+        result[mat] = MaterialInfo(mat.name,
+                                   iu.image_to_alpha_array(image, interval),
+                                   alpha_threshold)
+    print(result)
+    return result
+    
+################################################################
 def delete_transparent_faces(obj, removeMatDic):
     bpy.ops.object.mode_set(mode='OBJECT')
     mesh = obj.data
@@ -246,7 +299,17 @@ def delete_transparent_faces(obj, removeMatDic):
     bm.to_mesh(mesh)
     bm.free()
 
+    print(f'Removed {len(faces_to_remove)} polygons from {obj.name}')
     return len(faces_to_remove)
+
+################################################################
+def removeTransparentPolygons(obj,
+                              interval=4,
+                              alphaThreshold=0.01,
+                              excludeMaterials=set()):
+    removeMatDic = buildRemoveMatDic(interval, alphaThreshold, excludeMaterials)
+    delete_transparent_faces(obj, removeMatDic)
+    iu.remove_isolated_edges_and_vertices(obj)
 
 ################################################################
 def mergeMeshes(arma, bs_dic, triangulate=True, removeMatDic=None):
@@ -425,6 +488,7 @@ def prepareToExportVRM(skeleton='skeleton',
                        triangulate=False,
                        removeTransparentPolygons=True,
                        interval=4,
+                       alphaThreshold=0.01,
                        excludeMaterials=set(),
                        bs_json=None,
                        notExport='NotExport',
@@ -448,52 +512,10 @@ def prepareToExportVRM(skeleton='skeleton',
     arma = iu.ObjectWrapper(skeleton)
     bs_dic = json.loads(textblock2str(bpy.data.texts[bs_json]),object_pairs_hook=OrderedDict)
 
-    # Build material dictionary to remove polygons
-    removeMatDic = dict()
     if removeTransparentPolygons:
-        # get VRM_Addon_for_Blender
-        va = getAddon()
-        if not va:
-            raise ValueError("VRM addon is not found")
-        shader = va.common.shader
-        search = va.editor.search
-
-        for mat in bpy.data.materials:
-            # Skip opaque and excludeMaterials
-            if mat.blend_method == 'OPAQUE' or mat.name in excludeMaterials:
-                continue
-
-            if mat.blend_method == 'CLIP':
-                alpha_threshold = mat.alpha_threshold
-            else:
-                alpha_threshold = 0.01
-
-            # Skip non-VRM-shader material
-            node = search.vrm_shader_node(mat)
-            if not isinstance(node, bpy.types.Node):
-                continue
-
-            # Skip auto_scroll material
-            if shader.get_float_value(node, "UV_Scroll_X") != 0 or\
-               shader.get_float_value(node, "UV_Scroll_Y") != 0 or\
-                   shader.get_float_value(node, "UV_Scroll_Rotation") != 0:
-                continue
-
-            # Find MainTextureAlpha image
-            image = None
-            img_wt_ft = shader.get_image_name_and_sampler_type(node,
-                                                               'MainTextureAlpha')
-            image_name, wrap_type, filter_type = img_wt_ft
-            image = bpy.data.images.get(image_name)
-            if not image:
-                print(f'Material({mat.name}): MainTextureAlpha is not linked to a image. ')
-                continue
-
-            # This material is transparent and has alpha-image.
-            removeMatDic[mat] = MaterialInfo(mat.name,
-                                             iu.image_to_alpha_array(image, interval),
-                                             alpha_threshold)
-    print(removeMatDic)
+        removeMatDic = buildRemoveMatDic(interval, alphaThreshold, excludeMaterials)
+    else:
+        removeMatDic = None
 
     mergedObjs = mergeMeshes(arma, bs_dic, triangulate=triangulate, removeMatDic=removeMatDic)
 
