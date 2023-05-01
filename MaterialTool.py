@@ -226,3 +226,31 @@ def sort_material_slots(obj, material_order):
         while obj.active_material_index > idx:
             bpy.ops.object.material_slot_move(direction='UP')
             #print(f'up {obj.active_material_index}')
+
+################
+def collectNodeSocketsFromMaterial(material, func):
+    """
+    Get a set of node-sockets from a material based on a given condition function.
+
+    Parameters
+    ----------
+    material : bpy.types.Material
+        The material to search for node-sockets.
+    func : Callable[[bpy.types.NodeSocket], bool]
+        A function that takes a node socket as socket and returns True if the socket should be added to the list.
+
+    Returns
+    -------
+    set of bpy.types.NodeSocket
+        A set of node sockets that meet the condition specified by the func parameter.
+    """
+
+    result = set()
+
+    if material.use_nodes:
+        for node in material.node_tree.nodes:
+            for socket in node.inputs:
+                if func(socket):
+                    result.add(socket)
+
+    return result
