@@ -1,13 +1,87 @@
 import bpy
 import bmesh
+import numpy as np
 
+################################################################
+def offsetUVCoords(uv_coords, mode, paramX, paramY, selected=None):
+    """
+    Moves selected UVs using numpy.
+
+    Parameters
+    ----------------
+    uv_coords : numpy array of UV coordinates (Nx2)
+    mode : 'OFFSET', 'ALIGN_LEFT', 'ALIGN_RIGHT', 'ALIGN_TOP', 'ALIGN_BOTTOM', 'ALIGN_CENTER_HORIZONTAL', 'ALIGN_CENTER_VERTICAL'
+    paramX : parameter of x
+    paramY : parameter of y
+    selected : boolean numpy array of selected UVs (Nx1)
+    """
+
+    if selected is None:
+        selected = np.ones(len(uv_coords), dtype=bool)
+
+    selected_uv_coords = uv_coords[selected]
+
+    if len(selected_uv_coords) == 0:
+        return uv_coords, False
+
+    if mode == 'OFFSET':
+        offset_x = paramX
+        offset_y = paramY
+
+    elif mode == 'ALIGN_LEFT':
+        offset_x = paramX - np.min(selected_uv_coords[:, 0])
+        offset_y = 0
+
+    elif mode == 'ALIGN_RIGHT':
+        offset_x = paramX - np.max(selected_uv_coords[:, 0])
+        offset_y = 0
+
+    elif mode == 'ALIGN_TOP':
+        offset_x = 0
+        offset_y = paramY - np.max(selected_uv_coords[:, 1])
+
+    elif mode == 'ALIGN_BOTTOM':
+        offset_x = 0
+        offset_y = paramY - np.min(selected_uv_coords[:, 1])
+
+    elif mode == 'ALIGN_CENTER_HORIZONTAL':
+        min_x = np.min(selected_uv_coords[:, 0])
+        max_x = np.max(selected_uv_coords[:, 0])
+        offset_x = paramX - (min_x + max_x) / 2
+        offset_y = 0
+
+    elif mode == 'ALIGN_CENTER_VERTICAL':
+        offset_x = 0
+        min_y = np.min(selected_uv_coords[:, 1])
+        max_y = np.max(selected_uv_coords[:, 1])
+        offset_y = paramY - (min_y + max_y) / 2
+
+    else:
+        return uv_coords, False
+
+    uv_coords[selected] += np.array([offset_x, offset_y])
+
+    return uv_coords, True
+
+################################################################
+def blender_to_numpy_uv_coords(bm, uv_layer):
+    uv_coords = np.array([loop[uv_layer].uv for face in bm.faces for loop in face.loops])
+    selected = np.array([loop[uv_layer].select for face in bm.faces for loop in face.loops], dtype=bool)
+    return uv_coords, selected
+
+################################################################
+def numpy_to_blender_uv_coords(bm, uv_layer, uv_coords):
+    for loop, uv_coord in zip((loop for face in bm.faces for loop in face.loops), uv_coords):
+        loop[uv_layer].uv = uv_coord
+
+################################################################
 def offsetSelectedUVIsland(mode, paramX, paramY):
     """
     Moves selected UVs.
 
     Parameters
     ----------------
-    mode : 'OFFSET', 'ALIGN_LEFT', 'ALIGN_RIGHT', 'ALIGN_TOP', 'ALIGN_BOTTOM'
+    mode : 'OFFSET', 'ALIGN_LEFT', 'ALIGN_RIGHT', 'ALIGN_TOP', 'ALIGN_BOTTOM', 'ALIGN_CENTER_HORIZONTAL', 'ALIGN_CENTER_VERTICAL'
     paramX : parameter of x
     paramY : parameter of y
     """
@@ -22,44 +96,20 @@ def offsetSelectedUVIsland(mode, paramX, paramY):
     # Get the mesh data in edit mode
     bm = bmesh.from_edit_mesh(me)
     uv_layer = bm.loops.layers.uv.verify()
-    
-    # Store the selected UV coordinates
-    selected_uv_coords = [loop[uv_layer].uv for face in bm.faces for loop in face.loops if loop[uv_layer].select]
 
-    if not selected_uv_coords:
+    # Get the UV coordinates and selected information as numpy arrays
+    uv_coords, selected = blender_to_numpy_uv_coords(bm, uv_layer)
+
+    # Call the numpy-based offset function
+    new_uv_coords, success = offsetUVCoords(uv_coords, mode, paramX, paramY, selected)
+
+    if not success:
         return {'CANCELLED'}
 
+    # Update the UV coordinates in Blender
+    numpy_to_blender_uv_coords(bm, uv_layer, new_uv_coords)
 
-    if mode == 'OFFSET':
-        offset_x = paramX
-        offset_y = paramY
-
-    elif mode == 'ALIGN_LEFT':
-        offset_x = paramX - min(uv_coord.x for uv_coord in selected_uv_coords)
-        offset_y = 0
-        
-    elif mode == 'ALIGN_RIGHT':
-        offset_x = paramX - max(uv_coord.x for uv_coord in selected_uv_coords)
-        offset_y = 0
-        
-    elif mode == 'ALIGN_TOP':
-        offset_x = 0
-        offset_y = paramY - max(uv_coord.y for uv_coord in selected_uv_coords)
-
-    elif mode == 'ALIGN_BOTTOM':
-        offset_x = 0
-        offset_y = paramY - min(uv_coord.y for uv_coord in selected_uv_coords)
-
-    else:
-        return {'CANCELLED'}
-
-    # Apply the offset to the selected UV coordinates
-    for uv_coord in selected_uv_coords:
-        uv_coord.x += offset_x
-        uv_coord.y += offset_y
-
-    # Update the mesh and redraw the view
+    # Update the mesh
     bmesh.update_edit_mesh(me)
-    bpy.ops.wm.redraw_timer(type='DRAW', iterations=1)
 
-    return{'FINISHED'}
+    return {'FINISHED'}
