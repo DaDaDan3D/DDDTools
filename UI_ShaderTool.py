@@ -65,7 +65,7 @@ class DDDST_UL_socketList(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         row = layout.row()
         row.operator(DDDST_OT_showSocketInEditor.bl_idname,
-                     text='', icon='VIEWZOOM').index = index
+                     text='', icon='HIDE_OFF').index = index
         row.label(text=item.material.name, translate=False)
         item.draw(context, row)
         row.operator(DDDST_OT_removeFromSocketList.bl_idname,
