@@ -36,16 +36,33 @@ class DDDMT_propertyGroup(PropertyGroup):
     )
 
 ################################################################
+class DDDMT_OT_reloadTexture(Operator):
+    bl_idname = 'dddmt.reload_texture'
+    bl_label = 'テクスチャのリロード'
+    bl_description = '指定したテクスチャをリロードします'
+
+    @classmethod
+    def poll(self, context):
+        prop = context.scene.dddtools_mt_prop
+        return prop.texture
+
+    def execute(self, context):
+        prop = context.scene.dddtools_mt_prop
+        if prop.texture:
+            prop.texture.reload()
+        return{'FINISHED'}
+
+################################################################
 class DDDMT_OT_selectAllObjectsUsingTexture(Operator):
     bl_idname = 'dddmt.select_all_objects_using_texture'
-    bl_label = 'テクスチャを使用するオブジェクトの選択'
+    bl_label = 'オブジェクト選択'
     bl_description = '指定したテクスチャを使用しているオブジェクトを選択します'
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
     def poll(self, context):
         prop = context.scene.dddtools_mt_prop
-        return prop.texture and bpy.context.active_object and bpy.context.active_object.mode=='OBJECT'
+        return prop.texture and bpy.context.mode == 'OBJECT'
 
     def execute(self, context):
         prop = context.scene.dddtools_mt_prop
@@ -56,8 +73,8 @@ class DDDMT_OT_selectAllObjectsUsingTexture(Operator):
 ################################################################
 class DDDMT_OT_selectAllImageNodesUsingTexture(Operator):
     bl_idname = 'dddmt.select_all_image_nodes_using_texture'
-    bl_label = 'テクスチャを使用するイメージシェーダーノードの選択'
-    bl_description = '指定したテクスチャを使用しているイメージシェーダーノードを選択します'
+    bl_label = 'シェーダーノード選択'
+    bl_description = '指定したテクスチャを使用しているイメージシェーダーノードを選択状態にします'
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -74,7 +91,7 @@ class DDDMT_OT_selectAllImageNodesUsingTexture(Operator):
 ################################################################
 class DDDMT_OT_listupAllMaterialsUsingTexture(Operator):
     bl_idname = 'dddmt.listup_all_materials_using_texture'
-    bl_label = 'テクスチャを使用するマテリアルの列挙'
+    bl_label = 'マテリアル列挙'
     bl_description = '指定したテクスチャを使用しているマテリアルをコンソールに列挙します'
     bl_options = {'REGISTER'}
 
@@ -99,14 +116,14 @@ class DDDMT_OT_listupAllMaterialsUsingTexture(Operator):
 ################################################################
 class DDDMT_OT_setupMaterialContainerObject(Operator):
     bl_idname = 'dddmt.setup_material_container_object'
-    bl_label = 'テクスチャを使用する全マテリアルをオブジェクトに設定'
-    bl_description = '指定したテクスチャを使用している全マテリアルを、アクティブなメッシュに登録します'
+    bl_label = '全マテリアルを設定'
+    bl_description = '指定したテクスチャを使用している全マテリアルを、アクティブなメッシュオブジェクトに登録します'
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
     def poll(self, context):
         prop = context.scene.dddtools_mt_prop
-        return prop.texture and bpy.context.active_object and bpy.context.active_object.type == 'MESH'
+        return prop.texture and bpy.context.active_object and bpy.context.active_object.type == 'MESH' and bpy.context.mode == 'OBJECT'
 
     def execute(self, context):
         prop = context.scene.dddtools_mt_prop
@@ -122,14 +139,14 @@ class DDDMT_OT_setupMaterialContainerObject(Operator):
 ################################################################
 class DDDMT_OT_selectAllObjectsUsingMaterial(Operator):
     bl_idname = 'dddmt.select_all_objects_using_material'
-    bl_label = 'マテリアルを使用するオブジェクトの選択'
+    bl_label = 'オブジェクト選択'
     bl_description = '指定したマテリアルを使用しているオブジェクトを選択します'
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
     def poll(self, context):
         prop = context.scene.dddtools_mt_prop
-        return prop.material and bpy.context.active_object and bpy.context.active_object.mode=='OBJECT'
+        return prop.material and bpy.context.mode == 'OBJECT'
 
     def execute(self, context):
         prop = context.scene.dddtools_mt_prop
@@ -140,7 +157,7 @@ class DDDMT_OT_selectAllObjectsUsingMaterial(Operator):
 ################################################################
 class DDDMT_OT_listupAllObjectsUsingMaterial(Operator):
     bl_idname = 'dddmt.listup_all_objects_using_material'
-    bl_label = 'マテリアルを使用するオブジェクトの列挙'
+    bl_label = 'オブジェクト列挙'
     bl_description = '指定したマテリアルを使用しているオブジェクトをコンソールに列挙します'
     bl_options = {'REGISTER'}
 
@@ -218,7 +235,7 @@ class DDDMT_OT_removeMaterialFromOrderList(Operator):
 ################
 class DDDMT_OT_moveMaterialInOrderList(Operator):
     bl_idname = 'dddmt.move_material_in_order_list'
-    bl_label = 'Move Material'
+    bl_label = 'マテリアル移動'
     bl_description = 'マテリアル順指定リストで選択中のマテリアルの位置を移動します'
     bl_options = {'UNDO'}
 
@@ -248,7 +265,7 @@ class DDDMT_OT_moveMaterialInOrderList(Operator):
 ################
 class DDDMT_OT_sortMaterialSlots(Operator):
     bl_idname = 'dddmt.sort_material_slots'
-    bl_label = 'Execute Sort'
+    bl_label = 'マテリアルのソート'
     bl_description = '選択中のオブジェクトのマテリアルスロットを、指定順にソートします。マテリアル順指定リストに含まれるマテリアルをリストの順で→それ以外のマテリアルを名前順で、という順に並べます'
     bl_options = {'UNDO'}
 
@@ -288,15 +305,14 @@ class DDDMT_PT_MaterialTool(Panel):
         if prop.display_texture_tools:
             col = layout.box().column(align=True)
 
-            col.prop_search(prop, 'texture', context.blend_data, 'images')
-            col.operator(DDDMT_OT_selectAllObjectsUsingTexture.bl_idname,
-                         text='selectObjects')
-            col.operator(DDDMT_OT_listupAllMaterialsUsingTexture.bl_idname,
-                         text='listupMaterials')
-            col.operator(DDDMT_OT_setupMaterialContainerObject.bl_idname,
-                         text='setupMaterialContainerObject')
-            col.operator(DDDMT_OT_selectAllImageNodesUsingTexture.bl_idname,
-                         text='selectNodes')
+            split = col.split(factor=0.8, align=True)
+            split.prop_search(prop, 'texture', context.blend_data, 'images')
+            split.operator(DDDMT_OT_reloadTexture.bl_idname,
+                           text='', icon='FILE_REFRESH')
+            col.operator(DDDMT_OT_selectAllObjectsUsingTexture.bl_idname)
+            col.operator(DDDMT_OT_listupAllMaterialsUsingTexture.bl_idname)
+            col.operator(DDDMT_OT_setupMaterialContainerObject.bl_idname)
+            col.operator(DDDMT_OT_selectAllImageNodesUsingTexture.bl_idname)
 
 
         # MaterialTools
@@ -311,10 +327,8 @@ class DDDMT_PT_MaterialTool(Panel):
         if prop.display_material_tools:
             col = layout.box().column(align=True)
             col.prop_search(prop, 'material', context.blend_data, 'materials')
-            col.operator(DDDMT_OT_selectAllObjectsUsingMaterial.bl_idname,
-                         text='selectObjects')
-            col.operator(DDDMT_OT_listupAllObjectsUsingMaterial.bl_idname,
-                         text='listupObjects')
+            col.operator(DDDMT_OT_selectAllObjectsUsingMaterial.bl_idname)
+            col.operator(DDDMT_OT_listupAllObjectsUsingMaterial.bl_idname)
 
         # sortMaterialSlots
         split = layout.split(factor=0.15, align=True)
@@ -324,8 +338,7 @@ class DDDMT_PT_MaterialTool(Panel):
         else:
             split.prop(prop, 'display_sortMaterialSlots_settings',
                        text='', icon='RIGHTARROW')
-        split.operator(DDDMT_OT_sortMaterialSlots.bl_idname,
-                       icon='SORTALPHA', text='マテリアルのソート')
+        split.operator(DDDMT_OT_sortMaterialSlots.bl_idname, icon='SORTALPHA')
         if prop.display_sortMaterialSlots_settings:
             col = layout.box().column(align=True)
 
@@ -366,6 +379,7 @@ class DDDMT_PT_MaterialTool(Panel):
 classes = (
     DDDMT_MaterialListItem,
     DDDMT_propertyGroup,
+    DDDMT_OT_reloadTexture,
     DDDMT_OT_selectAllObjectsUsingTexture,
     DDDMT_OT_selectAllImageNodesUsingTexture,
     DDDMT_OT_listupAllMaterialsUsingTexture,
