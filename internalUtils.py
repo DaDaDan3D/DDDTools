@@ -415,3 +415,18 @@ def scan_face_alpha(face, uv_layer, alpha_array, alpha_threshold=0.5):
         if (alpha_array[np.mod(mesh_points[:, 1], height), np.mod(mesh_points[:, 0], width)] > alpha_threshold).any():
             return True
     return False
+
+################
+def collectAllVisibleObjects():
+    """
+    Collect all visible objects in the current view layer and all collections.
+
+    Returns
+    -------
+    set
+        A set of all visible objects.
+    """
+    result = set(bpy.context.view_layer.objects)
+    for collection in bpy.data.collections:
+        result.update(collection.objects)
+    return result
