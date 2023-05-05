@@ -103,7 +103,7 @@ def applyScaleAndRotationToArmature(arma):
 
         modeChanger = iu.ModeChanger(arma.obj, 'EDIT')
         bpy.ops.armature.select_all(action='DESELECT')
-        bone = EditBoneWrapper(key)
+        bone = iu.EditBoneWrapper(key)
         bone.select_set(True)
         arma.obj.data.edit_bones.active = bone.obj
         del modeChanger
