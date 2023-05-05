@@ -14,6 +14,7 @@ import statistics
 from . import internalUtils as iu
 from . import WeightTool as wt
 from . import MaterialTool as mt
+from . import BoneTool as bt
 import numpy as np
 
 ################################################################
@@ -485,6 +486,35 @@ def deleteBones(arma, boneGroupName):
     wt.dissolveWeightedBones(arma, bones)
 
 ################################################################
+def removeAllUneditableEmptyChildren(obj):
+    """
+    Remove all EMPTY objects that are children of the given ARMATURE object and
+    not present in any collection or the current view layer.
+
+    Parameters
+    ----------
+    obj : bpy.types.Object
+        The ARMATURE object whose EMPTY children should be removed.
+
+    Returns
+    -------
+    list
+        A list of names of the removed EMPTY objects.
+    """
+    result = []
+
+    if not obj or obj.type != 'ARMATURE':
+        return result
+
+    allObjects = iu.collectAllVisibleObjects()
+    for child in obj.children_recursive:
+        if child.type == 'EMPTY' and child not in allObjects:
+            result.append(child.name)
+            bpy.data.objects.remove(child)
+
+    return result
+
+################################################################
 def prepareToExportVRM(skeleton='skeleton',
                        triangulate=False,
                        removeTransparentPolygons=True,
@@ -495,7 +525,8 @@ def prepareToExportVRM(skeleton='skeleton',
                        notExport='NotExport',
                        materialOrderList=None,
                        removeUnusedMaterialSlots=False,
-                       neutral='Neutral'):
+                       neutral='Neutral',
+                       sb_json=None):
     """
     Prepares to export.
     
@@ -509,11 +540,27 @@ def prepareToExportVRM(skeleton='skeleton',
         Name of bone_group
     neutral : String
         Name of shapekey of basic face expression
-
+    sb_json : String
+        Name of textblock of spring_bone.json
     """
 
     arma = iu.ObjectWrapper(skeleton)
+
+    va = getAddon()
+    if not va:
+        raise ValueError("VRM addon is not found")
+
+    # clear old data
+    ext = arma.obj.data.vrm_addon_extension
+    ext.vrm0.blend_shape_master.blend_shape_groups.clear()
+    ext.vrm0.secondary_animation.bone_groups.clear()
+    ext.vrm0.secondary_animation.collider_groups.clear()
+    removed = removeAllUneditableEmptyChildren(arma.obj)
+    if removed:
+        print(f'Removed {len(removed)} empty objects: {removed}')
+
     bs_dic = json.loads(textblock2str(bpy.data.texts[bs_json]),object_pairs_hook=OrderedDict)
+    sb_dic = json.loads(textblock2str(bpy.data.texts[sb_json]),object_pairs_hook=OrderedDict)
 
     if removeTransparentPolygons:
         removeMatDic = buildRemoveMatDic(interval, alphaThreshold, excludeMaterials)
@@ -546,12 +593,15 @@ def prepareToExportVRM(skeleton='skeleton',
             mt.sort_material_slots(obj.obj, materialOrderList)
 
     # migrate blendshape_group.json
-    va = getAddon()
-    if va:
-        ext = arma.obj.data.vrm_addon_extension
-        ext.vrm0.blend_shape_master.blend_shape_groups.clear()
-        va.editor.vrm0.migration.migrate_vrm0_blend_shape_groups(
-            ext.vrm0.blend_shape_master.blend_shape_groups,
-            bs_dic)
+    va.editor.vrm0.migration.migrate_vrm0_blend_shape_groups(
+        ext.vrm0.blend_shape_master.blend_shape_groups,
+        bs_dic)
+
+    # migrate spring_bone.json
+    bt.applyScaleAndRotationToArmature(arma)
+    va.editor.vrm0.migration.migrate_vrm0_secondary_animation(
+        ext.vrm0.secondary_animation,
+        sb_dic,
+        arma.obj)
 
     return mergedObjs

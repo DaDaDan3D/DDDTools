@@ -44,6 +44,12 @@ class DDDVT_propertyGroup(PropertyGroup):
         type=Text,
     )
 
+    sb_json: PointerProperty(
+        name='springBone',
+        description='スプリングボーンを定義する.jsonテキスト',
+        type=Text,
+    )
+
     notExportBoneGroup: StringProperty(
         name='出力しないボーングループ',
         description='指定したボーングループを溶解します',
@@ -186,7 +192,11 @@ class DDDVT_OT_addCollider(Operator):
     @classmethod
     def poll(self, context):
         prop = context.scene.dddtools_vt_prop
-        return prop.mesh and prop.mesh.type=='MESH' and bpy.context.active_object and bpy.context.active_object.type == 'ARMATURE' and bpy.context.active_object.mode=='EDIT' and bpy.context.active_bone
+        return prop.mesh and prop.mesh.type=='MESH' and\
+            bpy.context.active_object and\
+            bpy.context.active_object.type == 'ARMATURE' and\
+            bpy.context.active_object.mode=='EDIT' and\
+            bpy.context.active_bone
 
     def execute(self, context):
         prop = context.scene.dddtools_vt_prop
@@ -200,6 +210,29 @@ class DDDVT_OT_addCollider(Operator):
                               scale=self.scale)
       
 ################
+class DDDVT_OT_removeAllUneditableEmptyChildren(Operator):
+    bl_idname = 'dddvt.remove_all_uneditable_empty_children'
+    bl_label = '不要EMPTY削除'
+    bl_description = 'アクティブなスケルトンの子の、手動で削除しても消えない EMPTY を強制的に削除します。'
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        obj = bpy.context.active_object
+        return obj and obj.type=='ARMATURE'
+
+    def execute(self, context):
+        removed = vt.removeAllUneditableEmptyChildren(bpy.context.active_object)
+        if removed:
+            self.report({'INFO'},
+                        f'{len(removed)} 個の EMPTY を削除しました: {removed}')
+            return {'FINISHED'}
+        else:
+            self.report({'INFO'},
+                        '不要な EMPTY はありませんでした')
+            return {'CANCELLED'}
+
+################
 class DDDVT_OT_prepareToExportVRM(Operator):
     bl_idname = 'dddvt.prepare_to_export_vrm'
     bl_label = 'VRM 出力前の準備'
@@ -210,7 +243,9 @@ class DDDVT_OT_prepareToExportVRM(Operator):
     def poll(self, context):
         prop = context.scene.dddtools_vt_prop
         return vt.getAddon() and\
-            prop.skeleton and prop.skeleton.type=='ARMATURE' and prop.bs_json
+            prop.skeleton and prop.skeleton.type=='ARMATURE' and\
+            prop.bs_json and prop.sb_json and\
+            bpy.context.mode == 'OBJECT'
 
     def execute(self, context):
         prop = context.scene.dddtools_vt_prop
@@ -231,6 +266,7 @@ class DDDVT_OT_prepareToExportVRM(Operator):
                                            alphaThreshold=prop.alphaThreshold,
                                            excludeMaterials=excludeMaterials,
                                            bs_json=prop.bs_json.name,
+                                           sb_json=prop.sb_json.name,
                                            notExport=prop.notExportBoneGroup,
                                            materialOrderList=materialOrderList,
                                            removeUnusedMaterialSlots=prop.removeUnusedMaterialSlots)
@@ -342,6 +378,8 @@ class DDDVT_PT_VRMTool(Panel):
         prop = context.scene.dddtools_vt_prop
         layout = self.layout
 
+        layout.operator(DDDVT_OT_removeAllUneditableEmptyChildren.bl_idname)
+
         # addCollider
         split = layout.split(factor=0.15, align=True)
         if prop.display_add_collider_settings:
@@ -352,7 +390,7 @@ class DDDVT_PT_VRMTool(Panel):
                        text='', icon='RIGHTARROW')
         split.operator(DDDVT_OT_addCollider.bl_idname)
         if prop.display_add_collider_settings:
-            col = layout.box().column(align=True)
+            col = layout.box().column()
             col.prop_search(prop, 'mesh', context.blend_data, 'objects')
 
         # prepareToExportVRM
@@ -370,6 +408,7 @@ class DDDVT_PT_VRMTool(Panel):
                 col.prop_search(prop, 'skeleton', context.blend_data, 'objects')
                 col.prop(prop, 'triangulate')
                 col.prop_search(prop, 'bs_json', context.blend_data, 'texts')
+                col.prop_search(prop, 'sb_json', context.blend_data, 'texts')
                 if prop.skeleton:
                     col.prop_search(prop, 'notExportBoneGroup', prop.skeleton.pose,
                                     'bone_groups')
@@ -417,6 +456,7 @@ classes = (
     DDDVT_MaterialListItem,
     DDDVT_propertyGroup,
     DDDVT_OT_addCollider,
+    DDDVT_OT_removeAllUneditableEmptyChildren,
     DDDVT_OT_prepareToExportVRM,
     DDDVT_OT_openAddonPage,
     DDDVT_UL_MaterialList,
