@@ -550,17 +550,19 @@ def prepareToExportVRM(skeleton='skeleton',
     if not va:
         raise ValueError("VRM addon is not found")
 
-    # clear old data
     ext = arma.obj.data.vrm_addon_extension
-    ext.vrm0.blend_shape_master.blend_shape_groups.clear()
-    ext.vrm0.secondary_animation.bone_groups.clear()
-    ext.vrm0.secondary_animation.collider_groups.clear()
-    removed = removeAllUneditableEmptyChildren(arma.obj)
-    if removed:
-        print(f'Removed {len(removed)} empty objects: {removed}')
+
+    # clear old data
+    if sb_json:
+        ext.vrm0.blend_shape_master.blend_shape_groups.clear()
+        ext.vrm0.secondary_animation.bone_groups.clear()
+        ext.vrm0.secondary_animation.collider_groups.clear()
+        removed = removeAllUneditableEmptyChildren(arma.obj)
+        if removed:
+            print(f'Removed {len(removed)} empty objects: {removed}')
+        sb_dic = json.loads(textblock2str(bpy.data.texts[sb_json]),object_pairs_hook=OrderedDict)
 
     bs_dic = json.loads(textblock2str(bpy.data.texts[bs_json]),object_pairs_hook=OrderedDict)
-    sb_dic = json.loads(textblock2str(bpy.data.texts[sb_json]),object_pairs_hook=OrderedDict)
 
     if removeTransparentPolygons:
         removeMatDic = buildRemoveMatDic(interval, alphaThreshold, excludeMaterials)
@@ -598,10 +600,11 @@ def prepareToExportVRM(skeleton='skeleton',
         bs_dic)
 
     # migrate spring_bone.json
-    bt.applyScaleAndRotationToArmature(arma)
-    va.editor.vrm0.migration.migrate_vrm0_secondary_animation(
-        ext.vrm0.secondary_animation,
-        sb_dic,
-        arma.obj)
+    if sb_json:
+        bt.applyScaleAndRotationToArmature(arma)
+        va.editor.vrm0.migration.migrate_vrm0_secondary_animation(
+            ext.vrm0.secondary_animation,
+            sb_dic,
+            arma.obj)
 
     return mergedObjs

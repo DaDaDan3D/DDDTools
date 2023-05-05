@@ -244,7 +244,7 @@ class DDDVT_OT_prepareToExportVRM(Operator):
         prop = context.scene.dddtools_vt_prop
         return vt.getAddon() and\
             prop.skeleton and prop.skeleton.type=='ARMATURE' and\
-            prop.bs_json and prop.sb_json and\
+            prop.bs_json and\
             bpy.context.mode == 'OBJECT'
 
     def execute(self, context):
@@ -259,6 +259,10 @@ class DDDVT_OT_prepareToExportVRM(Operator):
         else:
             materialOrderList = None
 
+        if prop.sb_json:
+            sb_json = prop.sb_json.name
+        else:
+            sb_json = None
         mergedObjs = vt.prepareToExportVRM(skeleton=prop.skeleton.name,
                                            triangulate=prop.triangulate,
                                            removeTransparentPolygons=prop.removePolygons,
@@ -266,7 +270,7 @@ class DDDVT_OT_prepareToExportVRM(Operator):
                                            alphaThreshold=prop.alphaThreshold,
                                            excludeMaterials=excludeMaterials,
                                            bs_json=prop.bs_json.name,
-                                           sb_json=prop.sb_json.name,
+                                           sb_json=sb_json,
                                            notExport=prop.notExportBoneGroup,
                                            materialOrderList=materialOrderList,
                                            removeUnusedMaterialSlots=prop.removeUnusedMaterialSlots)
