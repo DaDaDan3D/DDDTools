@@ -6,33 +6,8 @@ from bpy.types import Panel, Operator
 from mathutils import Vector, Matrix
 import numpy as np
 from . import internalUtils as iu
-from . import fitting
+from . import mathUtils as mu
 
-################
-def calcCenterOfSphereFromFourVertices(verts):
-    #print(verts)
-    if len(verts) != 4:
-        return None
-
-    mtx = 2 * Matrix([verts[0] - verts[1],
-                      verts[1] - verts[2],
-                      verts[2] - verts[3]])
-    #print(mtx)
-    try:
-        mtx_I = mtx.inverted()
-    except ValueError as e:
-        #print(e)
-        return None
-    
-    # Calc dot products of each vertex
-    dv = [vtx.dot(vtx) for vtx in verts]
-    #print(dv)
-    
-    center = mtx_I @ Vector([dv[0] - dv[1],
-                             dv[1] - dv[2],
-                             dv[2] - dv[3]])
-    return ((verts[0] - center).length, center)
-    
 ################
 def calcCenterOfSphereFromSelectedVertices():
     """
@@ -54,10 +29,10 @@ def calcCenterOfSphereFromSelectedVertices():
         return None
     elif len(verts) == 4:
         #print('calcCenterOfSphereFromFourVertices()')
-        return calcCenterOfSphereFromFourVertices(verts)
+        return mu.calcCenterOfSphereFromFourVertices(np.array(verts))
     else:
         #print('fitting.sphere_fit()')
-        return fitting.sphere_fit(np.array(verts))
+        return mu.sphere_fit(np.array(verts))
     
 ################
 class DDD_OT_addApproximateSphere(Operator):

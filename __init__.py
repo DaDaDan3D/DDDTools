@@ -22,7 +22,7 @@ bl_info = {
 
 modules = [
     'internalUtils',
-    'fitting',
+    'mathUtils',
     'BoneTool',
     'VRMTool',
     'MaterialTool',
