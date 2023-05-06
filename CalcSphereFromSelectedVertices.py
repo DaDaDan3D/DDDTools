@@ -28,8 +28,8 @@ def calcCenterOfSphereFromSelectedVertices():
         print(f'4つ以上の頂点を選択してください。現在{len(verts)}個の頂点が選択されています。')
         return None
     elif len(verts) == 4:
-        #print('calcCenterOfSphereFromFourVertices()')
-        return mu.calcCenterOfSphereFromFourVertices(np.array(verts))
+        #print('calcCircumcenter()')
+        return mu.calcCircumcenter(np.array(verts))
     else:
         #print('fitting.sphere_fit()')
         return mu.sphere_fit(np.array(verts))

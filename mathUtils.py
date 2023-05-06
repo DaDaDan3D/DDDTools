@@ -48,68 +48,33 @@ def sphere_fit(point_cloud):
     return(radius, sphere_center)
 
 ################################################################
-def calcCenterOfCircleFromThreeVertices(verts):
+def calcCircumcenter(verts):
     """
-    Function to find the coordinates of the outer center from three given 2D position vectors.
+    Function to find the coordinates of the outer center from given position vectors.
     
     Parameters
     ----------
-    verts : list of numpy.ndarray
-        List of 3 2D position vectors.
+    verts : numpy.ndarray
+        List of position vectors.
 
     Returns
     -------
     tuple of (float, numpy.ndarray)
-        A float number representing the radius of circle.
-        A 2D vector (numpy.ndarray) representing the coordinates of the outer center.
+        A float number representing the radius of sphere(circle).
+        A position vector (numpy.ndarray) representing the coordinates of the outer center.
     """
-    if len(verts) != 3:
+    if verts.shape[0] != verts.shape[1] + 1:
         return None
 
-    mtx = 2 * np.array([verts[0] - verts[1],
-                        verts[1] - verts[2]])
-
+    mtx = 2 * np.diff(verts, axis=0)
+    
     if np.linalg.det(mtx) == 0:
         return None
     
     # Calc dot products of each vertex
-    dv = np.array([vtx.dot(vtx) for vtx in verts])
+    dv = np.einsum("ij,ij->i", verts, verts)
 
-    yy = np.array([dv[0] - dv[1], dv[1] - dv[2]])
-    center = np.linalg.solve(mtx, yy)
-
-    return (np.linalg.norm(verts[0] - center), center)
-
-################
-def calcCenterOfSphereFromFourVertices(verts):
-    """
-    Function to find the coordinates of the outer center from three given 3D position vectors.
-    
-    Parameters
-    ----------
-    verts : list of numpy.ndarray
-        List of 3 3D position vectors.
-
-    Returns
-    -------
-    tuple of (float, numpy.ndarray)
-        A float number representing the radius of sphere.
-        A 2D vector (numpy.ndarray) representing the coordinates of the outer center.
-    """
-    if len(verts) != 4:
-        return None
-
-    mtx = 2 * np.array([verts[0] - verts[1],
-                        verts[1] - verts[2],
-                        verts[2] - verts[3]])
-
-    if np.linalg.det(mtx) == 0:
-        return None
-    
-    # Calc dot products of each vertex
-    dv = np.array([vtx.dot(vtx) for vtx in verts])
-
-    yy = np.array([dv[0] - dv[1], dv[1] - dv[2], dv[2] - dv[3]])
+    yy = np.diff(dv, axis=0)
     center = np.linalg.solve(mtx, yy)
 
     return (np.linalg.norm(verts[0] - center), center)
