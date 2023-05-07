@@ -4,6 +4,7 @@ from bpy.props import IntProperty
 from bpy.types import Panel, Operator
 
 from mathutils import Vector, Matrix
+import traceback
 import numpy as np
 from . import internalUtils as iu
 from . import mathUtils as mu
@@ -24,15 +25,19 @@ def calcCenterOfSphereFromSelectedVertices():
     verts = [mtx @ vtx.co for vtx in bme.verts if vtx.select]
     #print(verts)
     
-    if len(verts) < 4:
-        print(f'4つ以上の頂点を選択してください。現在{len(verts)}個の頂点が選択されています。')
-        return None
-    elif len(verts) == 4:
-        #print('calcCircumcenter()')
-        return mu.calcCircumcenter(np.array(verts))
-    else:
-        #print('fitting.sphere_fit()')
-        return mu.sphere_fit(np.array(verts))
+    try:
+        if len(verts) < 4:
+            raise ValueError(f'4つ以上の頂点を選択してください。現在{len(verts)}個の頂点が選択されています。')
+        elif len(verts) == 4:
+            result = mu.calcCircumcenter(np.array(verts))
+        else:
+            result = mu.calcFit(np.array(verts))
+    except Exception as e:
+        print(f'エラーが発生しました: {e} {type(e)}')
+        traceback.print_exc()
+        result = None
+
+    return result
     
 ################
 class DDD_OT_addApproximateSphere(Operator):
@@ -85,6 +90,32 @@ class DDD_OT_addApproximateSphere(Operator):
         self.sphere = calcCenterOfSphereFromSelectedVertices()
         return self.execute(context)
 
+################
+class DDD_OT_addApproximateEmpty(Operator):
+    bl_idname = 'ddd.add_approximate_empty'
+    bl_label = 'エンプティ球の追加'
+    bl_description = '選択した頂点群に近似したEMPTY球を追加します'
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        mesh = bpy.context.active_object
+        return mesh and mesh.type=='MESH' and mesh.mode=='EDIT'
+
+    def execute(self, context):
+        sphere = calcCenterOfSphereFromSelectedVertices()
+        if sphere:
+            mesh = iu.ObjectWrapper(bpy.context.active_object)
+            empty_obj = bpy.data.objects.new(f'EmptySphere_{mesh.name}', None)
+            empty_obj.empty_display_type = 'SPHERE'
+            empty_obj.empty_display_size = sphere[0]
+            empty_obj.location = sphere[1]
+            context.scene.collection.objects.link(empty_obj)
+            return {'FINISHED'}
+        else:
+            self.report({'WARNING'},
+                        'エンプティ球を追加できませんでした。詳細はログを参照してください')
+            return {'CANCELLED'}
 
 ################
 class DDD_PT_tool(Panel):
@@ -95,13 +126,15 @@ class DDD_PT_tool(Panel):
     bl_region_type = 'UI'
   
     def draw(self, context):
-        layout = self.layout
-        layout.operator(DDD_OT_addApproximateSphere.bl_idname)
+        col = self.layout.column(align=True)
+        col.operator(DDD_OT_addApproximateSphere.bl_idname)
+        col.operator(DDD_OT_addApproximateEmpty.bl_idname)
 
 ################
 
 classes = (
     DDD_OT_addApproximateSphere,
+    DDD_OT_addApproximateEmpty,
     DDD_PT_tool,
 )
 

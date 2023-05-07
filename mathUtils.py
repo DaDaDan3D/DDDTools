@@ -2,23 +2,25 @@ import numpy as np
 
 ################################################################
 # 点郡の球面近似
-# Dr.レオさん作
+# Dr.レオさん作の関数を多次元に拡張したもの
 # https://programming-surgeon.com/script/sphere-fit/
 
-def sphere_fit(point_cloud):
+def calcFit(point_cloud):
     """
     入力
-        point_cloud: 点群のxyz座標のリスト　numpyのarray形式で3x3xN行列
+        point_cloud: 点群の座標のリスト　numpyのarray形式
     出力
         radius : 近似球の半径 スカラー
-        sphere_center : 球の中心座標 xyz numpyのarray
+        sphere_center : 球の中心座標  numpyのarray
     """
 
-    A_1 = np.zeros((3,3))
+    dimension = point_cloud.shape[1]
+    A_1 = np.zeros((dimension, dimension))
+
     #Aのカッコの中の１項目用に変数A_1をおく
-    v_1 = np.array([0.0,0.0,0.0])
+    v_1 = np.zeros(dimension)
     v_2 = 0.0
-    v_3 = np.array([0.0,0.0,0.0])
+    v_3 = np.zeros(dimension)
     #ベクトルの１乗、２乗、３乗平均の変数をv_1, v_2, v_3とする
     #１乗、３乗はベクトル、２乗はスカラーとなる
 
@@ -64,12 +66,9 @@ def calcCircumcenter(verts):
         A position vector (numpy.ndarray) representing the coordinates of the outer center.
     """
     if verts.shape[0] != verts.shape[1] + 1:
-        return None
+        raise ValueError(f'Dimension of vertex is {verts.shape[1]}, so need just {verts.shape[1] + 1} vertices.')
 
     mtx = 2 * np.diff(verts, axis=0)
-    
-    if np.linalg.det(mtx) == 0:
-        return None
     
     # Calc dot products of each vertex
     dv = np.einsum("ij,ij->i", verts, verts)
