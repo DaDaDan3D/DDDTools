@@ -430,3 +430,24 @@ def collectAllVisibleObjects():
     for collection in bpy.data.collections:
         result.update(collection.objects)
     return result
+
+################
+def setParentToBone(obj, arma, boneName):
+    modeChanger = ModeChanger(obj, 'OBJECT')
+
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+
+    del modeChanger
+
+
+    modeChanger = ModeChanger(arma, 'EDIT')
+    
+    bpy.ops.armature.select_all(action='DESELECT')
+    bone = EditBoneWrapper(boneName)
+    bone.select_set(True)
+
+    del modeChanger
+
+    bpy.ops.object.parent_set(type='BONE')

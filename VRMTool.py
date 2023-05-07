@@ -5,17 +5,21 @@ from collections import OrderedDict
 from dataclasses import dataclass
 import bpy, bmesh
 import math
-from mathutils.bvhtree import BVHTree
 from mathutils import (
     Vector,
     Matrix,
 )
 import statistics
 from . import internalUtils as iu
+from . import mathUtils as mu
 from . import WeightTool as wt
 from . import MaterialTool as mt
 from . import BoneTool as bt
 import numpy as np
+
+################
+# reg-exp for _L, _R
+re_name_LR = re.compile(r'(.*[._-])([LR])$')
 
 ################################################################
 def textblock2str(textblock):
@@ -38,39 +42,87 @@ def getAddon(version=(2, 3, 26)):
         return None
 
 ################
-# from Blender/2.83/scripts/add_curve_ivygen.py
-def bvhtree_from_object(ob):
-    import bmesh
-    bm = bmesh.new()
+def addColliderToBone(mesh,
+                      arma,
+                      bone,
+                      t_from=0,
+                      t_to=None,
+                      t_step=0.05,
+                      numberOfRays=32,
+                      radius=0.3,
+                      insideToOutside=True):
+    if not mesh or not arma or not bone:
+        raise ValueError(f'Error: no mesh or no arma or no bone in addCollider({mesh}, {arma}, {bone})')
 
-    depsgraph = bpy.context.evaluated_depsgraph_get()
-    ob_eval = ob.evaluated_get(depsgraph)
-    mesh = ob_eval.to_mesh()
-    bm.from_mesh(mesh)
-    bm.transform(ob.matrix_world)
+    head = np.array(bone.head)
+    tail = np.array(bone.tail)
+    length = np.linalg.norm(tail - head)
 
-    bvhtree = BVHTree.FromBMesh(bm)
-    ob_eval.to_mesh_clear()
-    return bvhtree
+    # ボーン空間からメッシュ空間への変換行列を作成
+    mtxB2M = mesh.convert_space(matrix = bone.matrix,
+                                from_space='LOCAL',
+                                to_space='LOCAL')
+    mtxB2M_rot = mtxB2M.to_3x3()
 
-################
-def getColliderSizeBVH(bvhtree, matrixWorld, radius, insideToOutside, numberOfRays):
-    result = []
-    theta = math.pi * 2 / numberOfRays
-    center = matrixWorld.translation
-    for idx in range(numberOfRays):
-        th = theta * idx
-        direction = matrixWorld.to_3x3() @ Vector([math.cos(th) * radius, 0.0, math.sin(th) * radius])
-        if insideToOutside:
-            pos = center
-        else:
-            pos = center + direction
-            direction.negate()
-        hit_location, *_ = bvhtree.ray_cast(pos, direction, radius)
-        if hit_location:
-            length = (hit_location - center).length
-            result.append(length)
-    return result
+    # メッシュ空間からボーン空間への変換行列を作成
+    mtxM2B = Matrix(np.linalg.inv(mtxB2M))
+
+    # 全てのレイを作成する
+    if not t_from:
+        t_from = 0
+    if not t_to:
+        t_to = max(t_from, length - t_step)
+    # print(t_from, t_to, t_step)
+    t_values = np.arange(t_from, t_to, t_step)
+    angle_values = np.linspace(0, math.tau, numberOfRays, endpoint=False)
+
+    # meshgridでX, Y, Z座標を生成
+    T, Angle = np.meshgrid(t_values, angle_values, indexing='ij')
+    xx = np.cos(Angle)
+    yy = T
+    zz = np.sin(Angle)
+    zeros = np.zeros(T.shape)
+    ones = np.ones(T.shape)
+
+    if insideToOutside:
+        # 内から外へ
+        dirs = np.stack((xx, zeros, zz), axis=-1)
+        origs = np.stack((zeros, yy, zeros), axis=-1)
+    else:
+        # 外から内へ
+        dirs = np.stack((-xx, zeros, -zz), axis=-1)
+        origs = np.stack((xx * radius, yy, zz * radius), axis=-1)
+
+    cylindricalRays = np.stack((origs, dirs), axis=-2)
+    # print(cylindricalRays)
+
+    params = []
+    for rays in cylindricalRays:
+        hits = np.array([mesh.ray_cast(mtxB2M @ Vector(od[0]),
+                                       mtxB2M_rot @ Vector(od[1]),
+                                       distance=radius) for od in rays])
+        hits = hits[hits[:, 0] == True]
+        print(hits)
+        if len(hits) >= 3:
+            points = np.array([np.array(mtxM2B @ hit[1]) for hit in hits])
+            points2D = points[:, [0, 2]]
+            size, center = mu.calcFit(points2D)
+            center = np.array([center[0], points[0][1] - length, center[1]])
+            #center = np.array([0, points[0][1] - length, 0])
+            params.append((size, center))
+
+    print(params)
+    for size, center in params:
+        emptyName = f'Collider_{bone.name}'
+        empty_obj = bpy.data.objects.new(emptyName, None)
+        empty_obj.parent = arma
+        empty_obj.parent_type = "BONE"
+        empty_obj.parent_bone = bone.name
+        empty_obj.location = center
+        empty_obj.empty_display_type = 'SPHERE'
+        empty_obj.empty_display_size = size
+
+        bpy.context.scene.collection.objects.link(empty_obj)
 
 ################
 def getSelectedEditableBones():
@@ -79,13 +131,12 @@ def getSelectedEditableBones():
 ################
 def addCollider(meshObj,
                 armaObj,
-                numberOfColliders=4,
-                numberOfRays=8,
+                t_from=0,
+                t_to=None,
+                t_step=0.05,
+                numberOfRays=32,
                 radius=0.3,
-                insideToOutside=True,
-                fitMode='STDEV',
-                offset=0.0,
-                scale=1.0):
+                insideToOutside=True):
     """
     Adds a collision sphere to the selected bone for the selected mesh.
     You should select one mesh and one armature.
@@ -98,8 +149,14 @@ def addCollider(meshObj,
     armaObj : armature object
       Armature to which the collider is added.
 
-    numberOfColliders : number
-      Number of colliders to be added.
+    t_from : number
+      Start offset (meter)
+
+    t_to : number
+      End offset (meter). None to fit bone-length.
+
+    t_step : number
+      Step distance (meter)
 
     numberOfRays : number
       Number of rays emitted from the circle.
@@ -110,17 +167,6 @@ def addCollider(meshObj,
     insideToOutside : bool
       If true, emits rays from the center of the circle outward.
       If false, emits rays from the edge of the circle towards the center.
-
-    fitMode : string
-      Specify the criteria for selecting the size of the collision ball.
-      'MIN', 'MAX', 'MEAN', 'HARMONIC_MEAN', 'MEDIAN', 'STDEV'
-
-    offset : number
-      The amount of offset to adjust the size of all colliders.
-
-    scale : number
-      The scale to adjust the size of all colliders.
-    
     """
 
     #print('----------------')
@@ -130,77 +176,137 @@ def addCollider(meshObj,
         return {'CANCELLED'}, "Please select Armature and Mesh"
     #print('mesh:', mesh.name, 'arma:', arma.name)
 
-    if fitMode == 'MIN':
-        fitFunc = min
-    elif fitMode == 'MAX':
-        fitFunc = max
-    elif fitMode == 'MEAN':
-        fitFunc = statistics.mean
-    elif fitMode == 'HARMONIC_MEAN':
-        fitFunc = statistics.harmonic_mean
-    elif fitMode == 'MEDIAN':
-        fitFunc = statistics.median
-    elif fitMode == 'STDEV':
-        fitFunc = statistics.stdev
-    else:
-        return {'CANCELLED'}, f'Unknown fitMode{fitMode}'
-
-    bvhtree = bvhtree_from_object(mesh.obj)
-
     modeChanger = iu.ModeChanger(arma.obj, 'EDIT')
     selection = getSelectedEditableBones()
     #print(selection)
 
-    params = []
-
     for bone in selection:
-        direction = bone.obj.head - bone.obj.tail
-        length = direction.length
-        direction.normalize()
-        for idx in range(numberOfColliders):
-            ypos = length * idx / numberOfColliders
-            matrix = bone.obj.matrix
-            matrix.translation = bone.obj.tail + direction * ypos
-            ans = getColliderSizeBVH(bvhtree, matrix, radius, insideToOutside, numberOfRays)
-            if not ans:
-                size = radius
-            else:
-                size = fitFunc(ans)
-            size = min(max(0.002, size * scale + offset), 3.0)
-            param = {'bone':bone, 'ypos':ypos, 'size':size, 'index':idx}
-            params.append(param)
-
-    del modeChanger
-
-
-    #print(params)
-    modeChanger = iu.ModeChanger(arma.obj, 'OBJECT')
-    for param in params:
-        bone = param['bone']
-        ypos = param['ypos']
-        size = param['size']
-        index = param['index']
-
-        # Add Empty
-        empty_obj = bpy.data.objects.new('Collider_{0}_{1}'.format(bone.name, index), None)
-        bpy.context.scene.collection.objects.link(empty_obj)
-
-        # Parent to bone
-        empty_obj.parent = arma.obj
-        empty_obj.parent_type = "BONE"
-        empty_obj.parent_bone = bone.name
-
-        # Move to ypos
-        empty_obj.location = Vector([0.0, -ypos, 0.0])
-        
-        # Set parameters
-        empty_obj.empty_display_type = 'SPHERE'
-        empty_obj.empty_display_size = size
-        
+        addColliderToBone(mesh.obj, arma.obj, bone.obj,
+                          t_from=t_from,
+                          t_to=t_to,
+                          t_step=t_step,
+                          numberOfRays=numberOfRays,
+                          radius=radius,
+                          insideToOutside=insideToOutside)
     del modeChanger
 
     return{'FINISHED'}
     
+################
+def copySymmetrizeCollider(empty, arma):
+    if not empty or not arma:
+        raise ValueError(f'copySymmetrizeCollider({empty}, {arma})')
+
+    if not empty.parent:
+        raise ValueError(f'{empty} does not have parent.')
+
+    boneName = empty.parent_bone
+    if not boneName:
+        raise ValueError(f'{empty} does not have parent-bone.')
+
+    mo = re_name_LR.match(boneName)
+    if not mo:
+        print(f'{boneName} is not a mirror bone.')
+        return
+
+    print(mo)
+    if mo.group(2) == 'L':
+        lr = 'R'
+    else:
+        lr = 'L'
+
+    mirrorBoneName = mo.group(1) + lr
+    print(mirrorBoneName)
+    mirrorBone = arma.data.bones.get(mirrorBoneName)
+    print(mirrorBone)
+    if not mirrorBone:
+        raise ValueError(f'{boneName} does not have a mirror bone.')
+
+    # Create an empty object
+    newName = f'Collider_{mirrorBoneName}'
+    newObj = bpy.data.objects.new(newName, None)
+    bpy.context.scene.collection.objects.link(newObj)
+    print(newObj)
+
+    # Move location
+    newObj.location = empty.matrix_world.translation
+
+    # Mirror
+    modeChanger = iu.ModeChanger(newObj, 'OBJECT')
+    bpy.ops.object.select_all(action='DESELECT')
+    newObj.select_set(True)
+    pivotSave = bpy.context.scene.tool_settings.transform_pivot_point
+    bpy.context.scene.tool_settings.transform_pivot_point = 'CURSOR'
+    cursorSave = bpy.context.scene.cursor.location
+    bpy.context.scene.cursor.location = arma.location
+    print(arma.matrix_world.to_3x3())
+    
+    bpy.ops.transform.mirror(
+        orient_type='GLOBAL',
+        orient_matrix=arma.matrix_world.to_3x3(),
+        orient_matrix_type='LOCAL',
+        constraint_axis=(True, False, False))
+
+    return
+
+    bpy.context.scene.cursor.location = cursorSave
+    bpy.context.scene.tool_settings.transform_pivot_point = pivotSave
+    del modeChanger
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+
+    # Set parent
+    modeChanger = iu.ModeChanger(arma, 'EDIT')
+
+    bpy.ops.armature.select_all(action='DESELECT')
+    bone = iu.EditBoneWrapper(mirrorBoneName)
+    bone.select_set(True)
+
+    del modeChanger
+    
+    bpy.ops.object.parent_set(type='BONE')
+    
+    # Set parameters
+    newObj.empty_display_type = 'SPHERE'
+    newObj.empty_display_size = empty.empty_display_size
+
+
+################
+def setEmptyAsCollider(empty, arma, boneName, symmetrize=False):
+    if not empty or not arma:
+        raise ValueError(f'setEmptyAsCollider({empty}, {arma}, {boneName})')
+    
+    if arma.data.bones.find(boneName) < 0:
+        raise ValueError(f'bone {boneName} is not found.')
+
+    # Clear parent
+    modeChanger = iu.ModeChanger(empty, 'OBJECT')
+    bpy.ops.object.select_all(action='DESELECT')
+    empty.select_set(True)
+    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+    del modeChanger
+
+    # apply scale
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    emptySize = empty.empty_display_size
+
+    # Set parent
+    modeChanger = iu.ModeChanger(arma, 'EDIT')
+    bpy.ops.armature.select_all(action='DESELECT')
+    bone = iu.EditBoneWrapper(boneName)
+    bone.select_set(True)
+    del modeChanger
+
+    # At this point, arma is active and empty is selected.
+    bpy.ops.object.parent_set(type='BONE')
+
+    # Rename
+    empty.name = f'Collider_{boneName}'
+
+    # Symmetrize
+    print(symmetrize)
+    if symmetrize:
+        copySymmetrizeCollider(empty, arma)
+
 ################################################################
 @dataclass
 class MaterialInfo:
