@@ -155,7 +155,7 @@ class DDDVT_OT_addCollider(Operator):
     numberOfRays: IntProperty(
         name='レイの本数',
         description='レイを投射する本数を設定します',
-        min=1,
+        min=3,
         max=100,
         default=32,
     )

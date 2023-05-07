@@ -102,7 +102,7 @@ def addColliderToBone(mesh,
                                        mtxB2M_rot @ Vector(od[1]),
                                        distance=radius) for od in rays])
         hits = hits[hits[:, 0] == True]
-        print(hits)
+        # print(hits)
         if len(hits) >= 3:
             points = np.array([np.array(mtxM2B @ hit[1]) for hit in hits])
             points2D = points[:, [0, 2]]
@@ -111,7 +111,7 @@ def addColliderToBone(mesh,
             #center = np.array([0, points[0][1] - length, 0])
             params.append((size, center))
 
-    print(params)
+    # print(params)
     for size, center in params:
         emptyName = f'Collider_{bone.name}'
         empty_obj = bpy.data.objects.new(emptyName, None)
@@ -193,6 +193,8 @@ def addCollider(meshObj,
     return{'FINISHED'}
     
 ################
+# FIXME
+# Ç‹ÇæìÆÇ©Ç»Ç¢
 def copySymmetrizeCollider(empty, arma):
     if not empty or not arma:
         raise ValueError(f'copySymmetrizeCollider({empty}, {arma})')
@@ -247,6 +249,8 @@ def copySymmetrizeCollider(empty, arma):
         orient_matrix_type='LOCAL',
         constraint_axis=(True, False, False))
 
+    # FIXME
+    # Empty Ç…ëŒÇµÇƒÇÕ bpy.ops.transform.mirror() Ç™å¯Ç©Ç»Ç¢Ç¡Ç€Ç¢ÅcÅc
     return
 
     bpy.context.scene.cursor.location = cursorSave
