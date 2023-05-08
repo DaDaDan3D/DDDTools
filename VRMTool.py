@@ -44,39 +44,47 @@ def getAddon(version=(2, 3, 26)):
 ################
 def addColliderToBone(mesh,
                       arma,
-                      bone,
+                      boneName,
                       t_from=0,
                       t_to=None,
                       t_step=0.05,
                       numberOfRays=32,
                       radius=0.3,
                       insideToOutside=True):
-    if not mesh or not arma or not bone:
-        raise ValueError(f'Error: no mesh or no arma or no bone in addCollider({mesh}, {arma}, {bone})')
+    if not mesh or not arma:
+        raise ValueError(f'Error: no mesh or no arma in addCollider({mesh}, {arma}, {bone})')
+
+    bone = arma.pose.bones[boneName]
 
     head = np.array(bone.head)
     tail = np.array(bone.tail)
     length = np.linalg.norm(tail - head)
 
-    # ƒ{[ƒ“‹óŠÔ‚©‚çƒƒbƒVƒ…‹óŠÔ‚Ö‚Ì•ÏŠ·s—ñ‚ğì¬
-    mtxB2M = mesh.convert_space(matrix = bone.matrix,
-                                from_space='LOCAL',
-                                to_space='LOCAL')
+    arma_matrix_world_inverted = arma.matrix_world.inverted()
+
+    # ãƒœãƒ¼ãƒ³ç©ºé–“ã‹ã‚‰ãƒ¡ãƒƒã‚·ãƒ¥ç©ºé–“ã¸ã®å¤‰æ›è¡Œåˆ—ã‚’ä½œæˆ
+    bone_matrix_world = arma.convert_space(matrix = bone.matrix,
+                                           pose_bone=bone,
+                                           from_space='POSE',
+                                           to_space='WORLD')
+    mtxTail = Matrix()
+    mtxTail.translation = (0, length, 0)
+    mtxB2M = mesh.matrix_world.inverted() @ bone_matrix_world @ mtxTail
     mtxB2M_rot = mtxB2M.to_3x3()
 
-    # ƒƒbƒVƒ…‹óŠÔ‚©‚çƒ{[ƒ“‹óŠÔ‚Ö‚Ì•ÏŠ·s—ñ‚ğì¬
-    mtxM2B = Matrix(np.linalg.inv(mtxB2M))
+    # ãƒ¡ãƒƒã‚·ãƒ¥ç©ºé–“ã‹ã‚‰ãƒœãƒ¼ãƒ³ç©ºé–“ã¸ã®å¤‰æ›è¡Œåˆ—ã‚’ä½œæˆ
+    mtxM2B = mtxB2M.inverted()
 
-    # ‘S‚Ä‚ÌƒŒƒC‚ğì¬‚·‚é
+    # å…¨ã¦ã®ãƒ¬ã‚¤ã‚’ä½œæˆã™ã‚‹
     if not t_from:
         t_from = 0
     if not t_to:
         t_to = max(t_from, length - t_step)
     # print(t_from, t_to, t_step)
-    t_values = np.arange(t_from, t_to, t_step)
+    t_values = np.arange(t_from, t_to, t_step) - length
     angle_values = np.linspace(0, math.tau, numberOfRays, endpoint=False)
 
-    # meshgrid‚ÅX, Y, ZÀ•W‚ğ¶¬
+    # meshgridã§X, Y, Zåº§æ¨™ã‚’ç”Ÿæˆ
     T, Angle = np.meshgrid(t_values, angle_values, indexing='ij')
     xx = np.cos(Angle)
     yy = T
@@ -85,11 +93,11 @@ def addColliderToBone(mesh,
     ones = np.ones(T.shape)
 
     if insideToOutside:
-        # “à‚©‚çŠO‚Ö
+        # å†…ã‹ã‚‰å¤–ã¸
         dirs = np.stack((xx, zeros, zz), axis=-1)
         origs = np.stack((zeros, yy, zeros), axis=-1)
     else:
-        # ŠO‚©‚ç“à‚Ö
+        # å¤–ã‹ã‚‰å†…ã¸
         dirs = np.stack((-xx, zeros, -zz), axis=-1)
         origs = np.stack((xx * radius, yy, zz * radius), axis=-1)
 
@@ -107,8 +115,8 @@ def addColliderToBone(mesh,
             points = np.array([np.array(mtxM2B @ hit[1]) for hit in hits])
             points2D = points[:, [0, 2]]
             size, center = mu.calcFit(points2D)
-            center = np.array([center[0], points[0][1] - length, center[1]])
-            #center = np.array([0, points[0][1] - length, 0])
+            center = np.array([center[0], points[0][1], center[1]])
+            #center = np.array([0, points[0][1], 0])
             params.append((size, center))
 
     # print(params)
@@ -118,7 +126,11 @@ def addColliderToBone(mesh,
         empty_obj.parent = arma
         empty_obj.parent_type = "BONE"
         empty_obj.parent_bone = bone.name
-        empty_obj.location = center
+        empty_obj.matrix_basis = bone.matrix_basis
+        empty_obj.matrix_local = bone.matrix
+        empty_obj.matrix_parent_inverse = arma_matrix_world_inverted
+        empty_obj.matrix_world = bone_matrix_world @ mtxTail
+        empty_obj.location = arma.matrix_world @ Vector(center)
         empty_obj.empty_display_type = 'SPHERE'
         empty_obj.empty_display_size = size
 
@@ -176,12 +188,12 @@ def addCollider(meshObj,
         return {'CANCELLED'}, "Please select Armature and Mesh"
     #print('mesh:', mesh.name, 'arma:', arma.name)
 
-    modeChanger = iu.ModeChanger(arma.obj, 'EDIT')
-    selection = getSelectedEditableBones()
+    modeChanger = iu.ModeChanger(arma.obj, 'POSE')
+    selection = [x.name for x in bpy.context.selected_pose_bones]
     #print(selection)
 
     for bone in selection:
-        addColliderToBone(mesh.obj, arma.obj, bone.obj,
+        addColliderToBone(mesh.obj, arma.obj, bone,
                           t_from=t_from,
                           t_to=t_to,
                           t_step=t_step,
@@ -194,7 +206,7 @@ def addCollider(meshObj,
     
 ################
 # FIXME
-# ‚Ü‚¾“®‚©‚È‚¢
+# ã¾ã å‹•ã‹ãªã„
 def copySymmetrizeCollider(empty, arma):
     if not empty or not arma:
         raise ValueError(f'copySymmetrizeCollider({empty}, {arma})')
@@ -250,7 +262,7 @@ def copySymmetrizeCollider(empty, arma):
         constraint_axis=(True, False, False))
 
     # FIXME
-    # Empty ‚É‘Î‚µ‚Ä‚Í bpy.ops.transform.mirror() ‚ªŒø‚©‚È‚¢‚Á‚Û‚¢cc
+    # Empty ã«å¯¾ã—ã¦ã¯ bpy.ops.transform.mirror() ãŒåŠ¹ã‹ãªã„ã£ã½ã„â€¦â€¦
     return
 
     bpy.context.scene.cursor.location = cursorSave

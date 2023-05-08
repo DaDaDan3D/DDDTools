@@ -189,7 +189,7 @@ class DDDVT_OT_addCollider(Operator):
         return prop.mesh and prop.mesh.type=='MESH' and\
             bpy.context.active_object and\
             bpy.context.active_object.type == 'ARMATURE' and\
-            bpy.context.active_object.mode=='EDIT' and\
+            bpy.context.active_object.mode=='POSE' and\
             bpy.context.active_bone
 
     def execute(self, context):
