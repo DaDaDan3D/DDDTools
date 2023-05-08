@@ -3,6 +3,7 @@ from bpy.props import BoolProperty, IntProperty, PointerProperty, FloatProperty,
 from bpy.types import Panel, Operator, PropertyGroup
 
 from . import internalUtils as iu
+from . import UIUtils as ui
 from . import WeightTool as wt
 
 ################################################################
@@ -185,30 +186,18 @@ class DDDWT_PT_WeightTool(bpy.types.Panel):
         layout.operator(DDDWT_OT_resetWeightOfSelectedObjects.bl_idname)
 
         # cleanupWeightsOfSelectedObjects
-        split = layout.split(factor=0.15, align=True)
-        if prop.display_cleanupWeightsOfSelectedObjects:
-            split.prop(prop, 'display_cleanupWeightsOfSelectedObjects',
-                       text='', icon='DOWNARROW_HLT')
-        else:
-            split.prop(prop, 'display_cleanupWeightsOfSelectedObjects',
-                       text='', icon='RIGHTARROW')
+        display, split = ui.splitSwitch(layout, prop, 'display_cleanupWeightsOfSelectedObjects')
         split.operator(DDDWT_OT_cleanupWeightsOfSelectedObjects.bl_idname)
-        if prop.display_cleanupWeightsOfSelectedObjects:
+        if display:
             box = layout.column(align=True).box().column()
             col = box.column(align=True)
             col.prop(prop, 'affectBoneMax')
         
         # transferWeightsForSelectedObjects
-        split = layout.split(factor=0.15, align=True)
-        if prop.display_transferWeightsForSelectedObjects:
-            split.prop(prop, 'display_transferWeightsForSelectedObjects',
-                       text='', icon='DOWNARROW_HLT')
-        else:
-            split.prop(prop, 'display_transferWeightsForSelectedObjects',
-                       text='', icon='RIGHTARROW')
+        display, split = ui.splitSwitch(layout, prop, 'display_transferWeightsForSelectedObjects')
         split.operator(DDDWT_OT_transferWeightsForSelectedObjects.bl_idname)
         mesh = bpy.context.active_object
-        if prop.display_transferWeightsForSelectedObjects and mesh and mesh.type=='MESH':
+        if display and mesh and mesh.type=='MESH':
             box = layout.column(align=True).box().column()
             col = box.column(align=True)
             col.prop_search(prop, 'weightObj', context.blend_data, 'objects')

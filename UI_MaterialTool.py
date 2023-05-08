@@ -1,6 +1,7 @@
 import bpy
 from bpy.props import StringProperty, EnumProperty, CollectionProperty, PointerProperty, BoolProperty, FloatProperty, IntProperty
 from bpy.types import PropertyGroup, Operator, Panel, UIList
+from . import UIUtils as ui
 from . import MaterialTool as mt
 
 ################################################################
@@ -294,15 +295,9 @@ class DDDMT_PT_MaterialTool(Panel):
         layout = self.layout
 
         # TextureTools
-        split = layout.split(factor=0.15, align=True)
-        if prop.display_texture_tools:
-            split.prop(prop, 'display_texture_tools',
-                       text='', icon='DOWNARROW_HLT')
-        else:
-            split.prop(prop, 'display_texture_tools',
-                       text='', icon='RIGHTARROW')
+        display, split = ui.splitSwitch(layout, prop, 'display_texture_tools')
         split.label(text='テクスチャ関係')
-        if prop.display_texture_tools:
+        if display:
             col = layout.box().column(align=True)
 
             split = col.split(factor=0.8, align=True)
@@ -316,30 +311,18 @@ class DDDMT_PT_MaterialTool(Panel):
 
 
         # MaterialTools
-        split = layout.split(factor=0.15, align=True)
-        if prop.display_material_tools:
-            split.prop(prop, 'display_material_tools',
-                       text='', icon='DOWNARROW_HLT')
-        else:
-            split.prop(prop, 'display_material_tools',
-                       text='', icon='RIGHTARROW')
+        display, split = ui.splitSwitch(layout, prop, 'display_material_tools')
         split.label(text='マテリアル関係')
-        if prop.display_material_tools:
+        if display:
             col = layout.box().column(align=True)
             col.prop_search(prop, 'material', context.blend_data, 'materials')
             col.operator(DDDMT_OT_selectAllObjectsUsingMaterial.bl_idname)
             col.operator(DDDMT_OT_listupAllObjectsUsingMaterial.bl_idname)
 
         # sortMaterialSlots
-        split = layout.split(factor=0.15, align=True)
-        if prop.display_sortMaterialSlots_settings:
-            split.prop(prop, 'display_sortMaterialSlots_settings',
-                       text='', icon='DOWNARROW_HLT')
-        else:
-            split.prop(prop, 'display_sortMaterialSlots_settings',
-                       text='', icon='RIGHTARROW')
+        display, split = ui.splitSwitch(layout, prop, 'display_sortMaterialSlots_settings')
         split.operator(DDDMT_OT_sortMaterialSlots.bl_idname, icon='SORTALPHA')
-        if prop.display_sortMaterialSlots_settings:
+        if display:
             col = layout.box().column(align=True)
 
             col.label(text='マテリアル順指定リスト')
