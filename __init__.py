@@ -22,6 +22,7 @@ bl_info = {
 
 modules = [
     'internalUtils',
+    'UIUtils',
     'mathUtils',
     'BoneTool',
     'VRMTool',
