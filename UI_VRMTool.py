@@ -3,6 +3,7 @@ import bpy
 from bpy.types import Panel, Operator, PropertyGroup, UIList, Object, Text
 from bpy.props import PointerProperty, CollectionProperty, StringProperty, EnumProperty, BoolProperty, IntProperty, FloatProperty
 
+from . import UIUtils as ui
 from . import VRMTool as vt
 
 ################################################################
@@ -11,6 +12,10 @@ class DDDVT_MaterialListItem(PropertyGroup):
 
 ################
 class DDDVT_propertyGroup(PropertyGroup):
+    display_colliderTools: BoolProperty(
+        name='ColliderTools',
+        default=True)
+
     display_add_collider_settings: BoolProperty(
         name='AddColliderSettings',
         default=True)
@@ -224,16 +229,17 @@ class DDDVT_OT_addCollider(Operator):
 class DDDVT_OT_removeAllUneditableEmptyChildren(Operator):
     bl_idname = 'dddvt.remove_all_uneditable_empty_children'
     bl_label = '不要EMPTY削除'
-    bl_description = 'アクティブなスケルトンの子の、手動で削除しても消えない EMPTY を強制的に削除します。'
+    bl_description = '指定したスケルトンの子の、手動で削除しても消えない EMPTY を強制的に削除します。'
     bl_options = {'UNDO'}
 
     @classmethod
     def poll(self, context):
-        obj = bpy.context.active_object
-        return obj and obj.type=='ARMATURE'
+        prop = context.scene.dddtools_vt_prop
+        return prop.skeleton and prop.skeleton.type=='ARMATURE'
 
     def execute(self, context):
-        removed = vt.removeAllUneditableEmptyChildren(bpy.context.active_object)
+        prop = context.scene.dddtools_vt_prop
+        removed = vt.removeAllUneditableEmptyChildren(prop.skeleton)
         if removed:
             self.report({'INFO'},
                         f'{len(removed)} 個の EMPTY を削除しました: {removed}')
@@ -393,34 +399,27 @@ class DDDVT_PT_VRMTool(Panel):
         prop = context.scene.dddtools_vt_prop
         layout = self.layout
 
-        layout.operator(DDDVT_OT_removeAllUneditableEmptyChildren.bl_idname)
+        layout.prop_search(prop, 'skeleton', context.blend_data, 'objects')
 
-        # addCollider
-        split = layout.split(factor=0.15, align=True)
-        if prop.display_add_collider_settings:
-            split.prop(prop, 'display_add_collider_settings',
-                       text='', icon='DOWNARROW_HLT')
-        else:
-            split.prop(prop, 'display_add_collider_settings',
-                       text='', icon='RIGHTARROW')
-        op = split.operator(DDDVT_OT_addCollider.bl_idname)
-        if prop.display_add_collider_settings:
+        # コライダーツール
+        display, split = ui.splitSwitch(layout, prop, 'display_colliderTools')
+        split.label(text='コライダー関連')
+        if display:
             col = layout.box().column()
-            col.prop_search(prop, 'mesh', context.blend_data, 'objects')
+            col.operator(DDDVT_OT_removeAllUneditableEmptyChildren.bl_idname)
+
+            # addCollider
+            display, split = ui.splitSwitch(col, prop, 'display_add_collider_settings')
+            split.operator(DDDVT_OT_addCollider.bl_idname)
+            if display:
+                col.prop_search(prop, 'mesh', context.blend_data, 'objects')
 
         # prepareToExportVRM
-        split = layout.split(factor=0.15, align=True)
-        if prop.display_prepareToExportVRM:
-            split.prop(prop, 'display_prepareToExportVRM',
-                       text='', icon='DOWNARROW_HLT')
-        else:
-            split.prop(prop, 'display_prepareToExportVRM',
-                       text='', icon='RIGHTARROW')
+        display, split = ui.splitSwitch(layout, prop, 'display_prepareToExportVRM')
         split.operator(DDDVT_OT_prepareToExportVRM.bl_idname)
-        if prop.display_prepareToExportVRM:
+        if display:
             col = layout.box().column(align=True)
             if vt.getAddon():
-                col.prop_search(prop, 'skeleton', context.blend_data, 'objects')
                 col.prop(prop, 'triangulate')
                 col.prop_search(prop, 'bs_json', context.blend_data, 'texts')
                 col.prop_search(prop, 'sb_json', context.blend_data, 'texts')
@@ -434,15 +433,9 @@ class DDDVT_PT_VRMTool(Panel):
                 
                 # removePolygons
                 col.separator()
-                split = col.split(factor=0.15, align=True)
-                if prop.display_removePolygons_settings:
-                    split.prop(prop, 'display_removePolygons_settings',
-                               text='', icon='DOWNARROW_HLT')
-                else:
-                    split.prop(prop, 'display_removePolygons_settings',
-                               text='', icon='RIGHTARROW')
+                display, split = ui.splitSwitch(col, prop, 'display_removePolygons_settings')
                 split.prop(prop, 'removePolygons')
-                if prop.display_removePolygons_settings:
+                if display:
                     box = col.box().column(align=True)
                     box.prop(prop, 'interval')
                     box.prop(prop, 'alphaThreshold')
