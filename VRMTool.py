@@ -55,25 +55,19 @@ def addColliderToBone(mesh,
         raise ValueError(f'Error: no mesh or no arma in addCollider({mesh}, {arma}, {bone})')
 
     bone = arma.pose.bones[boneName]
+    length = (bone.tail - bone.head).length
 
-    head = np.array(bone.head)
-    tail = np.array(bone.tail)
-    length = np.linalg.norm(tail - head)
-
-    arma_matrix_world_inverted = arma.matrix_world.inverted()
+    mtx = bone.matrix.copy()
+    mtx.translation = bone.tail
+    matrix_parent = arma.matrix_world @ mtx # 親のワールド行列
+    matrix_parent_inverse = matrix_parent.inverted()
 
     # ボーン空間からメッシュ空間への変換行列を作成
-    bone_matrix_world = arma.convert_space(matrix = bone.matrix,
-                                           pose_bone=bone,
-                                           from_space='POSE',
-                                           to_space='WORLD')
-    mtxTail = Matrix()
-    mtxTail.translation = (0, length, 0)
-    mtxB2M = mesh.matrix_world.inverted() @ bone_matrix_world @ mtxTail
+    mtxB2M = mesh.matrix_world.inverted() @ matrix_parent
     mtxB2M_rot = mtxB2M.to_3x3()
 
     # メッシュ空間からボーン空間への変換行列を作成
-    mtxM2B = mtxB2M.inverted()
+    mtxM2B = matrix_parent_inverse @ mesh.matrix_world
 
     # 全てのレイを作成する
     if not t_from:
@@ -126,11 +120,12 @@ def addColliderToBone(mesh,
         empty_obj.parent = arma
         empty_obj.parent_type = "BONE"
         empty_obj.parent_bone = bone.name
-        empty_obj.matrix_basis = bone.matrix_basis
-        empty_obj.matrix_local = bone.matrix
-        empty_obj.matrix_parent_inverse = arma_matrix_world_inverted
-        empty_obj.matrix_world = bone_matrix_world @ mtxTail
-        empty_obj.location = arma.matrix_world @ Vector(center)
+        empty_obj.matrix_parent_inverse = matrix_parent_inverse
+        matrix_basis = matrix_parent.copy()
+        matrix_basis.translation = matrix_parent @ Vector(center)
+        empty_obj.matrix_basis = matrix_basis
+        empty_obj.matrix_local = matrix_parent_inverse @ matrix_basis
+        empty_obj.matrix_world = matrix_basis
         empty_obj.empty_display_type = 'SPHERE'
         empty_obj.empty_display_size = size
 
