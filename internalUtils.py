@@ -1,6 +1,12 @@
 import bpy
 import bmesh
+from mathutils import (
+    Vector,
+    Matrix,
+)
 import numpy as np
+import uuid
+from . import mathUtils as mu
 
 ################################################################
 class ObjectWrapper:
@@ -451,3 +457,175 @@ def setParentToBone(obj, arma, boneName):
     del modeChanger
 
     bpy.ops.object.parent_set(type='BONE')
+
+################
+def removeObject(obj):
+    for collection in obj.users_collection:
+        collection.objects.unlink(obj)
+    bpy.data.objects.remove(obj)
+
+################
+def findCollectionIn(obj):
+    for collection in obj.users_collection:
+        if obj.name in collection.objects:
+            return collection
+        
+    return None
+
+################
+def copyAttr(src, dst, attrs):
+    for attr in attrs:
+        setattr(dst, attr, getattr(src, attr))
+
+################
+def setupObjectWithLocation(obj, parent, parent_type, parent_bone, location):
+    if not parent:
+        matrix_parent = Matrix()
+    else:
+        if parent_type != 'BONE':
+            matrix_parent = parent.matrix_world
+        else:
+            pbone = parent.pose.bones[parent_bone]
+            mtx = pbone.matrix.copy()
+            mtx.translation = pbone.tail
+            matrix_parent = parent.matrix_world @ mtx
+
+    # Calc matrix
+    # location == matrix_parent @ matrix_parent_inverse @ matrix_basis @ ZERO
+    matrix_parent_inverse = matrix_parent.inverted()
+    matrix_basis = Matrix.Translation(location)
+    matrix_local = matrix_parent_inverse @ matrix_basis
+    matrix_world = matrix_parent @ matrix_local
+
+    # Store result
+    #obj.location = location
+    obj.parent = parent
+    obj.parent_type = parent_type
+    obj.parent_bone = parent_bone
+    obj.matrix_parent_inverse = matrix_parent_inverse
+    obj.matrix_basis = matrix_basis
+    obj.matrix_local = matrix_local
+    obj.matrix_world = matrix_world
+
+################
+def convertEmptyToSphere(empty, u_segments=16, v_segments=8, keep_original=False):
+    # 大きさを計算
+    radius = empty.empty_display_size * empty.matrix_world.median_scale
+
+    # 新しいメッシュデータを作成
+    mesh_data = bpy.data.meshes.new('sphere_mesh')
+
+    # BMeshオブジェクトを作成して球を生成
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm,
+                              u_segments=u_segments,
+                              v_segments=v_segments,
+                              radius=radius)
+
+    # BMeshをメッシュデータに変換
+    bm.to_mesh(mesh_data)
+    bm.free()
+
+    # 新しいオブジェクトを作成
+    new_sphere = bpy.data.objects.new(str(uuid.uuid4()), mesh_data)
+
+    # 行列を計算
+    setupObjectWithLocation(new_sphere,
+                            empty.parent,
+                            empty.parent_type,
+                            empty.parent_bone,
+                            empty.location)
+
+    # オブジェクトをシーンにリンク
+    collection = findCollectionIn(empty)
+    collection.objects.link(new_sphere)
+
+    nameSave = empty.name
+
+    # 元のエンプティを削除
+    if not keep_original:
+        removeObject(empty)
+
+    new_sphere.name = nameSave
+
+    return new_sphere
+
+################
+def convertSphereToEmpty(sphere, keep_original=False):
+    # 大きさを計算
+    mesh = sphere.data
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    mtx = sphere.matrix_world
+    verts = [mtx @ vtx.co for vtx in bm.verts]
+    try:
+        radius, center = mu.calcFit(np.array(verts))
+
+    except Exception as e:
+        print(f'エラーが発生しました: {e} {type(e)}')
+        traceback.print_exc()
+        return
+
+    # 新しい EMPTY を作成
+    new_empty = bpy.data.objects.new(str(uuid.uuid4()), None)
+
+    # 行列を計算
+    setupObjectWithLocation(new_empty,
+                            sphere.parent,
+                            sphere.parent_type,
+                            sphere.parent_bone,
+                            Vector(center))
+
+    # エンプティの設定
+    new_empty.empty_display_type = 'SPHERE'
+    new_empty.empty_display_size = radius
+
+    # オブジェクトをシーンにリンク
+    collection = findCollectionIn(sphere)
+    collection.objects.link(new_empty)
+
+    nameSave = sphere.name
+
+    # 元のエンプティを削除
+    if not keep_original:
+        removeObject(sphere)
+
+    new_empty.name = nameSave
+
+    return new_empty
+
+################
+def correctChildMatrix(arma):
+    """
+    Corrects matrix of arma's children.
+    """
+
+    modeChanger = ModeChanger(arma, 'OBJECT')
+
+    boneToObj = dict()
+    for obj in arma.children_recursive:
+        if obj in bpy.context.selectable_objects and obj.parent_type == 'BONE':
+            if obj.parent_bone in boneToObj:
+                boneToObj[obj.parent_bone].append(obj)
+            else:
+                boneToObj[obj.parent_bone] = [obj]
+
+    for boneName, objs in boneToObj.items():
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in objs:
+            obj.select_set(True)
+        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+
+        mc2 = ModeChanger(arma, 'EDIT')
+        bpy.ops.armature.select_all(action='DESELECT')
+        bone = EditBoneWrapper(boneName)
+        bone.select_set(True)
+        arma.data.edit_bones.active = bone.obj
+        del mc2
+
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in objs:
+            obj.select_set(True)
+        bpy.ops.object.parent_set(type='BONE')
+
+    del modeChanger
