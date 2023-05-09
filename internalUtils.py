@@ -478,7 +478,7 @@ def copyAttr(src, dst, attrs):
         setattr(dst, attr, getattr(src, attr))
 
 ################
-def setupObjectWithLocation(obj, parent, parent_type, parent_bone, location):
+def setupObject(obj, parent, parent_type, parent_bone, matrix_world):
     if not parent:
         matrix_parent = Matrix()
     else:
@@ -491,11 +491,10 @@ def setupObjectWithLocation(obj, parent, parent_type, parent_bone, location):
             matrix_parent = parent.matrix_world @ mtx
 
     # Calc matrix
-    # location == matrix_parent @ matrix_parent_inverse @ matrix_basis @ ZERO
     matrix_parent_inverse = matrix_parent.inverted()
-    matrix_basis = Matrix.Translation(location)
+    matrix_basis = matrix_world
     matrix_local = matrix_parent_inverse @ matrix_basis
-    matrix_world = matrix_parent @ matrix_local
+    # matrix_world = matrix_parent @ matrix_local
 
     # Store result
     #obj.location = location
@@ -510,7 +509,7 @@ def setupObjectWithLocation(obj, parent, parent_type, parent_bone, location):
 ################
 def convertEmptyToSphere(empty, u_segments=16, v_segments=8, keep_original=False):
     # 大きさを計算
-    radius = empty.empty_display_size * empty.matrix_world.median_scale
+    radius = empty.empty_display_size
 
     # 新しいメッシュデータを作成
     mesh_data = bpy.data.meshes.new('sphere_mesh')
@@ -530,11 +529,11 @@ def convertEmptyToSphere(empty, u_segments=16, v_segments=8, keep_original=False
     new_sphere = bpy.data.objects.new(str(uuid.uuid4()), mesh_data)
 
     # 行列を計算
-    setupObjectWithLocation(new_sphere,
-                            empty.parent,
-                            empty.parent_type,
-                            empty.parent_bone,
-                            empty.location)
+    setupObject(new_sphere,
+                empty.parent,
+                empty.parent_type,
+                empty.parent_bone,
+                empty.matrix_world)
 
     # オブジェクトをシーンにリンク
     collection = findCollectionIn(empty)
@@ -560,6 +559,7 @@ def convertSphereToEmpty(sphere, keep_original=False):
     verts = [mtx @ vtx.co for vtx in bm.verts]
     try:
         radius, center = mu.calcFit(np.array(verts))
+        radius /= sphere.matrix_world.median_scale
 
     except Exception as e:
         print(f'エラーが発生しました: {e} {type(e)}')
@@ -569,12 +569,16 @@ def convertSphereToEmpty(sphere, keep_original=False):
     # 新しい EMPTY を作成
     new_empty = bpy.data.objects.new(str(uuid.uuid4()), None)
 
+    # ワールド行列を計算
+    mtx = sphere.matrix_world.copy()
+    mtx.translation = center
+
     # 行列を計算
-    setupObjectWithLocation(new_empty,
-                            sphere.parent,
-                            sphere.parent_type,
-                            sphere.parent_bone,
-                            Vector(center))
+    setupObject(new_empty,
+                sphere.parent,
+                sphere.parent_type,
+                sphere.parent_bone,
+                mtx)
 
     # エンプティの設定
     new_empty.empty_display_type = 'SPHERE'
