@@ -57,6 +57,7 @@ def offsetUVCoords(uv_coords, mode, paramX, paramY, selected=None):
         offset_y = paramY - (min_y + max_y) / 2
 
     else:
+        raise ValueError(f'Illegal mode: {mode}')
         return uv_coords, False
 
     uv_coords[selected] += np.array([offset_x, offset_y])
@@ -66,7 +67,7 @@ def offsetUVCoords(uv_coords, mode, paramX, paramY, selected=None):
 ################################################################
 def blender_to_numpy_uv_coords(bm, uv_layer):
     uv_coords = np.array([loop[uv_layer].uv for face in bm.faces for loop in face.loops])
-    selected = np.array([loop[uv_layer].select for face in bm.faces for loop in face.loops], dtype=bool)
+    selected = np.array([loop[uv_layer].select and loop.vert.select for face in bm.faces for loop in face.loops], dtype=bool)
     return uv_coords, selected
 
 ################################################################
@@ -75,7 +76,7 @@ def numpy_to_blender_uv_coords(bm, uv_layer, uv_coords):
         loop[uv_layer].uv = uv_coord
 
 ################################################################
-def offsetSelectedUVIsland(mode, paramX, paramY):
+def offsetSelectedUVIslandOfObject(obj, mode, paramX, paramY):
     """
     Moves selected UVs.
 
@@ -90,11 +91,11 @@ def offsetSelectedUVIsland(mode, paramX, paramY):
     bpy.ops.object.mode_set(mode='EDIT')
     
     # Get the active mesh object
-    obj = bpy.context.active_object
     me = obj.data
     
     # Get the mesh data in edit mode
     bm = bmesh.from_edit_mesh(me)
+    bm.faces.ensure_lookup_table()
     uv_layer = bm.loops.layers.uv.verify()
 
     # Get the UV coordinates and selected information as numpy arrays
@@ -104,7 +105,7 @@ def offsetSelectedUVIsland(mode, paramX, paramY):
     new_uv_coords, success = offsetUVCoords(uv_coords, mode, paramX, paramY, selected)
 
     if not success:
-        return {'CANCELLED'}
+        return False
 
     # Update the UV coordinates in Blender
     numpy_to_blender_uv_coords(bm, uv_layer, new_uv_coords)
@@ -112,4 +113,15 @@ def offsetSelectedUVIsland(mode, paramX, paramY):
     # Update the mesh
     bmesh.update_edit_mesh(me)
 
-    return {'FINISHED'}
+    return True
+
+################################################################
+def offsetSelectedUVIsland(mode, paramX, paramY):
+    result = False
+    for obj in bpy.context.selected_objects:
+        if obj.type == 'MESH':
+            result |= offsetSelectedUVIslandOfObject(obj, mode, paramX, paramY)
+    if result:
+        return {'FINISHED'}
+    else:
+        return {'CANCELLED'}
