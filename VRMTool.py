@@ -632,6 +632,12 @@ def removeAllUneditableEmptyChildren(obj):
     return result
 
 ################################################################
+def applyCollidersScale(arma):
+    for obj in arma.children_recursive:
+        if obj.type == 'EMPTY' and obj.empty_display_type == 'SPHERE':
+            iu.applyEmptyScale(obj)
+
+################################################################
 def prepareToExportVRM(skeleton='skeleton',
                        triangulate=False,
                        removeTransparentPolygons=True,
@@ -718,7 +724,7 @@ def prepareToExportVRM(skeleton='skeleton',
 
     # migrate spring_bone.json
     if sb_json:
-        bt.applyScaleAndRotationToArmature(arma)
+        applyCollidersScale(arma.obj)
         va.editor.vrm0.migration.migrate_vrm0_secondary_animation(
             ext.vrm0.secondary_animation,
             sb_dic,
