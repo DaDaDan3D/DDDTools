@@ -499,8 +499,9 @@ def setupObject(obj, parent, parent_type, parent_bone, matrix_world):
     # Store result
     #obj.location = location
     obj.parent = parent
-    obj.parent_type = parent_type
-    obj.parent_bone = parent_bone
+    if parent:
+        obj.parent_type = parent_type
+        obj.parent_bone = parent_bone
     obj.matrix_parent_inverse = matrix_parent_inverse
     obj.matrix_basis = matrix_basis
     obj.matrix_local = matrix_local
@@ -597,6 +598,14 @@ def convertSphereToEmpty(sphere, keep_original=False):
     new_empty.name = nameSave
 
     return new_empty
+
+################
+def applyEmptyScale(empty):
+    size = empty.empty_display_size * empty.matrix_basis.median_scale
+    mtx = empty.matrix_basis.normalized()
+
+    empty.matrix_basis = mtx
+    empty.empty_display_size = size
 
 ################
 def correctChildMatrix(arma):
