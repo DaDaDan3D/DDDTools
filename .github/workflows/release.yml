@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install zipfile36
+
+      - name: Create .zip
+        run: |
+          python -c "
+          import os
+          import zipfile
+          
+          exclude_top_dirs = set(['images', 'movies'])
+          exclude_files = set(['.gitignore', 'README.md'])
+          def zipdir(path, ziph):
+              is_first_dirs = True
+              for root, dirs, files in os.walk(path):
+                  if dirs and is_first_dirs:
+                      dirs[:] = set(dirs) - exclude_top_dirs
+                      is_first_dirs = False
+                  for file in files:
+                      if file not in exclude_files:
+                          ziph.write(os.path.join(root, file))
+          
+          with zipfile.ZipFile('Addon.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
+              zipdir('.', zipf)
+          "
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./Addon.zip
+          asset_name: Addon.zip
+          asset_content_type: application/zip
