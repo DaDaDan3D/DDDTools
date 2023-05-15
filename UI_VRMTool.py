@@ -1,8 +1,9 @@
-import os
 import bpy
 from bpy.types import Panel, Operator, PropertyGroup, UIList, Object, Text
 from bpy.props import PointerProperty, CollectionProperty, StringProperty, EnumProperty, BoolProperty, IntProperty, FloatProperty
-
+import os
+import traceback
+from . import internalUtils as iu
 from . import UIUtils as ui
 from . import VRMTool as vt
 
@@ -16,7 +17,19 @@ class DDDVT_propertyGroup(PropertyGroup):
         name='ColliderTools',
         default=True)
 
-    display_add_collider_settings: BoolProperty(
+    display_setEmptyAsCollider_settings: BoolProperty(
+        name='SetEmptyAsColliderSettings',
+        default=True)
+    rename: BoolProperty(
+        name='リネームする',
+        description='コライダとして適切な名前にリネームします',
+        default=True)
+    symmetrize: BoolProperty(
+        name='ミラーの作成',
+        description='コライダのミラーを追加で作成します',
+        default=True)
+
+    display_addCollider_settings: BoolProperty(
         name='AddColliderSettings',
         default=True)
     mesh: PointerProperty(
@@ -226,9 +239,62 @@ class DDDVT_OT_addCollider(Operator):
         col.prop(self, 'insideToOutside')
 
 ################
+class DDDVT_OT_setEmptyAsCollider(Operator):
+    bl_idname = 'dddvt.set_empty_as_collider'
+    bl_label = 'エンプティのコライダ化'
+    bl_description = '選択中のエンプティを、アクティブなスケルトンの選択中のボーンの子として設定します'
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        arma = context.active_object
+        bone = context.active_bone
+        objs = context.selected_objects
+        return arma and arma.type=='ARMATURE' and bone and len(objs) > 1
+
+    def execute(self, context):
+        prop = context.scene.dddtools_vt_prop
+        arma = iu.ObjectWrapper(context.active_object)
+        boneName = context.active_bone.name
+        for obj in context.selected_objects:
+            if obj.type == 'EMPTY':
+                try:
+                    vt.setEmptyAsCollider(iu.ObjectWrapper(obj), arma, boneName,
+                                          rename=prop.rename,
+                                          symmetrize=prop.symmetrize)
+                except:
+                    traceback.print_exc()
+                    return {'CANCELLED'}
+                    
+        return {'FINISHED'}
+
+################
+class DDDVT_OT_duplicateColliderAsMirror(Operator):
+    bl_idname = 'dddvt.duplicate_collider_as_mirror'
+    bl_label = 'コライダのミラーを作成'
+    bl_description = '選択中のコライダのミラーを作成します'
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        objs = context.selected_objects
+        return objs
+
+    def execute(self, context):
+        for obj in context.selected_objects:
+            if obj.type == 'EMPTY':
+                try:
+                    vt.duplicateColliderAsMirror(iu.ObjectWrapper(obj))
+                except:
+                    traceback.print_exc()
+                    return {'CANCELLED'}
+                    
+        return {'FINISHED'}
+
+################
 class DDDVT_OT_removeAllUneditableEmptyChildren(Operator):
     bl_idname = 'dddvt.remove_all_uneditable_empty_children'
-    bl_label = '不要EMPTY削除'
+    bl_label = '不要エンプティ削除'
     bl_description = '指定したスケルトンの子の、手動で削除しても消えない EMPTY を強制的に削除します。'
     bl_options = {'UNDO'}
 
@@ -408,11 +474,22 @@ class DDDVT_PT_VRMTool(Panel):
             col = layout.box().column()
             col.operator(DDDVT_OT_removeAllUneditableEmptyChildren.bl_idname)
 
+            # setEmptyAsCollider
+            display, split = ui.splitSwitch(col, prop, 'display_setEmptyAsCollider_settings')
+            split.operator(DDDVT_OT_setEmptyAsCollider.bl_idname)
+            if display:
+                box = col.box().column(align=True)
+                box.prop(prop, 'rename')
+                box.prop(prop, 'symmetrize')
+
             # addCollider
-            display, split = ui.splitSwitch(col, prop, 'display_add_collider_settings')
+            display, split = ui.splitSwitch(col, prop, 'display_addCollider_settings')
             split.operator(DDDVT_OT_addCollider.bl_idname)
             if display:
-                col.prop_search(prop, 'mesh', context.blend_data, 'objects')
+                box = col.box().column(align=True)
+                box.prop_search(prop, 'mesh', context.blend_data, 'objects')
+
+            col.operator(DDDVT_OT_duplicateColliderAsMirror.bl_idname)
 
         # prepareToExportVRM
         display, split = ui.splitSwitch(layout, prop, 'display_prepareToExportVRM')
@@ -464,6 +541,8 @@ classes = (
     DDDVT_MaterialListItem,
     DDDVT_propertyGroup,
     DDDVT_OT_addCollider,
+    DDDVT_OT_setEmptyAsCollider,
+    DDDVT_OT_duplicateColliderAsMirror,
     DDDVT_OT_removeAllUneditableEmptyChildren,
     DDDVT_OT_prepareToExportVRM,
     DDDVT_OT_openAddonPage,

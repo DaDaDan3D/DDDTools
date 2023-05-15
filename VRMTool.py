@@ -184,139 +184,109 @@ def addCollider(meshObj,
     #print('mesh:', mesh.name, 'arma:', arma.name)
 
     modeChanger = iu.ModeChanger(arma.obj, 'POSE')
-    selection = [x.name for x in bpy.context.selected_pose_bones]
-    #print(selection)
+    bone = bpy.context.active_bone
+    if not bone:
+        return {'CANCELLED'}, "Please select a bone"
 
-    for bone in selection:
-        addColliderToBone(mesh.obj, arma.obj, bone,
-                          t_from=t_from,
-                          t_to=t_to,
-                          t_step=t_step,
-                          numberOfRays=numberOfRays,
-                          radius=radius,
-                          insideToOutside=insideToOutside)
+    addColliderToBone(mesh.obj, arma.obj, bone.name,
+                      t_from=t_from,
+                      t_to=t_to,
+                      t_step=t_step,
+                      numberOfRays=numberOfRays,
+                      radius=radius,
+                      insideToOutside=insideToOutside)
     del modeChanger
 
     return{'FINISHED'}
     
 ################
-# FIXME
-# まだ動かない
-def copySymmetrizeCollider(empty, arma):
-    if not empty or not arma:
-        raise ValueError(f'copySymmetrizeCollider({empty}, {arma})')
+def duplicateColliderAsMirror(emptyObj):
+    if not emptyObj.obj.parent:
+        raise ValueError(f'{emptyObj} does not have a parent.')
 
-    if not empty.parent:
-        raise ValueError(f'{empty} does not have parent.')
-
-    boneName = empty.parent_bone
+    boneName = emptyObj.obj.parent_bone
     if not boneName:
-        raise ValueError(f'{empty} does not have parent-bone.')
+        raise ValueError(f'{emptyObj} does not have a parent-bone.')
 
     mo = re_name_LR.match(boneName)
     if not mo:
-        print(f'{boneName} is not a mirror bone.')
-        return
-
-    print(mo)
-    if mo.group(2) == 'L':
-        lr = 'R'
+        #print(f'{boneName} is not a mirror bone.')
+        mirrorBoneName = boneName
     else:
-        lr = 'L'
+        if mo.group(2) == 'L':
+            lr = 'R'
+        else:
+            lr = 'L'
+        mirrorBoneName = mo.group(1) + lr
 
-    mirrorBoneName = mo.group(1) + lr
-    print(mirrorBoneName)
-    mirrorBone = arma.data.bones.get(mirrorBoneName)
-    print(mirrorBone)
+    # Change to EDIT-mode to reset pose
+    modeChanger = iu.ModeChanger(emptyObj.obj.parent, 'EDIT')
+
+    empty_org = emptyObj.obj
+    parent = empty_org.parent
+
+    # Get a mirror bone
+    mirrorBone = parent.pose.bones.get(mirrorBoneName)
     if not mirrorBone:
         raise ValueError(f'{boneName} does not have a mirror bone.')
 
     # Create an empty object
     newName = f'Collider_{mirrorBoneName}'
-    newObj = bpy.data.objects.new(newName, None)
-    bpy.context.scene.collection.objects.link(newObj)
-    print(newObj)
+    empty_new = bpy.data.objects.new(newName, None)
 
-    # Move location
-    newObj.location = empty.matrix_world.translation
+    # Calc mirrored location
+    location = parent.matrix_world.inverted() @ empty_org.matrix_world.translation
+    location.x *= -1
+    matrix_world = Matrix.Translation(parent.matrix_world @ location)
 
-    # Mirror
-    modeChanger = iu.ModeChanger(newObj, 'OBJECT')
-    bpy.ops.object.select_all(action='DESELECT')
-    newObj.select_set(True)
-    pivotSave = bpy.context.scene.tool_settings.transform_pivot_point
-    bpy.context.scene.tool_settings.transform_pivot_point = 'CURSOR'
-    cursorSave = bpy.context.scene.cursor.location
-    bpy.context.scene.cursor.location = arma.location
-    print(arma.matrix_world.to_3x3())
-    
-    bpy.ops.transform.mirror(
-        orient_type='GLOBAL',
-        orient_matrix=arma.matrix_world.to_3x3(),
-        orient_matrix_type='LOCAL',
-        constraint_axis=(True, False, False))
-
-    # FIXME
-    # Empty に対しては bpy.ops.transform.mirror() が効かないっぽい……
-    return
-
-    bpy.context.scene.cursor.location = cursorSave
-    bpy.context.scene.tool_settings.transform_pivot_point = pivotSave
-    del modeChanger
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-
-    # Set parent
-    modeChanger = iu.ModeChanger(arma, 'EDIT')
-
-    bpy.ops.armature.select_all(action='DESELECT')
-    bone = iu.EditBoneWrapper(mirrorBoneName)
-    bone.select_set(True)
-
-    del modeChanger
-    
-    bpy.ops.object.parent_set(type='BONE')
-    
     # Set parameters
-    newObj.empty_display_type = 'SPHERE'
-    newObj.empty_display_size = empty.empty_display_size
+    iu.setupObject(empty_new,
+                   parent,
+                   'BONE',
+                   mirrorBoneName,
+                   matrix_world)
 
+    pbone = parent.pose.bones[boneName]
+    empty_new.empty_display_type = 'SPHERE'
+    empty_new.empty_display_size = empty_org.empty_display_size * empty_org.matrix_world.median_scale
+
+    # Link to scene
+    collection = iu.findCollectionIn(empty_org)
+    collection.objects.link(empty_new)
+
+    empty_org.select_set(True)
+    empty_new.select_set(True)
+
+    del modeChanger
 
 ################
-def setEmptyAsCollider(empty, arma, boneName, symmetrize=False):
+def setEmptyAsCollider(emptyObj, armaObj, boneName, rename=True, symmetrize=False):
+    empty = emptyObj.obj
+    arma = armaObj.obj
+
     if not empty or not arma:
-        raise ValueError(f'setEmptyAsCollider({empty}, {arma}, {boneName})')
+        raise ValueError(f'setEmptyAsCollider({emptyObj}, {armaObj}, {boneName})')
     
+    if empty.type != 'EMPTY':
+        raise ValueError(f'{empty} is not EMPTY.')
+
     if arma.data.bones.find(boneName) < 0:
         raise ValueError(f'bone {boneName} is not found.')
 
-    # Clear parent
-    modeChanger = iu.ModeChanger(empty, 'OBJECT')
-    bpy.ops.object.select_all(action='DESELECT')
-    empty.select_set(True)
-    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-    del modeChanger
+    newName = f'Collider_{boneName}'
+    if rename:
+        empty.name = newName
+        emptyObj = iu.ObjectWrapper(empty)
 
-    # apply scale
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    emptySize = empty.empty_display_size
+    # setup
+    size = empty.empty_display_size * empty.matrix_world.median_scale
+    matrix_world = Matrix.Translation(empty.matrix_world.translation)
+    empty.empty_display_type = 'SPHERE'
+    empty.empty_display_size = size
+    iu.setupObject(empty, arma, 'BONE', boneName, matrix_world)
 
-    # Set parent
-    modeChanger = iu.ModeChanger(arma, 'EDIT')
-    bpy.ops.armature.select_all(action='DESELECT')
-    bone = iu.EditBoneWrapper(boneName)
-    bone.select_set(True)
-    del modeChanger
-
-    # At this point, arma is active and empty is selected.
-    bpy.ops.object.parent_set(type='BONE')
-
-    # Rename
-    empty.name = f'Collider_{boneName}'
-
-    # Symmetrize
-    print(symmetrize)
     if symmetrize:
-        copySymmetrizeCollider(empty, arma)
+        duplicateColliderAsMirror(emptyObj)
 
 ################################################################
 @dataclass
@@ -375,7 +345,7 @@ def buildRemoveMatDic(interval, alphaThreshold, excludeMaterials):
         result[mat] = MaterialInfo(mat.name,
                                    iu.image_to_alpha_array(image, interval),
                                    alpha_threshold)
-    print(result)
+    #print(result)
     return result
     
 ################################################################
