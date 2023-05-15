@@ -4,6 +4,7 @@ from mathutils import (
     Vector,
     Matrix,
 )
+import traceback
 import numpy as np
 import uuid
 from . import mathUtils as mu
@@ -438,27 +439,6 @@ def collectAllVisibleObjects():
     return result
 
 ################
-def setParentToBone(obj, arma, boneName):
-    modeChanger = ModeChanger(obj, 'OBJECT')
-
-    bpy.ops.object.select_all(action='DESELECT')
-    obj.select_set(True)
-    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-
-    del modeChanger
-
-
-    modeChanger = ModeChanger(arma, 'EDIT')
-    
-    bpy.ops.armature.select_all(action='DESELECT')
-    bone = EditBoneWrapper(boneName)
-    bone.select_set(True)
-
-    del modeChanger
-
-    bpy.ops.object.parent_set(type='BONE')
-
-################
 def removeObject(obj):
     for collection in obj.users_collection:
         collection.objects.unlink(obj)
@@ -606,39 +586,3 @@ def applyEmptyScale(empty):
 
     empty.matrix_basis = mtx
     empty.empty_display_size = size
-
-################
-def correctChildMatrix(arma):
-    """
-    Corrects matrix of arma's children.
-    """
-
-    modeChanger = ModeChanger(arma, 'OBJECT')
-
-    boneToObj = dict()
-    for obj in arma.children_recursive:
-        if obj in bpy.context.selectable_objects and obj.parent_type == 'BONE':
-            if obj.parent_bone in boneToObj:
-                boneToObj[obj.parent_bone].append(obj)
-            else:
-                boneToObj[obj.parent_bone] = [obj]
-
-    for boneName, objs in boneToObj.items():
-        bpy.ops.object.select_all(action='DESELECT')
-        for obj in objs:
-            obj.select_set(True)
-        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-
-        mc2 = ModeChanger(arma, 'EDIT')
-        bpy.ops.armature.select_all(action='DESELECT')
-        bone = EditBoneWrapper(boneName)
-        bone.select_set(True)
-        arma.data.edit_bones.active = bone.obj
-        del mc2
-
-        bpy.ops.object.select_all(action='DESELECT')
-        for obj in objs:
-            obj.select_set(True)
-        bpy.ops.object.parent_set(type='BONE')
-
-    del modeChanger
