@@ -646,8 +646,8 @@ def prepareToExportVRM(skeleton='skeleton',
     ext = arma.obj.data.vrm_addon_extension
 
     # clear old data
+    ext.vrm0.blend_shape_master.blend_shape_groups.clear()
     if sb_json:
-        ext.vrm0.blend_shape_master.blend_shape_groups.clear()
         ext.vrm0.secondary_animation.bone_groups.clear()
         ext.vrm0.secondary_animation.collider_groups.clear()
         removed = removeAllUneditableEmptyChildren(arma.obj)
