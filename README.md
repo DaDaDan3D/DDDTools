@@ -17,7 +17,7 @@ Blender 3.1 以降用。
 サブディビジョンサーフェスモディファイアやループカットツールなどで増えすぎたポリゴンを減らすのに使えます。  
 四角形を四角形のままでポリゴン数を減らすので、形状が崩れにくく、また、再びサブディビジョンサーフェスなどをかけたりすることも容易にできます。  
 
-![SelectDividingLoop](/movies/BlenderSelectDividingLoopCompare.mp4)
+https://user-images.githubusercontent.com/108515309/176989212-1da4d9cf-2309-4fea-8d16-3d5cd5a5e507.mp4
 
 ### EditTool / 近似球の追加
 選択した頂点に近似した球オブジェクトを追加します。  
@@ -130,8 +130,7 @@ https://programming-surgeon.com/script/sphere-fit/
 「除外マテリアルリスト」は、削除対象から除外するマテリアルの指定です。
 透明だが削除されたくないマテリアルなどを指定します。  
 
-![RemoveTransparentPolygons](/movies/BlenderRemoveTransparentPolygons.mp4)
-
+https://github.com/DaDaDan3D/DDDTools/assets/108515309/8466814a-9545-4ed7-897a-51636ee4881f
 
 ## BoneTool
 ![BoneTool](/images/Panel_BoneTool.png)
