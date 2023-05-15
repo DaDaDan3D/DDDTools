@@ -32,8 +32,8 @@ modules = [
     'NormalTool',
     'UVTool',
 
-    'UI_EditTool',
     'UI_MaterialTool',
+    'UI_EditTool',
     'UI_VRMTool',
     'UI_BoneTool',
     'UI_WeightTool',
