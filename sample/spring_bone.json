@@ -1,0 +1,256 @@
+[
+    {
+        "comment": "hair",
+        "stiffiness": 0.38,
+        "gravityPower": 0,
+        "gravityDir": {
+            "x": 0,
+            "y": -1,
+            "z": 0
+        },
+        "dragForce": 0.23,
+        "center": -1,
+        "hitRadius": 0.02,
+        "bones": [
+			"Swing.hair.back",
+			"Swing.hair.back.L",
+			"Swing.hair.back.L.001",
+			"Swing.hair.back.L.002",
+			"Swing.hair.back.M",
+			"Swing.hair.back.M.003",
+			"Swing.hair.back.R",
+			"Swing.hair.back.R.001",
+			"Swing.hair.back.R.002",
+			"Swing.hair.front.L",
+			"Swing.hair.front.L.002",
+			"Swing.hair.front.M",
+			"Swing.hair.front.M.L",
+			"Swing.hair.front.M.L.002",
+			"Swing.hair.front.M.R",
+			"Swing.hair.front.M.R.002",
+			"Swing.hair.front.R",
+			"Swing.hair.front.R.002",
+			"Swing.momi.L",
+			"Swing.momi.L.002",
+			"Swing.momi.L2",
+			"Swing.momi.R",
+			"Swing.momi.R.002",
+			"Swing.momi.R2"
+		],
+        "colliderGroups": [
+            "shoulder_L",
+            "shoulder_R",
+            "Arm_L",
+            "Arm_R",
+            "forearm_L",
+            "forearm_R",
+            "hand_L",
+            "hand_R",
+            "Head",
+            "Neck",
+            "Chest",
+			"Bust"
+		]
+    },
+    {
+        "comment": "ahoge",
+        "stiffiness": 1.8,
+        "gravityPower": 0,
+        "gravityDir": {
+            "x": 0,
+            "y": -1,
+            "z": 0
+        },
+        "dragForce": 0.5,
+        "center": -1,
+        "hitRadius": 0.02,
+        "bones": [
+			"ahoge"
+		],
+        "colliderGroups": [
+            "forearm_L",
+            "forearm_R",
+            "hand_L",
+            "hand_R",
+            "Head"
+		]
+    },
+    {
+        "comment": "Bust",
+        "stiffiness": 1.8,
+        "gravityPower": 0,
+        "gravityDir": {
+            "x": 0,
+            "y": -1,
+            "z": 0
+        },
+        "dragForce": 0.5,
+        "center": -1,
+        "hitRadius": 0.05,
+        "bones": [
+            "Bust"
+        ],
+        "colliderGroups": [
+            "Arm_L",
+            "Arm_R",
+            "forearm_L",
+            "forearm_R",
+            "hand_L",
+            "hand_R"
+		]
+    },
+    {
+        "comment": "veil",
+        "stiffiness": 0.38,
+        "gravityPower": 0,
+        "gravityDir": {
+            "x": 0,
+            "y": -1,
+            "z": 0
+        },
+        "dragForce": 0.23,
+        "center": -1,
+        "hitRadius": 0.02,
+        "bones": [
+			"Swing.veil"
+        ],
+        "colliderGroups": [
+            "Arm_L",
+            "Arm_R",
+            "forearm_L",
+            "forearm_R",
+            "hand_L",
+            "hand_R",
+            "Head"
+        ]
+    },
+    {
+        "comment": "waistRibbon",
+        "stiffiness": 0.38,
+        "gravityPower": 0,
+        "gravityDir": {
+            "x": 0,
+            "y": -1,
+            "z": 0
+        },
+        "dragForce": 0.23,
+        "center": -1,
+        "hitRadius": 0.02,
+        "bones": [
+			"WaistRibbon.A",
+			"WaistRibbon.B",
+			"WaistRibbon.C"
+        ],
+        "colliderGroups": [
+            "hand_L",
+            "hand_R",
+			"Upper_Leg_L",
+			"Upper_Leg_R",
+			"Lower_Leg_L",
+			"Lower_Leg_R"
+        ]
+    },
+    {
+        "comment": "HipScarf",
+        "stiffiness": 0.38,
+        "gravityPower": 0,
+        "gravityDir": {
+            "x": 0,
+            "y": -1,
+            "z": 0
+        },
+        "dragForce": 0.23,
+        "center": -1,
+        "hitRadius": 0.02,
+        "bones": [
+			"HipScarf.a",
+			"HipScarf.b",
+			"HipScarf.c",
+			"HipScarf.d",
+			"HipScarf.e"
+        ],
+        "colliderGroups": [
+            "Arm_L",
+            "Arm_R",
+            "forearm_L",
+            "forearm_R",
+            "hand_L",
+            "hand_R",
+			"Upper_Leg_L",
+			"Upper_Leg_R",
+			"Lower_Leg_L",
+			"Lower_Leg_R",
+			"Foot_L",
+			"Foot_R",
+			"Hips",
+			"Spine",
+			"Chest",
+			"Bust"
+        ]
+    },
+    {
+        "comment": "Halo",
+        "stiffiness": 5.0,
+        "gravityPower": 0,
+        "gravityDir": {
+            "x": 0,
+            "y": -1,
+            "z": 0
+        },
+        "dragForce": 2.0,
+        "center": -1,
+        "hitRadius": 0.0,
+        "bones": [
+			"Halo"
+        ],
+        "colliderGroups": []
+    },
+    {
+        "comment": "EarRing",
+        "stiffiness": 0.05,
+        "gravityPower": 0.3,
+        "gravityDir": {
+            "x": 0,
+            "y": -1,
+            "z": 0
+        },
+        "dragForce": 0.05,
+        "center": -1,
+        "hitRadius": 0.01,
+        "bones": [
+			"EarRing.L",
+			"EarRing.R"
+        ],
+        "colliderGroups": [
+			"hand_L",
+			"hand_R",
+			"forearm_L",
+			"forearm_R",
+			"Arm_L",
+			"Arm_R"
+		]
+    },
+	    {
+        "comment": "PendantRibbon",
+        "stiffiness": 0.7,
+        "gravityPower": 0,
+        "gravityDir": {
+            "x": 0,
+            "y": -1,
+            "z": 0
+        },
+        "dragForce": 0.35,
+        "center": -1,
+        "hitRadius": 0.005,
+        "bones": [
+			"PendantRibbon.L",
+			"PendantRibbon.R"
+        ],
+        "colliderGroups": [
+            "shoulder_L",
+            "shoulder_R",
+			"Chest",
+			"Bust"
+		]
+    }
+]
