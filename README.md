@@ -158,6 +158,9 @@ https://github.com/DaDaDan3D/DDDTools/assets/108515309/8466814a-9545-4ed7-897a-5
 
 ![EdgeAndBone](/images/EdgeAndBone.gif)
 
+https://github.com/DaDaDan3D/DDDTools/assets/108515309/95f32ea3-9a2e-4c6f-a372-c48e51582697
+
+
 ## WeightTool
 ![WeightTool](/images/Panel_WeightTool.png)
 
