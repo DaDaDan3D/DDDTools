@@ -1,3 +1,5 @@
+# -*- encoding:utf-8 -*-
+
 import bpy
 from bpy.props import StringProperty, EnumProperty, CollectionProperty, PointerProperty, BoolProperty, FloatProperty, IntProperty
 from bpy.types import PropertyGroup, Operator, Panel, UIList

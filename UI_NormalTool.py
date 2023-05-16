@@ -1,3 +1,5 @@
+# -*- encoding:utf-8 -*-
+
 import bpy
 from bpy.types import Panel, Operator
 

@@ -1,3 +1,5 @@
+# -*- encoding:utf-8 -*-
+
 import bpy
 import bmesh
 import numpy as np
