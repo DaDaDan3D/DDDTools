@@ -1,5 +1,12 @@
+# -*- encoding:utf-8 -*-
+
 import bpy
 import uuid
+import bmesh
+from mathutils import (
+    Vector,
+    Matrix,
+)
 from . import internalUtils as iu
 
 ################
@@ -47,7 +54,7 @@ def renameChildBonesWithNumber(bone, baseName):
         bone = bpy.context.active_object.data.edit_bones.get(name)
         if bone:
             if count > 0:
-                newName = "{0}.{1:03d}".format(baseName, count)
+                newName = '{0}.{1:03d}'.format(baseName, count)
             else:
                 newName = baseName
         print(count, ':', name, '->', newName)
@@ -92,7 +99,7 @@ def applyScaleAndRotationToArmature(arma):
     # 4th step
     # restore parent of empties
     for key, value in boneToEmpties.items():
-        print(key, ":", value)
+        print(key, ':', value)
 
         bpy.ops.object.select_all(action='DESELECT')
         for en in value:
@@ -131,7 +138,7 @@ def resetStretchTo(arma):
     for bone in arma.obj.pose.bones:
         for cn in bone.constraints:
             #print(bone.name, cn.name, cn.type)
-            if cn.type == "STRETCH_TO":
+            if cn.type == 'STRETCH_TO':
                 #print(cn.rest_length)
                 cn.rest_length = 0
                 result += 1
@@ -177,3 +184,184 @@ def applyArmatureToRestPose(arma):
 
     # reset StretchTo
     resetStretchTo(arma)
+
+################
+def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
+    """
+    Create an armature such that the selected edge of the object is the bone. The bone's orientation and connections are automatically calculated based on its distance from the 3D cursor.
+
+    Parameters
+    ----------------
+    meshObj: ObjectWrapper
+      Mesh object
+
+    basename: string
+      Base name of bones.
+      Bone names should be like these: Bone_Root, Bone_012, Bone_012.001, ...
+
+    Returns
+    ----------------
+    Armature object
+
+    """
+
+    # メッシュが選択されていることを確認
+    if meshObj.obj.type != 'MESH':
+        print(f'{meshObj.obj} is not a mesh.')
+        return None
+
+    # 明示的に OBJECT モードにすることで EditMesh を確定させる
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    # アーマチュアを作成
+    arm_data = bpy.data.armatures.new('Armature')
+    armature = bpy.data.objects.new('Armature', arm_data)
+    iu.setupObject(armature, None, 'OBJECT', '', meshObj.obj.matrix_world)
+    bpy.context.collection.objects.link(armature)
+
+    # ボーンを作成するために編集モードにする
+    modeChanger = iu.ModeChanger(armature, 'EDIT')
+    edit_bones = armature.data.edit_bones
+    
+    obj = meshObj.obj
+    cursor_loc = obj.matrix_world.inverted() @ bpy.context.scene.cursor.location
+
+    # 3D カーソルの位置にルートボーンを作成
+    root_bone = edit_bones.new(f'{basename}_Root')
+    root_bone.head = cursor_loc
+    root_bone.tail = cursor_loc + Vector((0, 0, 1))
+
+    # メッシュの選択したエッジに基づいてボーンを作成
+    mesh = obj.data
+    mesh.update()
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.edges.ensure_lookup_table()
+
+    # 選択されたエッジから頂点を取得
+    edges = [[edge.verts[0], edge.verts[1]] for edge in bm.edges if edge.select]
+
+    # 3D カーソルからの距離で頂点及びエッジをソート
+    for idx in range(len(edges)):
+        edges[idx].sort(key=lambda vert:(vert.co - cursor_loc).length)
+    edges.sort(key=lambda edge: ((edge[0].co + edge[1].co) / 2 - cursor_loc).length)
+
+    # 近い順にボーンを作成し、接続できるならしていく
+    vert_to_bone = dict()
+    count = 0
+    for edge in edges:
+        vert_head, vert_tail = edge
+        parent = vert_to_bone.get(vert_head)
+        if parent:
+            newName = parent.name
+        else:
+            newName = f'{basename}_{count:03d}'
+            count += 1
+            parent = root_bone
+        
+        bone = edit_bones.new(newName)
+        bone.head = vert_head.co
+        bone.tail = vert_tail.co
+        bone.parent = parent
+        bone.use_connect = (parent != root_bone)
+        if vert_tail not in vert_to_bone:
+            vert_to_bone[vert_tail] = bone
+
+    # 元のモードに戻る
+    del modeChanger
+
+    return armature
+
+################
+# ボーンのツリーごとの、ルートを 0 としたインデックスを取得する
+# インデックスは親より子が必ず大きいことが保証されている
+def getBoneIndexDictionary(arma):
+    result = dict()
+    for bone in arma.data.bones:
+        if not bone.parent:
+            result[bone.name] = 0
+            for idx, child in enumerate(bone.children_recursive):
+                result[child.name] = idx + 1
+    return result
+
+################
+def createMeshFromSelectedBones(armaObj):
+    """
+    Create the mesh such that the selected bones of the armature are the edges.
+Vertex weights are also set appropriately.
+
+    Parameters
+    ----------------
+    armaObj: ObjectWrapper
+      Armature object
+
+    Returns
+    ----------------
+      Mesh object
+    """
+
+    # ポーズモードでボーンの情報を取得
+    modeChanger = iu.ModeChanger(armaObj.obj, 'POSE')
+    armature = armaObj.obj
+
+    # 選択されたボーンを取得
+    bones = [bone for bone in armature.data.bones if bone.select]
+    if not bones:
+        print('No bones are selected.')
+        return None
+
+    # 親から子の順になるようにソート
+    boneIndexDic = getBoneIndexDictionary(armature)
+    bones.sort(key=lambda bone: boneIndexDic[bone.name])
+
+    # メッシュを作成
+    mesh = bpy.data.meshes.new('Mesh')
+    obj = bpy.data.objects.new('Mesh', mesh)
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+
+    # エッジを作成
+    boneToTail = dict()
+    weights = []
+    for bone in bones:
+        tail = bm.verts.new(bone.tail_local)
+        boneToTail[bone] = tail
+        if bone.parent in boneToTail and bone.use_connect:
+            head = boneToTail[bone.parent]
+            verts = [tail]
+        else:
+            head = bm.verts.new(bone.head_local)
+            verts = [head, tail]
+        bm.edges.new((head, tail))
+        weights.append((bone, verts))
+
+    # 頂点インデックスを確定し、weights を安全なデータに変換
+    bm.verts.index_update()
+    weightsEx = []
+    for bone, verts in weights:
+        index = [vert.index for vert in verts]
+        weightsEx.append((bone.name, index))
+        
+    # メッシュを反映
+    bm.to_mesh(mesh)
+    bm.free()
+
+    # 頂点グループを作成
+    for boneName, index in weightsEx:
+        vg = obj.vertex_groups.new(name=boneName)
+        vg.add(index, 1.0, type='REPLACE')
+
+    # アーマチュアと同じ位置に配置
+    iu.setupObject(obj, armature, 'OBJECT', '', armature.matrix_world)
+
+    # シーンにメッシュを追加
+    bpy.context.collection.objects.link(obj)
+
+    # アーマチュアモディファイアを追加
+    modifier = obj.modifiers.new('ArmatureMod', 'ARMATURE')
+    modifier.object = armature
+    modifier.use_vertex_groups = True
+
+    del modeChanger
+
+    return obj
