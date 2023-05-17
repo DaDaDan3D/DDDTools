@@ -9,6 +9,9 @@ from . import internalUtils as iu
 from . import UIUtils as ui
 from . import VRMTool as vt
 
+_ = lambda s: s
+from bpy.app.translations import pgettext_iface as iface_
+
 ################################################################
 class DDDVT_MaterialListItem(PropertyGroup):
     material: PointerProperty(type=bpy.types.Material)
@@ -23,95 +26,95 @@ class DDDVT_propertyGroup(PropertyGroup):
         name='SetEmptyAsColliderSettings',
         default=True)
     rename: BoolProperty(
-        name='リネームする',
-        description='コライダとして適切な名前にリネームします',
+        name=_('リネームする'),
+        description=_('コライダとして適切な名前にリネームします'),
         default=True)
     symmetrize: BoolProperty(
-        name='ミラーの作成',
-        description='コライダのミラーを追加で作成します',
+        name=_('ミラーの作成'),
+        description=_('コライダのミラーを追加で作成します'),
         default=True)
 
     display_addCollider_settings: BoolProperty(
         name='AddColliderSettings',
         default=True)
     mesh: PointerProperty(
-        name='対象メッシュ',
-        description='コライダーの幅を計算するメッシュを指定します',
+        name=_('対象メッシュ'),
+        description=_('コライダーの幅を計算するメッシュを指定します'),
         type=Object,
         poll=lambda self, obj: obj and obj.type=='MESH',
     )
 
     display_prepareToExportVRM: BoolProperty(
-        name='prepareToExportVRMの設定',
+        name='prepareToExportVRM_settings',
         default=True)
 
     skeleton: PointerProperty(
         name='Skeleton',
-        description='VRMのスケルトン',
+        description=_('VRMのスケルトン'),
         type=Object,
         poll=lambda self, obj: obj and obj.type=='ARMATURE',
     )
 
     triangulate: BoolProperty(
-        name='三角化',
-        description='ポリゴンを三角化します',
+        name=_('三角化'),
+        description=_('ポリゴンを三角化します'),
         default=False,
     )
 
     bs_json: PointerProperty(
         name='blendshape',
-        description='ブレインドシェイプを定義する.jsonテキスト',
+        description=_('ブレインドシェイプを定義する.jsonテキスト'),
         type=Text,
     )
 
     sb_json: PointerProperty(
         name='springBone',
-        description='スプリングボーンを定義する.jsonテキスト',
+        description=_('スプリングボーンを定義する.jsonテキスト'),
         type=Text,
     )
 
     notExportBoneGroup: StringProperty(
-        name='出力しないボーングループ',
-        description='指定したボーングループを溶解します',
+        name=_('出力しないボーングループ'),
+        description=_('指定したボーングループを溶解します'),
     )
 
     mergedName: StringProperty(
-        name='マージしたメッシュに付ける名前',
-        description='blendshape に含まれない残りのメッシュをマージしたメッシュに付ける名前を指定します',
+        name=_('マージしたメッシュに付ける名前'),
+        description=_('blendshape に含まれない残りのメッシュをマージしたメッシュに付ける名前を指定します'),
         default='MergedBody',
     )
 
     saveAsExport: BoolProperty(
-        name='実行後セーブ',
-        description='実行後、*.export.blend として自動的に保存します',
+        name=_('実行後セーブ'),
+        description=_('実行後、*.export.blend として自動的に保存します'),
         default=True)
 
     sortMaterialSlot: BoolProperty(
-        name='マテリアルをソート',
-        description='マテリアルをリストで指定した順番にソートします。マテリアル順指定リストは MaterialTool パネルにあります',
+        name=_('マテリアルをソート'),
+        description=_('マテリアルをリストで指定した順番にソートします。マテリアル順指定リストは MaterialTool パネルにあります'),
         default=False)
     removeUnusedMaterialSlots: BoolProperty(
-        name='未使用マテリアルを削除',
-        description='未使用のマテリアルをスロットから削除します',
+        name=_('未使用マテリアルを削除'),
+        description=_('未使用のマテリアルをスロットから削除します'),
         default=False)
 
     display_removePolygons_settings: BoolProperty(
         name='RemovePolygonsSettings',
         default=False)
     removePolygons: BoolProperty(
-        name='ポリゴン削除',
-        description='条件によってポリゴンを削除します',
+        name=_('ポリゴン削除'),
+        description=_('条件によってポリゴンを削除します'),
         default=False)
     interval: IntProperty(
-        name='判定の粗さ',
-        description='透明ポリゴン判定時に何分の一のサイズのテクスチャで作業するかを指定します。大きくすると高速になりますが、判定が粗くなります',
+        name=_('判定の粗さ'),
+        description=_('透明ポリゴン判定時に何分の一のサイズのテクスチャで作業するかを指定します。大きくすると高速になりますが、判定が粗くなります'),
         min=1,
         max=16,
         default=4,
     )
     alphaThreshold: FloatProperty(
-        name='アルファ値の閾値',
-        description='透明ポリゴン判定時に、この値以下のアルファ値を透明と見なします',
+        name=_('アルファ値の閾値'),
+        description=_('透明ポリゴン判定時に、この値以下のアルファ値を透明と見なします'),
         #subtype='FACTOR',
         default=0.05,
         min=0.00,
@@ -120,28 +123,28 @@ class DDDVT_propertyGroup(PropertyGroup):
         step=1,
     )
     excludeMaterials: CollectionProperty(
-        name='除外マテリアルリスト',
-        description='透明ポリゴンを削除する際、透明でも削除しないマテリアルのリストです',
+        name=_('除外マテリアルリスト'),
+        description=_('透明ポリゴンを削除する際、透明でも削除しないマテリアルのリストです'),
         type=DDDVT_MaterialListItem)
     excludeMaterialsIndex: IntProperty(
-        name='除外マテリアルリストインデックス'
+        name=_('除外マテリアルリストインデックス')
     )
     excludeMaterialSelector: PointerProperty(
-        name='マテリアル選択',
-        description='除外マテリアルリストに追加するマテリアルを選択します',
+        name=_('マテリアル選択'),
+        description=_('除外マテリアルリストに追加するマテリアルを選択します'),
         type=bpy.types.Material)
 
 
 ################################################################
 class DDDVT_OT_addCollider(Operator):
     bl_idname = 'dddvt.add_collider'
-    bl_label = 'コライダ追加'
-    bl_description = 'メッシュの大きさに合わせたコライダを追加します'
+    bl_label = _('コライダ追加')
+    bl_description = _('メッシュの大きさに合わせたコライダを追加します')
     bl_options = {'REGISTER', 'UNDO'}
 
     t_from: FloatProperty(
-        name='開始位置',
-        description='開始位置をボーンのヘッドからの距離(m)として指定します',
+        name=_('開始位置'),
+        description=_('開始位置をボーンのヘッドからの距離(m)として指定します'),
         subtype='DISTANCE',
         default=0,
         precision=3,
@@ -149,12 +152,12 @@ class DDDVT_OT_addCollider(Operator):
         unit='LENGTH',
     )
     auto_t_to: BoolProperty(
-        name='終了位置を自動計算',
-        description='終了位置をボーンに合わせて自動的に計算します',
+        name=_('終了位置を自動計算'),
+        description=_('終了位置をボーンに合わせて自動的に計算します'),
         default=True)
     t_to: FloatProperty(
-        name='終了位置',
-        description='終了位置をボーンのヘッドからの距離(m)として指定します',
+        name=_('終了位置'),
+        description=_('終了位置をボーンのヘッドからの距離(m)として指定します'),
         subtype='DISTANCE',
         default=0.5,
         precision=3,
@@ -162,8 +165,8 @@ class DDDVT_OT_addCollider(Operator):
         unit='LENGTH',
     )
     t_step: FloatProperty(
-        name='間隔',
-        description='コライダ同士の間隔(m)を指定します',
+        name=_('間隔'),
+        description=_('コライダ同士の間隔(m)を指定します'),
         subtype='DISTANCE',
         default=0.03,
         min=0.01,
@@ -173,15 +176,15 @@ class DDDVT_OT_addCollider(Operator):
         unit='LENGTH',
     )
     numberOfRays: IntProperty(
-        name='レイの本数',
-        description='レイを投射する本数を設定します',
+        name=_('レイの本数'),
+        description=_('レイを投射する本数を設定します'),
         min=3,
         max=100,
         default=32,
     )
     radius: FloatProperty(
-        name='レイの最大半径',
-        description='レイを投射する円の最大半径を設定します',
+        name=_('レイの最大半径'),
+        description=_('レイを投射する円の最大半径を設定します'),
         subtype='DISTANCE',
         default=0.3,
         min=0.000,
@@ -191,10 +194,10 @@ class DDDVT_OT_addCollider(Operator):
         unit='LENGTH',
     )
     insideToOutside: EnumProperty(
-        name='レイの方向',
-        description='レイを投射する向きを設定します',
-        items=[('IN_TO_OUT', '内から広がる', 'レイを内側から外側へ投射します'),
-               ('OUT_TO_IN', '外から集まる', 'レイを外側から内側へ投射します')],
+        name=_('レイの方向'),
+        description=_('レイを投射する向きを設定します'),
+        items=[('IN_TO_OUT', _('内から広がる'), _('レイを内側から外側へ投射します')),
+               ('OUT_TO_IN', _('外から集まる'), _('レイを外側から内側へ投射します'))],
         default='IN_TO_OUT',
     )
 
@@ -243,8 +246,8 @@ class DDDVT_OT_addCollider(Operator):
 ################
 class DDDVT_OT_setEmptyAsCollider(Operator):
     bl_idname = 'dddvt.set_empty_as_collider'
-    bl_label = 'エンプティのコライダ化'
-    bl_description = '選択中のエンプティを、アクティブなスケルトンの選択中のボーンの子として設定します'
+    bl_label = _('エンプティのコライダ化')
+    bl_description = _('選択中のエンプティを、アクティブなスケルトンの選択中のボーンの子として設定します')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -273,8 +276,8 @@ class DDDVT_OT_setEmptyAsCollider(Operator):
 ################
 class DDDVT_OT_duplicateColliderAsMirror(Operator):
     bl_idname = 'dddvt.duplicate_collider_as_mirror'
-    bl_label = 'コライダのミラーを作成'
-    bl_description = '選択中のコライダのミラーを作成します'
+    bl_label = _('コライダのミラーを作成')
+    bl_description = _('選択中のコライダのミラーを作成します')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -296,8 +299,8 @@ class DDDVT_OT_duplicateColliderAsMirror(Operator):
 ################
 class DDDVT_OT_removeAllUneditableEmptyChildren(Operator):
     bl_idname = 'dddvt.remove_all_uneditable_empty_children'
-    bl_label = '不要エンプティ削除'
-    bl_description = '指定したスケルトンの子の、手動で削除しても消えない EMPTY を強制的に削除します。'
+    bl_label = _('不要エンプティ削除')
+    bl_description = _('指定したスケルトンの子の、手動で削除しても消えない EMPTY を強制的に削除します。')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -310,18 +313,20 @@ class DDDVT_OT_removeAllUneditableEmptyChildren(Operator):
         removed = vt.removeAllUneditableEmptyChildren(prop.skeleton)
         if removed:
             self.report({'INFO'},
-                        f'{len(removed)} 個の EMPTY を削除しました: {removed}')
+                        iface_('{len_removed} 個の EMPTY を削除しました: {removed}').format(
+                            len_removed=len(removed),
+                            removed=str(removed)))
             return {'FINISHED'}
         else:
             self.report({'INFO'},
-                        '不要な EMPTY はありませんでした')
+                        iface_('不要な EMPTY はありませんでした'))
             return {'CANCELLED'}
 
 ################
 class DDDVT_OT_prepareToExportVRM(Operator):
     bl_idname = 'dddvt.prepare_to_export_vrm'
-    bl_label = 'VRM 出力前の準備'
-    bl_description = 'VRM を出力するために、メッシュをマージし、不要な骨を溶解し、ウェイトのクリーンアップを行い、ブレンドシェイプの設定を行います'
+    bl_label = _('VRM 出力前の準備')
+    bl_description = _('VRM を出力するために、メッシュをマージし、不要な骨を溶解し、ウェイトのクリーンアップを行い、ブレンドシェイプの設定を行います')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -376,8 +381,8 @@ class DDDVT_OT_prepareToExportVRM(Operator):
 ################
 class DDDVT_OT_openAddonPage(Operator):
     bl_idname = 'dddvt.url_open_vrm_addon_for_blender'
-    bl_label = 'VRM_Addon_for_Blender のページを開く'
-    bl_description = 'VRM_Addon_for_Blender のサイトページを開きます'
+    bl_label = _('VRM_Addon_for_Blender のページを開く')
+    bl_description = _('VRM_Addon_for_Blender のサイトページを開きます')
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
@@ -400,7 +405,7 @@ class DDDVT_UL_MaterialList(UIList):
 class DDDVT_OT_AddExcludeMaterial(Operator):
     bl_idname = 'dddvt.add_exclude_material'
     bl_label = 'Add'
-    bl_description = '除外マテリアルリストにマテリアルを追加します'
+    bl_description = _('除外マテリアルリストにマテリアルを追加します')
     
     @classmethod
     def poll(cls, context):
@@ -420,7 +425,7 @@ class DDDVT_OT_AddExcludeMaterial(Operator):
 class DDDVT_OT_RemoveExcludeMaterial(Operator):
     bl_idname = 'dddvt.remove_exclude_material'
     bl_label = 'Remove Exclude Material'
-    bl_description = '除外マテリアルリストからマテリアルを削除します'
+    bl_description = _('除外マテリアルリストからマテリアルを削除します')
     
     index: IntProperty()
 
@@ -432,8 +437,8 @@ class DDDVT_OT_RemoveExcludeMaterial(Operator):
 ################
 class DDDVT_OT_RemoveTransparentPolygons(Operator):
     bl_idname = 'dddvt.remove_transparent_polygons'
-    bl_label = '削除実行'
-    bl_description = 'VRM のマテリアルを使用している指定したオブジェクトから、透明なポリゴンを削除します'
+    bl_label = _('削除実行')
+    bl_description = _('VRM のマテリアルを使用している指定したオブジェクトから、透明なポリゴンを削除します')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -471,7 +476,7 @@ class DDDVT_PT_VRMTool(Panel):
 
         # コライダーツール
         display, split = ui.splitSwitch(layout, prop, 'display_colliderTools')
-        split.label(text='コライダー関連')
+        split.label(text=iface_('コライダー関連'))
         if display:
             col = layout.box().column()
             col.operator(DDDVT_OT_removeAllUneditableEmptyChildren.bl_idname)
@@ -520,7 +525,7 @@ class DDDVT_PT_VRMTool(Panel):
                     box.prop(prop, 'alphaThreshold')
 
                     box.separator()
-                    box.label(text='除外マテリアルリスト')
+                    box.label(text=iface_('除外マテリアルリスト'))
                     box.template_list(DDDVT_UL_MaterialList.bl_idname, '',
                                       prop, 'excludeMaterials',
                                       prop, 'excludeMaterialsIndex')
@@ -534,7 +539,7 @@ class DDDVT_PT_VRMTool(Panel):
                     box.operator(DDDVT_OT_RemoveTransparentPolygons.bl_idname)
 
             else:
-                col.label(text='VRM_Addon_for_Blender がインストールされていません。',
+                col.label(text=iface_('VRM_Addon_for_Blender がインストールされていません。'),
                           icon='INFO')
                 col.operator(DDDVT_OT_openAddonPage.bl_idname)
 

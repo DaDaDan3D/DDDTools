@@ -8,6 +8,9 @@ from . import internalUtils as iu
 from . import UIUtils as ui
 from . import BoneTool as bt
 
+_ = lambda s: s
+from bpy.app.translations import pgettext_iface as iface_
+
 ################################################################
 class DDDBT_propertyGroup(PropertyGroup):
     display_createArmatureFromSelectedEdges_settings: BoolProperty(
@@ -15,21 +18,21 @@ class DDDBT_propertyGroup(PropertyGroup):
         default=True,
     )
     basename: StringProperty(
-        name='ボーンの名前',
-        description='作成するボーンに付ける名前です',
+        name=_('ボーンの名前'),
+        description=_('作成するボーンに付ける名前です'),
         default='Bone',
     )
 
 ################
 class DDDBT_OT_renameChildBonesWithNumber(Operator):
     bl_idname = 'dddbt.rename_child_bones_with_number'
-    bl_label = '子ボーンをリネーム'
-    bl_description = '全ての子ボーンを番号付きでリネームします'
+    bl_label = _('子ボーンをリネーム')
+    bl_description = _('全ての子ボーンを番号付きでリネームします')
     bl_options = {'REGISTER', 'UNDO'}
 
     baseName: StringProperty(
-        name='ベースネーム',
-        description='基本となる名前',
+        name=_('ベースネーム'),
+        description=_('基本となる名前'),
     )
 
     @classmethod
@@ -47,8 +50,8 @@ class DDDBT_OT_renameChildBonesWithNumber(Operator):
 ################
 class DDDBT_OT_resetStretchTo(Operator):
     bl_idname = 'dddbt.reset_stretch_to'
-    bl_label = 'リセットストレッチ'
-    bl_description = 'アーマチュアに含まれる全てのストレッチモディファイアの長さを 0 にリセットします'
+    bl_label = _('リセットストレッチ')
+    bl_description = _('アーマチュアに含まれる全てのストレッチモディファイアの長さを 0 にリセットします')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -59,14 +62,14 @@ class DDDBT_OT_resetStretchTo(Operator):
         arma = iu.ObjectWrapper(bpy.context.active_object)
         ans = bt.resetStretchTo(arma)
         self.report({'INFO'},
-                    f'{arma.name}の{ans}個のストレッチモディファイアの長さをリセットしました')
+                    iface_('{arma_name}の{ans}個のストレッチモディファイアの長さをリセットしました').format(arma_name=arma.name, ans=ans))
         return {'FINISHED'}
 
 ################
 class DDDBT_OT_applyArmatureToRestPose(Operator):
     bl_idname = 'dddbt.apply_armature_to_rest_pose'
-    bl_label = '現在の姿勢をレストポーズに'
-    bl_description = 'アクティブなアーマチュアの現在のポーズをレストポーズとして設定します'
+    bl_label = _('現在の姿勢をレストポーズに')
+    bl_description = _('アクティブなアーマチュアの現在のポーズをレストポーズとして設定します')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -78,14 +81,14 @@ class DDDBT_OT_applyArmatureToRestPose(Operator):
         #print(f'arma:{arma.name}')
         bt.applyArmatureToRestPose(arma)
         self.report({'INFO'},
-                    f'{arma.name}をレストポーズとして設定しました')
+                    iface_('{arma_name}をレストポーズとして設定しました').format(arma_name=arma.name))
         return {'FINISHED'}
 
 ################
 class DDDBT_OT_createArmatureFromSelectedEdges(Operator):
     bl_idname = 'dddbt.create_armature_from_selected_edges'
-    bl_label = 'エッジをボーンに'
-    bl_description = 'アクティブなメッシュの選択中のエッジをボーンとするようなアーマチュアを作成します。ボーンの向きと接続は 3D カーソルからの距離で自動的に設定されます'
+    bl_label = _('エッジをボーンに')
+    bl_description = _('アクティブなメッシュの選択中のエッジをボーンとするようなアーマチュアを作成します。ボーンの向きと接続は 3D カーソルからの距離で自動的に設定されます')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -104,8 +107,8 @@ class DDDBT_OT_createArmatureFromSelectedEdges(Operator):
 ################
 class DDDBT_OT_createMeshFromSelectedBones(Operator):
     bl_idname = 'dddbt.create_mesh_from_selected_bones'
-    bl_label = 'ボーンをエッジに'
-    bl_description = 'アクティブなアーマチュアの選択中のボーンをエッジとするようなメッシュを、アーマチュアの子として作成します。頂点ウェイトも適切に設定されます'
+    bl_label = _('ボーンをエッジに')
+    bl_description = _('アクティブなアーマチュアの選択中のボーンをエッジとするようなメッシュを、アーマチュアの子として作成します。頂点ウェイトも適切に設定されます')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -124,7 +127,7 @@ class DDDBT_OT_createMeshFromSelectedBones(Operator):
 class DDDBT_PT_BoneTool(Panel):
     bl_idname = 'BT_PT_BoneTool'
     bl_label = 'BoneTool'
-    bl_category = "DDDTools"
+    bl_category = 'DDDTools'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
   

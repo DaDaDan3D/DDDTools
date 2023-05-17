@@ -1,7 +1,7 @@
 # -*- encoding:utf-8 -*-
 
 """
-Copyright (c) 2022 DaDaDan3D
+Copyright (c) 2022-2023 DaDaDan3D
 Released under the MIT license
 https://opensource.org/licenses/mit-license.php
 """
@@ -9,20 +9,22 @@ https://opensource.org/licenses/mit-license.php
 import sys, importlib
 
 bl_info = {
-    "name": "DDDTools",
-    "description": "DaDaDan3D's miscellaneous tools for Blender.",
-    "warning": "Not much error handling. Use at your own risk.",
-    "support": "COMMUNITY",
-    "author": "DaDaDan3D",
-    "version": (0, 4, 10),
-    "blender": (3, 1, 0),
-    "doc_url": "https://github.com/DaDaDan3D/DDDTools",
-    "tracker_url": "https://github.com/DaDaDan3D/DDDTools/issues",
-    "category": "Object",
-    "location": "View3D > Sidebar > DDDTools"
+    'name': 'DDDTools',
+    'description': 'DaDaDan3D\'s miscellaneous tools for Blender.',
+    'warning': 'Not much error handling. Use at your own risk.',
+    'support': 'COMMUNITY',
+    'author': 'DaDaDan3D',
+    'version': (0, 4, 10),
+    'blender': (3, 1, 0),
+    'doc_url': 'https://github.com/DaDaDan3D/DDDTools',
+    'tracker_url': 'https://github.com/DaDaDan3D/DDDTools/issues',
+    'category': 'Object',
+    'location': 'View3D > Sidebar > DDDTools'
 }
 
 modules = [
+    'I18N.dictionary',
+    'i18nUtils',
     'internalUtils',
     'UIUtils',
     'mathUtils',

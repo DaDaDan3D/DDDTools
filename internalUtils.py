@@ -342,7 +342,7 @@ def remove_isolated_edges_and_vertices(obj):
     """
 
     if not obj or obj.type != 'MESH':
-        raise ValueError("Object should be a mesh object")
+        raise ValueError('Object should be a mesh object')
 
     modeChanger = ModeChanger(obj, 'EDIT')
 
@@ -545,7 +545,6 @@ def convertSphereToEmpty(sphere, keep_original=False):
         radius /= sphere.matrix_world.median_scale
 
     except Exception as e:
-        print(f'エラーが発生しました: {e} {type(e)}')
         traceback.print_exc()
         return
 

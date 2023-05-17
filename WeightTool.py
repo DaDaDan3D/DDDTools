@@ -146,7 +146,7 @@ def setWeightForTail():
     print('----------------')
     meshes, armas = getSelectedObjs()
     if not meshes or not armas:
-        return {'CANCELLED'}, "Please select Armature and Meshes"
+        return {'CANCELLED'}, 'Please select Armature and Meshes'
 
     arma = armas[0]
     print('meshes:', meshes, 'arma:', arma.name)
@@ -251,7 +251,7 @@ def setWeightForTail():
 ################################################################
 def transferWeights(mesh,
                     weightObj,
-                    vertex_group="",
+                    vertex_group='',
                     invert_vertex_group=False,
                     max_distance=0.01,
                     vert_mapping='POLYINTERP_NEAREST'):
@@ -314,7 +314,7 @@ def transferWeights(mesh,
 
 ################################################################
 def transferWeightsForSelectedObjects(weightObj,
-                                      vertex_group="",
+                                      vertex_group='',
                                       invert_vertex_group=False,
                                       max_distance=0.01,
                                       vert_mapping='POLYINTERP_NEAREST'):

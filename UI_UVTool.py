@@ -6,6 +6,9 @@ from bpy.types import Panel, Operator, PropertyGroup
 
 from . import UVTool as ut
 
+_ = lambda s: s
+from bpy.app.translations import pgettext_iface as iface_
+
 ################################################################
 def getOrigin(self):
     return bpy.context.space_data.cursor_location
@@ -16,8 +19,8 @@ def setOrigin(self, value):
 ################
 class DDDUT_propertyGroup(PropertyGroup):
     origin: FloatVectorProperty(
-        name='2Dカーソル座標',
-        description='2Dカーソルの座標です',
+        name=_('2Dカーソル座標'),
+        description=_('2Dカーソルの座標です'),
         size=2,
         precision=2,
         step=1.0,
@@ -27,8 +30,8 @@ class DDDUT_propertyGroup(PropertyGroup):
     )
     
     offset: FloatVectorProperty(
-        name='移動量',
-        description='UV 座標に加える量です',
+        name=_('移動量'),
+        description=_('UV 座標に加える量です'),
         size=2,
         default=[0.25, 0.25],
         precision=2,
@@ -45,25 +48,25 @@ def canEditMesh(context):
 ################
 class DDDUT_OT_alignUV(Operator):
     bl_idname = 'dddut.align_uv'
-    bl_label = 'UV 整列'
-    bl_description = '様々な条件で UV を整列させます'
+    bl_label = _('UV 整列')
+    bl_description = _('様々な条件で UV を整列させます')
     bl_options = {'UNDO'}
 
     origin: FloatVectorProperty(
-        name='基点',
-        description='整列の基点となる座標です',
+        name=_('基点'),
+        description=_('整列の基点となる座標です'),
         size=2,
         precision=2,
         step=1.0,
         unit='NONE',
     )
     mode: EnumProperty(
-        items=[('ALIGN_LEFT', 'ALIGN_LEFT', 'UVの左端を基点に付けます'),
-               ('ALIGN_RIGHT', 'ALIGN_RIGHT', 'UVの右端を基点に付けます'),
-               ('ALIGN_TOP', 'ALIGN_TOP', 'UVの上端を基点に付けます'),
-               ('ALIGN_BOTTOM', 'ALIGN_BOTTOM', 'UVの下端を基点に付けます'),
-               ('ALIGN_CENTER_HORIZONTAL', 'ALIGN_CENTER_HORIZONTAL', 'UVの左右の中心を基点に付けます'),
-               ('ALIGN_CENTER_VERTICAL', 'ALIGN_CENTER_VERTICAL', 'UVの上下の中心を基点に付けます')])
+        items=[('ALIGN_LEFT', 'ALIGN_LEFT', _('UVの左端を基点に付けます')),
+               ('ALIGN_RIGHT', 'ALIGN_RIGHT', _('UVの右端を基点に付けます')),
+               ('ALIGN_TOP', 'ALIGN_TOP', _('UVの上端を基点に付けます')),
+               ('ALIGN_BOTTOM', 'ALIGN_BOTTOM', _('UVの下端を基点に付けます')),
+               ('ALIGN_CENTER_HORIZONTAL', 'ALIGN_CENTER_HORIZONTAL', _('UVの左右の中心を基点に付けます')),
+               ('ALIGN_CENTER_VERTICAL', 'ALIGN_CENTER_VERTICAL', _('UVの上下の中心を基点に付けます'))])
 
     @classmethod
     def poll(self, context):
@@ -76,13 +79,13 @@ class DDDUT_OT_alignUV(Operator):
 ################
 class DDDUT_OT_moveUV(Operator):
     bl_idname = 'dddut.move_uv'
-    bl_label = 'UV 移動'
-    bl_description = 'UV を移動させます'
+    bl_label = _('UV 移動')
+    bl_description = _('UV を移動させます')
     bl_options = {'REGISTER', 'UNDO'}
 
     offset: FloatVectorProperty(
-        name='移動量',
-        description='UV 座標に加える量です',
+        name=_('移動量'),
+        description=_('UV 座標に加える量です'),
         size=2,
         precision=2,
         step=1.0,
@@ -101,7 +104,7 @@ class DDDUT_OT_moveUV(Operator):
 class DDDUT_PT_UVTool(Panel):
     bl_idname = 'UT_PT_UVTool'
     bl_label = 'UVTool'
-    bl_category = "DDDTools"
+    bl_category = 'DDDTools'
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
   
@@ -116,7 +119,7 @@ class DDDUT_PT_UVTool(Panel):
 
         box = layout.box()
         col = box.column(align=True)
-        col.label(text='整列')
+        col.label(text=iface_('整列'))
         drawAlignUV(col, icon='ANCHOR_BOTTOM', mode='ALIGN_BOTTOM')
         row = col.row(align=True)
         row.scale_y = 2.0
@@ -128,8 +131,8 @@ class DDDUT_PT_UVTool(Panel):
         drawAlignUV(col, icon='ANCHOR_TOP', mode='ALIGN_TOP')
         
         col.separator()
-        drawAlignUV(col, text='←→ 水平揃え', mode='ALIGN_CENTER_HORIZONTAL')
-        drawAlignUV(col, text='↑↓ 垂直揃え', mode='ALIGN_CENTER_VERTICAL')
+        drawAlignUV(col, text=iface_('←→ 水平揃え'), mode='ALIGN_CENTER_HORIZONTAL')
+        drawAlignUV(col, text=iface_('↑↓ 垂直揃え'), mode='ALIGN_CENTER_VERTICAL')
 
         def drawMoveUV(lo, offsetX, offsetY, icon='NONE'):
             op = lo.operator(DDDUT_OT_moveUV.bl_idname, text='', icon=icon)
@@ -137,7 +140,7 @@ class DDDUT_PT_UVTool(Panel):
 
         box = layout.box()
         col = box.column(align=True)
-        col.label(text='移動')
+        col.label(text=iface_('移動'))
         drawMoveUV(col, 0, prop.offset[1], icon='TRIA_UP')
         row = col.row(align=True)
         row.scale_y = 2.0

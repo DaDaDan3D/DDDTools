@@ -25,7 +25,7 @@ re_name_LR = re.compile(r'(.*[._-])([LR])$')
 
 ################################################################
 def textblock2str(textblock):
-    return "".join([line.body for line in textblock.lines])
+    return ''.join([line.body for line in textblock.lines])
 
 ################
 def getAddon(version=(2, 3, 26)):
@@ -120,7 +120,7 @@ def addColliderToBone(mesh,
         emptyName = f'Collider_{bone.name}'
         empty_obj = bpy.data.objects.new(emptyName, None)
         empty_obj.parent = arma
-        empty_obj.parent_type = "BONE"
+        empty_obj.parent_type = 'BONE'
         empty_obj.parent_bone = bone.name
         empty_obj.matrix_parent_inverse = matrix_parent_inverse
         matrix_basis = matrix_parent.copy()
@@ -182,13 +182,13 @@ def addCollider(meshObj,
     mesh = iu.ObjectWrapper(meshObj)
     arma = iu.ObjectWrapper(armaObj)
     if not mesh or not arma:
-        return {'CANCELLED'}, "Please select Armature and Mesh"
+        return {'CANCELLED'}, 'Please select Armature and Mesh'
     #print('mesh:', mesh.name, 'arma:', arma.name)
 
     modeChanger = iu.ModeChanger(arma.obj, 'POSE')
     bone = bpy.context.active_bone
     if not bone:
-        return {'CANCELLED'}, "Please select a bone"
+        return {'CANCELLED'}, 'Please select a bone'
 
     addColliderToBone(mesh.obj, arma.obj, bone.name,
                       t_from=t_from,
@@ -308,7 +308,7 @@ def buildRemoveMatDic(interval, alphaThreshold, excludeMaterials):
     # get VRM_Addon_for_Blender
     va = getAddon()
     if not va:
-        raise ValueError("VRM addon is not found")
+        raise ValueError('VRM addon is not found')
     shader = va.common.shader
     search = va.editor.search
 
@@ -328,9 +328,9 @@ def buildRemoveMatDic(interval, alphaThreshold, excludeMaterials):
             continue
 
         # Skip auto_scroll material
-        if shader.get_float_value(node, "UV_Scroll_X") != 0 or\
-           shader.get_float_value(node, "UV_Scroll_Y") != 0 or\
-               shader.get_float_value(node, "UV_Scroll_Rotation") != 0:
+        if shader.get_float_value(node, 'UV_Scroll_X') != 0 or\
+           shader.get_float_value(node, 'UV_Scroll_Y') != 0 or\
+               shader.get_float_value(node, 'UV_Scroll_Rotation') != 0:
             continue
 
         # Find MainTextureAlpha image
@@ -643,7 +643,7 @@ def prepareToExportVRM(skeleton='skeleton',
 
     va = getAddon()
     if not va:
-        raise ValueError("VRM addon is not found")
+        raise ValueError('VRM addon is not found')
 
     ext = arma.obj.data.vrm_addon_extension
 

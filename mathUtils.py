@@ -29,7 +29,7 @@ def calcFit(point_cloud):
     N = len(point_cloud)
     #Nは点群の数
 
-    """シグマの計算"""
+    # シグマの計算
     for v in point_cloud:
         v_1 += v
         v_2 += np.dot(v, v)
@@ -73,7 +73,7 @@ def calcCircumcenter(verts):
     mtx = 2 * np.diff(verts, axis=0)
     
     # Calc dot products of each vertex
-    dv = np.einsum("ij,ij->i", verts, verts)
+    dv = np.einsum('ij,ij->i', verts, verts)
 
     yy = np.diff(dv, axis=0)
     center = np.linalg.solve(mtx, yy)

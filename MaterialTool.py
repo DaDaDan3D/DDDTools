@@ -203,7 +203,7 @@ def sort_material_slots(obj, material_order):
 
     # Ensure the object has material slots
     if len(obj.material_slots) == 0:
-        print("No material slots found in the object.")
+        print('No material slots found in the object.')
         return
 
     # Sort material slots according to the material_order list

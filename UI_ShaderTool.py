@@ -5,9 +5,12 @@ from bpy.props import CollectionProperty, IntProperty, PointerProperty, StringPr
 from bpy.types import Panel, UIList, Operator, PropertyGroup
 from DDDTools import MaterialTool as mt
 
+_ = lambda s: s
+from bpy.app.translations import pgettext_iface as iface_
+
 ################################################################
 def used_shader_group_node_items(self, context):
-    items = [("(NONE)", "(NONE)", "")]
+    items = [('(NONE)', '(NONE)', '')]
     node_groups = set()
 
     for material in bpy.data.materials:
@@ -17,11 +20,11 @@ def used_shader_group_node_items(self, context):
                     node_groups.add(node.node_tree.name)
 
     for group_name in sorted(node_groups):
-        items.append((group_name, group_name, ""))
+        items.append((group_name, group_name, ''))
     return items
 
 def shader_group_node_items(self, context):
-    items = [("(NONE)", "(NONE)", "")]
+    items = [('(NONE)', '(NONE)', '')]
     node_groups = set()
 
     for group in bpy.data.node_groups:
@@ -29,7 +32,7 @@ def shader_group_node_items(self, context):
             node_groups.add(group.name)
             
     for group_name in sorted(node_groups):
-        items.append((group_name, group_name, ""))
+        items.append((group_name, group_name, ''))
     return items
 
 ################################################################
@@ -59,8 +62,8 @@ class DDDST_socketItem(PropertyGroup):
 ################
 class DDDST_OT_removeFromSocketList(Operator):
     bl_idname = 'dddst.remove_from_socket_list'
-    bl_label = '取り除く'
-    bl_description = 'リストから取り除きます'
+    bl_label = _('取り除く')
+    bl_description = _('リストから取り除きます')
     bl_options = {'UNDO'}
     
     index: IntProperty()
@@ -76,8 +79,8 @@ class DDDST_OT_removeFromSocketList(Operator):
 ################
 class DDDST_OT_showSocketInEditor(Operator):
     bl_idname = 'dddst.show_socket_in_editor'
-    bl_label = 'エディタで見る'
-    bl_description = 'シェーダーエディタでマテリアルを開き、ノードを選択します'
+    bl_label = _('エディタで見る')
+    bl_description = _('シェーダーエディタでマテリアルを開き、ノードを選択します')
     bl_options = {'UNDO'}
     
     index: IntProperty()
@@ -163,27 +166,27 @@ class DDDST_propertyGroup(PropertyGroup):
         name='replaceGroupNode_settings',
         default=True)
     old_group_node: EnumProperty(
-        name='旧ノード',
-        description="置き換え元のグループノード",
+        name=_('旧ノード'),
+        description=_('置き換え元のグループノード'),
         items=used_shader_group_node_items
     )
     new_group_node: EnumProperty(
-        name='新ノード',
-        description="置き換え先のグループノード",
+        name=_('新ノード'),
+        description=_('置き換え先のグループノード'),
         items=shader_group_node_items
     )
 
     display_socketList: BoolProperty(
-        name='ソケットリストの表示',
+        name=_('ソケットリストの表示'),
         default=True)
     nodeName: EnumProperty(
-        name='ノード名',
-        description='一覧を作成するノード名です',
+        name=_('ノード名'),
+        description=_('一覧を作成するノード名です'),
         items=getNodeNames,
     )
     socketName: EnumProperty(
-        name='インプット',
-        description='一覧を作成するノードインプットの名前です',
+        name=_('インプット'),
+        description=_('一覧を作成するノードインプットの名前です'),
         items=getSocketNames,
     )
     socketList: CollectionProperty(type=DDDST_socketItem)
@@ -192,28 +195,30 @@ class DDDST_propertyGroup(PropertyGroup):
 ################################################################
 class DDDST_OT_calcSpecularFromIOR(Operator):
     bl_idname = 'dddst.calc_specular_from_ior'
-    bl_label = 'スペキュラ計算'
-    bl_description = 'IOR からスペキュラを計算してクリップボードにコピーします'
+    bl_label = _('スペキュラ計算')
+    bl_description = _('IOR からスペキュラを計算してクリップボードにコピーします')
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         prop = context.scene.dddtools_st_prop
         specular = mt.calcSpecularFromIOR(prop.ior)
         self.report({'INFO'},
-                    f'IOR({prop.ior})のスペキュラ({specular})をクリップボードにコピーしました')
+                    iface_('IOR({prop_ior})のスペキュラ({specular})をクリップボードにコピーしました').format(
+                        prop_ior=prop.ior,
+                        specular=specular))
         return {'FINISHED'}
     
 ################################################################
 class DDDST_OT_replaceGroupNode(Operator):
     bl_idname = 'dddst.replace_group_node'
-    bl_label = 'グループノード置換'
-    bl_description = '指定したシェーダーグループノードを新しいシェーダーグループノードに置き換えます'
+    bl_label = _('グループノード置換')
+    bl_description = _('指定したシェーダーグループノードを新しいシェーダーグループノードに置き換えます')
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
     def poll(self, context):
         prop = context.scene.dddtools_st_prop
-        return prop.old_group_node != "(NONE)" and prop.new_group_node != "(NONE)" and prop.old_group_node != prop.new_group_node
+        return prop.old_group_node != '(NONE)' and prop.new_group_node != '(NONE)' and prop.old_group_node != prop.new_group_node
 
     def execute(self, context):
         prop = context.scene.dddtools_st_prop
@@ -221,11 +226,15 @@ class DDDST_OT_replaceGroupNode(Operator):
         new_group_name = prop.new_group_node
         modified_materials = mt.replace_group_node(old_group_name, new_group_name)
         if modified_materials:
-            self.report({'INFO'}, f'以下のマテリアルを修正しました: {sorted(modified_materials)}')
+            self.report({'INFO'},
+                        iface_('以下のマテリアルを修正しました: {sorted_modified_materials}').format(
+                            sorted_modified_materials=str(sorted(modified_materials))))
         else:
-            self.report({'INFO'}, f'シェーダーグループ"{old_group_name}"を使用しているマテリアルはありません')
+            self.report({'INFO'},
+                        iface_('シェーダーグループ({old_group_name})を使用しているマテリアルはありません').format(
+                            old_group_name=old_group_name))
 
-        prop.old_group_node = "(NONE)"
+        prop.old_group_node = '(NONE)'
         prop.new_group_node = new_group_name
         return {'FINISHED'}
     
@@ -235,8 +244,8 @@ class DDDST_OT_replaceGroupNode(Operator):
     def draw(self, context):
         prop = context.scene.dddtools_st_prop
         row = self.layout
-        row.label(text='全マテリアルのグループノードを置き換えます')
-        row.label(text='よろしいですか？')
+        row.label(text=iface_('全マテリアルのグループノードを置き換えます'))
+        row.label(text=iface_('よろしいですか？'))
         row.prop(prop, 'old_group_node')
         row.prop(prop, 'new_group_node')
 
@@ -269,8 +278,8 @@ def collectNodeSocketsFromObjects(objs):
 ################
 class DDDST_OT_populateNodesForSocketList(Operator):
     bl_idname = 'dddst.populate_nodes_for_socket_list'
-    bl_label = 'リスト作成'
-    bl_description = '指定されたノード名とインプット名に一致するノードインプットの一覧を作成します'
+    bl_label = _('リスト作成')
+    bl_description = _('指定されたノード名とインプット名に一致するノードインプットの一覧を作成します')
     bl_options = {'UNDO'}
 
     def execute(self, context):
@@ -304,8 +313,8 @@ class DDDST_OT_populateNodesForSocketList(Operator):
 ################
 class DDDST_OT_clearSocketList(Operator):
     bl_idname = 'dddst.clear_socket_list'
-    bl_label = 'リストクリア'
-    bl_description = 'ノードインプットの一覧をクリアします'
+    bl_label = _('リストクリア')
+    bl_description = _('ノードインプットの一覧をクリアします')
     bl_options = {'UNDO'}
 
     def execute(self, context):
@@ -318,8 +327,8 @@ class DDDST_OT_clearSocketList(Operator):
 ################
 class DDDST_OT_copyValueForAllSocketsInList(Operator):
     bl_idname = 'dddst.copy_value_for_all_sockets_in_list'
-    bl_label = '値をコピー'
-    bl_description = 'カーソル位置のノードインプットの値を、リストの全てのノードインプットにコピーします'
+    bl_label = _('値をコピー')
+    bl_description = _('カーソル位置のノードインプットの値を、リストの全てのノードインプットにコピーします')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -382,7 +391,7 @@ class DDDST_PT_mainPanel(Panel):
             split.prop(prop, 'display_calcSpecular_settings',
                        text='', icon='RIGHTARROW')
         split.operator(DDDST_OT_calcSpecularFromIOR.bl_idname,
-                       text='スペキュラ計算')
+                       text=iface_('スペキュラ計算'))
         if prop.display_calcSpecular_settings:
             col = layout.box().column(align=True)
             col.prop(prop, 'ior')
@@ -398,8 +407,8 @@ class DDDST_PT_mainPanel(Panel):
         split.operator(DDDST_OT_replaceGroupNode.bl_idname)
         if prop.display_replaceGroupNode:
             col = layout.box().column(align=True)
-            col.prop(prop, "old_group_node")
-            col.prop(prop, "new_group_node")
+            col.prop(prop, 'old_group_node')
+            col.prop(prop, 'new_group_node')
      
         # socketList
         split = layout.split(factor=0.15, align=True)
@@ -409,7 +418,7 @@ class DDDST_PT_mainPanel(Panel):
         else:
             split.prop(prop, 'display_socketList',
                        text='', icon='RIGHTARROW')
-        split.label(text='ノードインプット一覧')
+        split.label(text=iface_('ノードインプット一覧'))
         if prop.display_socketList:
             col = layout.box().column(align=True)
             col.prop(prop, 'nodeName', translate=False)

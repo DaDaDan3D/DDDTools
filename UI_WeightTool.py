@@ -8,14 +8,17 @@ from . import internalUtils as iu
 from . import UIUtils as ui
 from . import WeightTool as wt
 
+_ = lambda s: s
+from bpy.app.translations import pgettext_iface as iface_
+
 ################################################################
 class DDDWT_propertyGroup(PropertyGroup):
     display_cleanupWeightsOfSelectedObjects: BoolProperty(
         name='cleanupWeightsOfSelectedObjects_settings',
         default=True)
     affectBoneMax: IntProperty(
-        name='影響ボーンの数',
-        description='ウェイトの影響ボーンの数を設定します',
+        name=_('影響ボーンの数'),
+        description=_('ウェイトの影響ボーンの数を設定します'),
         min=1,
         max=10,
         default=4,
@@ -25,32 +28,32 @@ class DDDWT_propertyGroup(PropertyGroup):
         name='transferWeightsForSelectedObjects_settings',
         default=True)
     weightObj: PointerProperty(
-        name='転送元',
-        description='ウェイトの転送元のメッシュオブジェクト',
+        name=_('転送元'),
+        description=_('ウェイトの転送元のメッシュオブジェクト'),
         type=bpy.types.Object,
         poll=lambda self, obj: obj and obj.type=='MESH',
     )
     vertexGroup: StringProperty(
-        name='頂点グループ',
-        description='影響する範囲を選択する頂点グループ名',
+        name=_('頂点グループ'),
+        description=_('影響する範囲を選択する頂点グループ名'),
     )
     invertVertexGroup: BoolProperty(
-        name='反転',
-        description='頂点グループの影響を反転します',
+        name=_('反転'),
+        description=_('頂点グループの影響を反転します'),
         default=False,
     )
     vertMapping: EnumProperty(
-        name='頂点マッピング',
-        description='頂点を探す方法',
-        items=[('NEAREST', '最も近い頂点', '一番近い頂点からコピーします', 'VERTEXSEL', 0),
-               ('EDGEINTERP_NEAREST', '最も近い辺の補間', '一番近い辺に降ろした足から補間します', 'EDGESEL', 1),
-               ('POLYINTERP_NEAREST', '最も近い面の補間', '一番近い面に降ろした足から補間します', 'FACESEL', 2),
-               ('POLYINTERP_VNORPROJ', '投影面の補間', '法線方向に投影して一番近くにヒットした面から補間します', 'SNAP_NORMAL', 3)],
+        name=_('頂点マッピング'),
+        description=_('頂点を探す方法'),
+        items=[('NEAREST', _('最も近い頂点'), _('一番近い頂点からコピーします'), 'VERTEXSEL', 0),
+               ('EDGEINTERP_NEAREST', _('最も近い辺の補間'), _('一番近い辺に降ろした足から補間します'), 'EDGESEL', 1),
+               ('POLYINTERP_NEAREST', _('最も近い面の補間'), _('一番近い面に降ろした足から補間します'), 'FACESEL', 2),
+               ('POLYINTERP_VNORPROJ', _('投影面の補間'), _('法線方向に投影して一番近くにヒットした面から補間します'), 'SNAP_NORMAL', 3)],
         default='POLYINTERP_NEAREST',
     )
     maxDistance: FloatProperty(
-        name='最大距離',
-        description='転送できる最大距離(0で無限)',
+        name=_('最大距離'),
+        description=_('転送できる最大距離(0で無限)'),
         subtype='DISTANCE',
         default=0.01,
         min=0.000,
@@ -63,8 +66,8 @@ class DDDWT_propertyGroup(PropertyGroup):
 ################################################################
 class DDDWT_OT_resetWeightOfSelectedObjects(bpy.types.Operator):
     bl_idname = 'dddwt.reset_weight_of_selected_objects'
-    bl_label = 'ウェイトのリセット'
-    bl_description = '選択メッシュのウェイトを取り除きます'
+    bl_label = _('ウェイトのリセット')
+    bl_description = _('選択メッシュのウェイトを取り除きます')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -75,10 +78,11 @@ class DDDWT_OT_resetWeightOfSelectedObjects(bpy.types.Operator):
         num = wt.resetWeightOfSelectedObjects()
         if num > 0:
             self.report({'INFO'},
-                        f'{num}個のメッシュのウェイトをリセットしました')
+                        iface_('{num}個のメッシュのウェイトをリセットしました').format(
+                            num=num))
         else:
             self.report({'INFO'},
-                        f'メッシュが選択されていません')
+                        iface_('メッシュが選択されていません'))
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -87,8 +91,8 @@ class DDDWT_OT_resetWeightOfSelectedObjects(bpy.types.Operator):
 ################################################################
 class DDDWT_OT_cleanupWeightsOfSelectedObjects(bpy.types.Operator):
     bl_idname = 'dddwt.cleanup_weights_of_selected_objects'
-    bl_label = 'ウェイトのクリーンアップ'
-    bl_description = '選択メッシュのウェイトをクリーンアップします'
+    bl_label = _('ウェイトのクリーンアップ')
+    bl_description = _('選択メッシュのウェイトをクリーンアップします')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -100,10 +104,11 @@ class DDDWT_OT_cleanupWeightsOfSelectedObjects(bpy.types.Operator):
         num = wt.cleanupWeightsOfSelectedObjects(affectBoneMax=prop.affectBoneMax)
         if num > 0:
             self.report({'INFO'},
-                        f'{num}個のメッシュのウェイトをクリーンアップしました')
+                        iface_('{num}個のメッシュのウェイトをクリーンアップしました').format(
+                            num=num))
         else:
             self.report({'INFO'},
-                        f'メッシュが選択されていません')
+                        iface_('メッシュが選択されていません'))
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -112,8 +117,8 @@ class DDDWT_OT_cleanupWeightsOfSelectedObjects(bpy.types.Operator):
 ################################################################
 class DDDWT_OT_transferWeightsForSelectedObjects(bpy.types.Operator):
     bl_idname = 'dddwt.transfer_weights_for_selected_objects'
-    bl_label = 'ウェイトの転送'
-    bl_description = '指定したメッシュのウェイトを選択メッシュに転送します'
+    bl_label = _('ウェイトの転送')
+    bl_description = _('指定したメッシュのウェイトを選択メッシュに転送します')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -130,14 +135,15 @@ class DDDWT_OT_transferWeightsForSelectedObjects(bpy.types.Operator):
             vertex_group=prop.vertexGroup,
             invert_vertex_group=prop.invertVertexGroup)
         self.report({'INFO'},
-                    f'{ans}個のメッシュに転送しました')
+                    iface_('{ans}個のメッシュに転送しました').format(
+                        ans=ans))
         return {'FINISHED'}
 
 ################################################################
 class DDDWT_OT_equalizeVertexWeightsForMirroredBones(bpy.types.Operator):
     bl_idname = 'dddwt.equalize_vertex_weights_for_mirrored_bones'
-    bl_label = '頂点の左右ウェイト均一化'
-    bl_description = '指定したメッシュの選択された頂点のウェイトを左右のボーンに対して均等に割り振る'
+    bl_label = _('頂点の左右ウェイト均一化')
+    bl_description = _('指定したメッシュの選択された頂点のウェイトを左右のボーンに対して均等に割り振る')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -149,14 +155,16 @@ class DDDWT_OT_equalizeVertexWeightsForMirroredBones(bpy.types.Operator):
         mesh = iu.ObjectWrapper(bpy.context.active_object)
         ans = wt.equalizeVertexWeightsForMirroredBones(mesh)
         self.report({'INFO'},
-                    f'{mesh.name}の{ans}個の頂点のウェイトを調整しました')
+                    iface_('{mesh_name}の{ans}個の頂点のウェイトを調整しました').format(
+                        mesh_name=mesh.name,
+                        ans=ans))
         return {'FINISHED'}
 
 ################################################################
 class DDDWT_OT_dissolveWeightedBones(bpy.types.Operator):
     bl_idname = 'dddwt.dissolve_weighted_bones'
-    bl_label = '選択した骨の溶解'
-    bl_description = '選択した骨のウェイトを直近祖先の変形ボーンに移した後、溶解する'
+    bl_label = _('選択した骨の溶解')
+    bl_description = _('選択した骨のウェイトを直近祖先の変形ボーンに移した後、溶解する')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -169,14 +177,15 @@ class DDDWT_OT_dissolveWeightedBones(bpy.types.Operator):
         bones = [bone.name for bone in bpy.context.selected_editable_bones]
         ans = wt.dissolveWeightedBones(arma, bones)
         self.report({'INFO'},
-                    f'骨を溶解しました。{ans}')
+                    iface_('骨を溶解しました。{ans}').format(
+                        ans=ans))
         return {'FINISHED'}
 
 ################################################################
 class DDDWT_PT_WeightTool(bpy.types.Panel):
     bl_idname = 'WT_PT_WeightTool'
     bl_label = 'WeightTool'
-    bl_category = "DDDTools"
+    bl_category = 'DDDTools'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
   
