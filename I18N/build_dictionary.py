@@ -16,6 +16,9 @@ def create_translation_dict_from_csv(csv_path, locales):
             # キーを取得
             key = row['key']
 
+            # コンテキストを取得
+            context = row.get('context') or '*'
+            
             for locale in locales:
                 # 翻訳テキストを取得
                 translation_text = row.get(locale)
@@ -24,7 +27,7 @@ def create_translation_dict_from_csv(csv_path, locales):
                 if translation_text:
                     if locale not in translations_dict:
                         translations_dict[locale] = dict()
-                    translations_dict[locale][('*', key)] = translation_text
+                    translations_dict[locale][(context, key)] = translation_text
 
     return translations_dict
 
@@ -34,7 +37,7 @@ def build_dictionary():
     py_path = os.path.join(os.path.dirname(__file__), 'dictionary.py')
 
     print(f'reading {csv_path}...')
-    locales = ['ja_JP']
+    locales = ['en_US', 'es', 'fr_FR', 'ja_JP', 'sk_SK', 'vi_VN', 'zh_CN', 'ca_AD', 'cs_CZ', 'de_DE', 'it_IT', 'ka', 'ko_KR', 'pt_BR', 'pt_PT', 'ru_RU', 'uk_UA', 'zh_TW', 'ab', 'ar_EG', 'eo', 'eu_EU', 'fa_IR', 'fi_FI', 'ha', 'he_IL', 'hi_IN', 'hr_HR', 'hu_HU', 'id_ID', 'ky_KG', 'nl_NL', 'pl_PL', 'sr_RS', 'sr_RS@latin', 'sv_SE', 'th_TH', 'tr_TR']
     translations_dict = create_translation_dict_from_csv(csv_path, locales)
 
     print(f'writing {py_path}...')
