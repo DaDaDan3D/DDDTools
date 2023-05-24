@@ -587,3 +587,80 @@ def applyEmptyScale(empty):
 
     empty.matrix_basis = mtx
     empty.empty_display_size = size
+
+################
+# コレクションに含まれる全てのアーマチュアの名前を取得する
+def get_armature_names(collection):
+    collections = [collection]
+    collections.extend(collection.children_recursive)
+
+    result = []
+    for col in collections:
+        for obj in col.objects:
+            if obj.type == 'ARMATURE':
+                result.append(obj.name)
+    return result
+
+################
+# インスタンスの実体化
+# コレクションインスタンスでアーマチュアが実体化された場合、アクションも復元する
+def instance_to_real(instance, rtol=1e-5, atol=1e-5):
+    instance_name = instance.name
+
+    # 親のコレクションを保存しておく
+    collection_index = bpy.data.collections.find(instance.users_collection[0].name)
+    if collection_index < 0:
+        parent_collection = bpy.context.scene.collection
+    else:
+        parent_collection = bpy.data.collections[collection_index]
+
+    # コレクションのインスタンスなら、元のアーマチュアの名前を控えておく
+    if instance.instance_type != 'COLLECTION':
+        armatures = None
+    else:
+        original_collection = instance.instance_collection
+        armatures = get_armature_names(original_collection)
+
+    # インスタンスを選択
+    bpy.ops.object.select_all(action='DESELECT')
+    instance.select_set(True)
+
+    # インスタンス化されたオブジェクトを実体化する
+    bpy.ops.object.duplicates_make_real(use_base_parent=True, use_hierarchy=True)
+
+    # 実体化されたオブジェクトを全て選択し、個別処理を行う
+    bpy.data.objects[instance_name].select_set(True)
+    objects = [obj.name for obj in bpy.context.selected_objects]
+    for objName in objects:
+        obj = bpy.data.objects[objName]
+
+        # コレクションを移動
+        obj.users_collection[0].objects.unlink(obj)
+        parent_collection.objects.link(obj)
+
+        # アクションをコピー
+        if obj.type == 'ARMATURE':
+            matrix_local = np.array(obj.matrix_local)
+            for armaName in armatures:
+                arma = bpy.data.objects[armaName]
+                # ローカル行列が十分に近いならば元のアーマチュアと見なす
+                if arma.data == obj.data and\
+                   np.allclose(np.array(arma.matrix_local), matrix_local, rtol=rtol, atol=atol):
+                    # print("Found")
+                    if arma.animation_data:
+                        if not obj.animation_data:
+                            obj.animation_data_create()
+                        obj.animation_data.action = arma.animation_data.action
+                    break
+    return instance_name
+
+################
+# 選択したインスタンスオブジェクトを実体化する
+# アクションも復元する
+def selected_instances_to_real(rtol=1e-5, atol=1e-5):
+    result = []
+    objects = [ObjectWrapper(obj) for obj in bpy.context.selected_objects]
+    for obj in objects:
+        if obj.obj.instance_type != 'NONE':
+            result.append(instance_to_real(obj.obj, rtol=rtol, atol=atol))
+    return result

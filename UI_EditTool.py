@@ -260,6 +260,7 @@ def calcCenterOfSphereFromSelectedVertices():
 
     return result
     
+################################################################
 class DDDET_OT_addApproximateSphere(Operator):
     bl_idname = 'dddet.add_approximate_sphere'
     bl_label = _('Add Approximate Sphere')
@@ -376,6 +377,48 @@ class DDDET_OT_convertEmptyAndSphere(Operator):
             return {'CANCELLED'}
 
 ################################################################
+class DDDET_OT_selectedInstancesToReal(Operator):
+    bl_idname = 'dddet.selected_instances_to_real'
+    bl_label = _('Selected Instances to Real')
+    bl_description = _('Makes the selected instance real. If the instance is a collection and contains an armature, also restores the action.')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    rtol: FloatProperty(
+        name=_('Relative Tolerance'),
+        description=_('Relative tolerance to find the original armature.'),
+        default=1e-5,
+        min=0.00,
+        max=1e-3,
+        precision=6,
+        step=1,
+    )
+    atol: FloatProperty(
+        name=_('Absolute Tolerance'),
+        description=_('Absolute tolerance to find the original armature.'),
+        default=1e-5,
+        min=0.00,
+        max=1e-3,
+        precision=6,
+        step=1,
+    )
+
+    @classmethod
+    def poll(self, context):
+        return bpy.context.selected_objects
+
+    def execute(self, context):
+        objs = iu.selected_instances_to_real(rtol=self.rtol, atol=self.atol)
+        if objs:
+            self.report({'INFO'},
+                        iface_('Realized {len_objs} instances.').format(
+                            len_objs=len(objs)))
+            return {'FINISHED'}
+        else:
+            self.report({'INFO'},
+                        iface_('No instances were selected.'))
+            return {'CANCELLED'}
+
+################################################################
 class DDDET_PT_main(Panel):
     bl_idname = 'DDDET_PT_main'
     bl_label = 'EditTool'
@@ -389,6 +432,7 @@ class DDDET_PT_main(Panel):
         col.operator(DDDET_OT_addApproximateSphere.bl_idname)
         col.operator(DDDET_OT_addApproximateEmpty.bl_idname)
         col.operator(DDDET_OT_convertEmptyAndSphere.bl_idname)
+        col.operator(DDDET_OT_selectedInstancesToReal.bl_idname)
 
 ################################################################
 def menu_fn(self, context):
@@ -402,6 +446,7 @@ classes = (
     DDDET_OT_addApproximateSphere,
     DDDET_OT_addApproximateEmpty,
     DDDET_OT_convertEmptyAndSphere,
+    DDDET_OT_selectedInstancesToReal,
     DDDET_PT_main,
 )
 
