@@ -14,7 +14,7 @@ bl_info = {
     'warning': 'Not much error handling. Use at your own risk.',
     'support': 'COMMUNITY',
     'author': 'DaDaDan3D',
-    'version': (0, 4, 10),
+    'version': (0, 5, 0),
     'blender': (3, 1, 0),
     'doc_url': 'https://github.com/DaDaDan3D/DDDTools',
     'tracker_url': 'https://github.com/DaDaDan3D/DDDTools/issues',
