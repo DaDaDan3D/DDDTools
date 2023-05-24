@@ -384,7 +384,7 @@ class DDDET_PT_main(Panel):
     bl_region_type = 'UI'
 
     def draw(self, context):
-        col = self.layout.column()
+        col = self.layout.column(align=True)
         col.operator(DDDET_OT_selectDividingLoops.bl_idname)
         col.operator(DDDET_OT_addApproximateSphere.bl_idname)
         col.operator(DDDET_OT_addApproximateEmpty.bl_idname)

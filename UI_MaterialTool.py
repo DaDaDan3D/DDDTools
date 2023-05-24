@@ -302,13 +302,13 @@ class DDDMT_PT_MaterialTool(Panel):
 
     def draw(self, context):
         prop = context.scene.dddtools_mt_prop
-        layout = self.layout.column(translate=True)
+        layout = self.layout.column(align=True)
 
         # TextureTools
         display, split = ui.splitSwitch(layout, prop, 'display_texture_tools')
         split.label(text=iface_('Texture related'))
         if display:
-            col = layout.box().column(align=True, translate=True)
+            col = layout.box().column(align=True)
 
             split = col.split(factor=0.8, align=True)
             split.prop_search(prop, 'texture', context.blend_data, 'images')

@@ -134,7 +134,7 @@ class DDDBT_PT_BoneTool(Panel):
     def draw(self, context):
         prop = context.scene.dddtools_bt_prop
         layout = self.layout
-        col = layout.column()
+        col = layout.column(align=True)
         col.operator(DDDBT_OT_renameChildBonesWithNumber.bl_idname)
         col.operator(DDDBT_OT_resetStretchTo.bl_idname)
         col.operator(DDDBT_OT_applyArmatureToRestPose.bl_idname)
@@ -142,7 +142,7 @@ class DDDBT_PT_BoneTool(Panel):
         display, split = ui.splitSwitch(col, prop, 'display_createArmatureFromSelectedEdges_settings')
         split.operator(DDDBT_OT_createArmatureFromSelectedEdges.bl_idname)
         if display:
-            box = col.box().column(align=True)
+            box = col.box().column()
             box.prop(prop, 'basename')
 
     

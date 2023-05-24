@@ -191,7 +191,7 @@ class DDDWT_PT_WeightTool(bpy.types.Panel):
   
     def draw(self, context):
         prop = context.scene.dddtools_wt_prop
-        layout = self.layout
+        layout = self.layout.column(align=True)
 
         # resetWeightOfSelectedObjects
         layout.operator(DDDWT_OT_resetWeightOfSelectedObjects.bl_idname)
@@ -200,8 +200,7 @@ class DDDWT_PT_WeightTool(bpy.types.Panel):
         display, split = ui.splitSwitch(layout, prop, 'display_cleanupWeightsOfSelectedObjects')
         split.operator(DDDWT_OT_cleanupWeightsOfSelectedObjects.bl_idname)
         if display:
-            box = layout.column(align=True).box().column()
-            col = box.column(align=True)
+            col = layout.box().column()
             col.prop(prop, 'affectBoneMax')
         
         # transferWeightsForSelectedObjects
@@ -209,8 +208,7 @@ class DDDWT_PT_WeightTool(bpy.types.Panel):
         split.operator(DDDWT_OT_transferWeightsForSelectedObjects.bl_idname)
         mesh = bpy.context.active_object
         if display and mesh and mesh.type=='MESH':
-            box = layout.column(align=True).box().column()
-            col = box.column(align=True)
+            col = layout.box().column(align=True)
             col.prop_search(prop, 'weightObj', context.blend_data, 'objects')
 
             if mesh.vertex_groups:
