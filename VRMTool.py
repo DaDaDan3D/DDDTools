@@ -610,6 +610,29 @@ def applyCollidersScale(arma):
             iu.applyEmptyScale(obj)
 
 ################################################################
+def migrateSpringBone(arma, sb_json):
+    va = getAddon()
+    if not va:
+        raise ValueError('VRM addon is not found')
+    ext = arma.obj.data.vrm_addon_extension
+    
+    # clear old data
+    ext.vrm0.secondary_animation.bone_groups.clear()
+    ext.vrm0.secondary_animation.collider_groups.clear()
+    removed = removeAllUneditableEmptyChildren(arma.obj)
+    if removed:
+        print(f'Removed {len(removed)} empty objects: {removed}')
+
+    applyCollidersScale(arma.obj)
+
+    # migrate
+    sb_dic = json.loads(textblock2str(bpy.data.texts[sb_json]),object_pairs_hook=OrderedDict)
+    va.editor.vrm0.migration.migrate_vrm0_secondary_animation(
+        ext.vrm0.secondary_animation,
+        sb_dic,
+        arma.obj)
+
+################################################################
 def prepareToExportVRM(skeleton='skeleton',
                        triangulate=False,
                        removeTransparentPolygons=True,
@@ -649,14 +672,6 @@ def prepareToExportVRM(skeleton='skeleton',
 
     # clear old data
     ext.vrm0.blend_shape_master.blend_shape_groups.clear()
-    if sb_json:
-        ext.vrm0.secondary_animation.bone_groups.clear()
-        ext.vrm0.secondary_animation.collider_groups.clear()
-        removed = removeAllUneditableEmptyChildren(arma.obj)
-        if removed:
-            print(f'Removed {len(removed)} empty objects: {removed}')
-        sb_dic = json.loads(textblock2str(bpy.data.texts[sb_json]),object_pairs_hook=OrderedDict)
-
     bs_dic = json.loads(textblock2str(bpy.data.texts[bs_json]),object_pairs_hook=OrderedDict)
 
     if removeTransparentPolygons:
@@ -696,10 +711,6 @@ def prepareToExportVRM(skeleton='skeleton',
 
     # migrate spring_bone.json
     if sb_json:
-        applyCollidersScale(arma.obj)
-        va.editor.vrm0.migration.migrate_vrm0_secondary_animation(
-            ext.vrm0.secondary_animation,
-            sb_dic,
-            arma.obj)
+        migrateSpringBone(arma, sb_json)
 
     return mergedObjs

@@ -9,6 +9,7 @@
 
 translations_dict = {
     'en_US': {
+        ('*', 'An error has occurred. See console for details.'): "An error has occurred. See console for details.",
         ('*', 'Bone Name'): "Bone Name",
         ('*', 'The name of the bone to be created.'): "The name of the bone to be created.",
         ('Operator', 'Rename Child Bones'): "Rename Child Bones",
@@ -212,10 +213,9 @@ translations_dict = {
         ('*', 'Sets the currently selected empties as children of the currently selected bones of the active skeleton.'): "Sets the currently selected empties as children of the currently selected bones of the active skeleton.",
         ('Operator', 'Create a mirror of the collider'): "Create a mirror of the collider",
         ('*', 'Creates a mirror of the currently selected collider.'): "Creates a mirror of the currently selected collider.",
-        ('Operator', 'Remove unnecessary empties'): "Remove unnecessary empties",
-        ('*', "Forces the removal of EMPTY of the specified skeleton's children that will not disappear after manual removal."): "Forces the removal of EMPTY of the specified skeleton's children that will not disappear after manual removal.",
-        ('*', '{len_removed} EMPTY removed: {removed}'): "{len_removed} EMPTY removed: {removed}",
-        ('*', 'No unnecessary EMPTY was found.'): "No unnecessary EMPTY was found.",
+        ('Operator', 'Register Spring Bone'): "Register Spring Bone",
+        ('*', "Registers the collider and swing object settings to the skeleton based on the information in the specified springbone.json. Since this function is automatically called in 'Preparation before VRM export', it is usually not necessary to use this function."): "Registers the collider and swing object settings to the skeleton based on the information in the specified springbone.json. Since this function is automatically called in 'Preparation before VRM export', it is usually not necessary to use this function.",
+        ('*', '{sb_json} information has been registered.'): "{sb_json} information has been registered.",
         ('Operator', 'Preparation before VRM export'): "Preparation before VRM export",
         ('*', 'To export the VRM, merge the meshes, dissolve unwanted bones, clean up the weights, and set the blendshapes.'): "To export the VRM, merge the meshes, dissolve unwanted bones, clean up the weights, and set the blendshapes.",
         ('Operator', 'Open VRM_Addon_for_Blender page'): "Open VRM_Addon_for_Blender page",
@@ -264,6 +264,7 @@ translations_dict = {
         ('*', 'Bone dissolved. {ans}'): "Bone dissolved. {ans}",
     },
     'ja_JP': {
+        ('*', 'An error has occurred. See console for details.'): "エラーが発生しました。詳細はコンソールを参照してください。",
         ('*', 'Bone Name'): "ボーンの名前",
         ('*', 'The name of the bone to be created.'): "作成するボーンに付ける名前です",
         ('Operator', 'Rename Child Bones'): "子ボーンをリネーム",
@@ -467,10 +468,9 @@ translations_dict = {
         ('*', 'Sets the currently selected empties as children of the currently selected bones of the active skeleton.'): "選択中のエンプティを、アクティブなスケルトンの選択中のボーンの子として設定します",
         ('Operator', 'Create a mirror of the collider'): "コライダのミラーを作成",
         ('*', 'Creates a mirror of the currently selected collider.'): "選択中のコライダのミラーを作成します",
-        ('Operator', 'Remove unnecessary empties'): "不要エンプティ削除",
-        ('*', "Forces the removal of EMPTY of the specified skeleton's children that will not disappear after manual removal."): "指定したスケルトンの子の、手動で削除しても消えない EMPTY を強制的に削除します。",
-        ('*', '{len_removed} EMPTY removed: {removed}'): "{len_removed} 個の EMPTY を削除しました: {removed}",
-        ('*', 'No unnecessary EMPTY was found.'): "不要な EMPTY はありませんでした",
+        ('Operator', 'Register Spring Bone'): "Springbone.json を登録",
+        ('*', "Registers the collider and swing object settings to the skeleton based on the information in the specified springbone.json. Since this function is automatically called in 'Preparation before VRM export', it is usually not necessary to use this function."): "指定した springbone.json の情報を元にコライダと揺れ物の設定をスケルトンに登録します。「VRM 出力前の準備」で自動的に呼ばれるため、通常は使う必要はありません",
+        ('*', '{sb_json} information has been registered.'): "{sb_json}の情報を登録しました。",
         ('Operator', 'Preparation before VRM export'): "VRM 出力前の準備",
         ('*', 'To export the VRM, merge the meshes, dissolve unwanted bones, clean up the weights, and set the blendshapes.'): "VRM を出力するために、メッシュをマージし、不要な骨を溶解し、ウェイトのクリーンアップを行い、ブレンドシェイプの設定を行います",
         ('Operator', 'Open VRM_Addon_for_Blender page'): "VRM_Addon_for_Blender のページを開く",

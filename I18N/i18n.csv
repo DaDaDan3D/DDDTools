@@ -1,4 +1,5 @@
 context,key,en_US,ja_JP,source_file,source_line,memo
+,An error has occurred. See console for details.,An error has occurred. See console for details.,エラーが発生しました。詳細はコンソールを参照してください。,,,汎用エラーメッセージ
 ,Bone Name,Bone Name,ボーンの名前,UI_BoneTool.py,21,
 ,The name of the bone to be created.,The name of the bone to be created.,作成するボーンに付ける名前です,UI_BoneTool.py,22,
 Operator,Rename Child Bones,Rename Child Bones,子ボーンをリネーム,UI_BoneTool.py,29,
@@ -211,10 +212,9 @@ Operator,Empty to Collider,Empty to Collider,エンプティのコライダ化,U
 ,Sets the currently selected empties as children of the currently selected bones of the active skeleton.,Sets the currently selected empties as children of the currently selected bones of the active skeleton.,選択中のエンプティを、アクティブなスケルトンの選択中のボーンの子として設定します,UI_VRMTool.py,250,
 Operator,Create a mirror of the collider,Create a mirror of the collider,コライダのミラーを作成,UI_VRMTool.py,279,
 ,Creates a mirror of the currently selected collider.,Creates a mirror of the currently selected collider.,選択中のコライダのミラーを作成します,UI_VRMTool.py,280,
-Operator,Remove unnecessary empties,Remove unnecessary empties,不要エンプティ削除,UI_VRMTool.py,302,
-,Forces the removal of EMPTY of the specified skeleton's children that will not disappear after manual removal.,Forces the removal of EMPTY of the specified skeleton's children that will not disappear after manual removal.,指定したスケルトンの子の、手動で削除しても消えない EMPTY を強制的に削除します。,UI_VRMTool.py,303,
-,{len_removed} EMPTY removed: {removed},{len_removed} EMPTY removed: {removed},{len_removed} 個の EMPTY を削除しました: {removed},UI_VRMTool.py,316,
-,No unnecessary EMPTY was found.,No unnecessary EMPTY was found.,不要な EMPTY はありませんでした,UI_VRMTool.py,322,
+Operator,Register Spring Bone,Register Spring Bone,Springbone.json を登録,UI_VRMTool.py,302,
+,"Registers the collider and swing object settings to the skeleton based on the information in the specified springbone.json. Since this function is automatically called in 'Preparation before VRM export', it is usually not necessary to use this function.","Registers the collider and swing object settings to the skeleton based on the information in the specified springbone.json. Since this function is automatically called in 'Preparation before VRM export', it is usually not necessary to use this function.",指定した springbone.json の情報を元にコライダと揺れ物の設定をスケルトンに登録します。「VRM 出力前の準備」で自動的に呼ばれるため、通常は使う必要はありません,UI_VRMTool.py,303,
+,{sb_json} information has been registered.,{sb_json} information has been registered.,{sb_json}の情報を登録しました。,UI_VRMTool.py,321,
 Operator,Preparation before VRM export,Preparation before VRM export,VRM 出力前の準備,UI_VRMTool.py,328,
 ,"To export the VRM, merge the meshes, dissolve unwanted bones, clean up the weights, and set the blendshapes.","To export the VRM, merge the meshes, dissolve unwanted bones, clean up the weights, and set the blendshapes.",VRM を出力するために、メッシュをマージし、不要な骨を溶解し、ウェイトのクリーンアップを行い、ブレンドシェイプの設定を行います,UI_VRMTool.py,329,
 Operator,Open VRM_Addon_for_Blender page,Open VRM_Addon_for_Blender page,VRM_Addon_for_Blender のページを開く,UI_VRMTool.py,384,

@@ -18,6 +18,10 @@ class DDDVT_MaterialListItem(PropertyGroup):
 
 ################
 class DDDVT_propertyGroup(PropertyGroup):
+    display_registerSpringBone_settings: BoolProperty(
+        name='RegisterSpringBoneSettings',
+        default=True)
+
     display_colliderTools: BoolProperty(
         name='ColliderTools',
         default=True)
@@ -269,6 +273,8 @@ class DDDVT_OT_setEmptyAsCollider(Operator):
                                           symmetrize=prop.symmetrize)
                 except:
                     traceback.print_exc()
+                    self.report({'ERROR'},
+                                iface_('An error has occurred. See console for details.'))
                     return {'CANCELLED'}
                     
         return {'FINISHED'}
@@ -292,35 +298,40 @@ class DDDVT_OT_duplicateColliderAsMirror(Operator):
                     vt.duplicateColliderAsMirror(iu.ObjectWrapper(obj))
                 except:
                     traceback.print_exc()
+                    self.report({'ERROR'},
+                                iface_('An error has occurred. See console for details.'))
                     return {'CANCELLED'}
                     
         return {'FINISHED'}
 
 ################
-class DDDVT_OT_removeAllUneditableEmptyChildren(Operator):
-    bl_idname = 'dddvt.remove_all_uneditable_empty_children'
-    bl_label = _('Remove unnecessary empties')
-    bl_description = _("Forces the removal of EMPTY of the specified skeleton's children that will not disappear after manual removal.")
+class DDDVT_OT_registerSpringBone(Operator):
+    bl_idname = 'dddvt.register_spring_bone'
+    bl_label = _('Register Spring Bone')
+    bl_description = _("Registers the collider and swing object settings to the skeleton based on the information in the specified springbone.json. Since this function is automatically called in 'Preparation before VRM export', it is usually not necessary to use this function.")
     bl_options = {'UNDO'}
 
     @classmethod
     def poll(self, context):
         prop = context.scene.dddtools_vt_prop
-        return prop.skeleton and prop.skeleton.type=='ARMATURE'
+        return prop.skeleton and prop.skeleton.type=='ARMATURE' and\
+            vt.getAddon() and prop.sb_json
 
     def execute(self, context):
         prop = context.scene.dddtools_vt_prop
-        removed = vt.removeAllUneditableEmptyChildren(prop.skeleton)
-        if removed:
+        try:
+            vt.migrateSpringBone(iu.ObjectWrapper(prop.skeleton), prop.sb_json.name)
             self.report({'INFO'},
-                        iface_('{len_removed} EMPTY removed: {removed}').format(
-                            len_removed=len(removed),
-                            removed=str(removed)))
-            return {'FINISHED'}
-        else:
-            self.report({'INFO'},
-                        iface_('No unnecessary EMPTY was found.'))
+                        iface_('{sb_json} information has been registered.').format(
+                            sb_json=prop.sb_json.name))
+
+        except:
+            traceback.print_exc()
+            self.report({'ERROR'},
+                        iface_('An error has occurred. See console for details.'))
             return {'CANCELLED'}
+
+        return {'FINISHED'}
 
 ################
 class DDDVT_OT_prepareToExportVRM(Operator):
@@ -478,8 +489,7 @@ class DDDVT_PT_VRMTool(Panel):
         display, split = ui.splitSwitch(layout, prop, 'display_colliderTools')
         split.label(text=iface_('Collider related'))
         if display:
-            col = layout.box().column()
-            col.operator(DDDVT_OT_removeAllUneditableEmptyChildren.bl_idname)
+            col = layout.box().column(align=True)
 
             # setEmptyAsCollider
             display, split = ui.splitSwitch(col, prop, 'display_setEmptyAsCollider_settings')
@@ -493,7 +503,7 @@ class DDDVT_PT_VRMTool(Panel):
             display, split = ui.splitSwitch(col, prop, 'display_addCollider_settings')
             split.operator(DDDVT_OT_addCollider.bl_idname)
             if display:
-                box = col.box().column(align=True)
+                box = col.box().column()
                 box.prop_search(prop, 'mesh', context.blend_data, 'objects')
 
             col.operator(DDDVT_OT_duplicateColliderAsMirror.bl_idname)
@@ -504,13 +514,12 @@ class DDDVT_PT_VRMTool(Panel):
         if display:
             col = layout.box().column(align=True)
             if vt.getAddon():
-                col.prop(prop, 'triangulate')
                 col.prop_search(prop, 'bs_json', context.blend_data, 'texts')
-                col.prop_search(prop, 'sb_json', context.blend_data, 'texts')
                 if prop.skeleton:
                     col.prop_search(prop, 'notExportBoneGroup', prop.skeleton.pose,
                                     'bone_groups')
                 col.prop(prop, 'mergedName')
+                col.prop(prop, 'triangulate')
                 col.prop(prop, 'saveAsExport')
                 col.prop(prop, 'sortMaterialSlot')
                 col.prop(prop, 'removeUnusedMaterialSlots')
@@ -538,6 +547,14 @@ class DDDVT_PT_VRMTool(Panel):
                     box.separator()
                     box.operator(DDDVT_OT_RemoveTransparentPolygons.bl_idname)
 
+                # スプリングボーンツール
+                col.separator
+                display, split = ui.splitSwitch(col, prop, 'display_registerSpringBone_settings')
+                split.operator(DDDVT_OT_registerSpringBone.bl_idname)
+                if display:
+                    box = col.box().column()
+                    box.prop_search(prop, 'sb_json', context.blend_data, 'texts')
+
             else:
                 col.label(text=iface_('VRM_Addon_for_Blender is not installed.'),
                           icon='INFO')
@@ -550,7 +567,7 @@ classes = (
     DDDVT_OT_addCollider,
     DDDVT_OT_setEmptyAsCollider,
     DDDVT_OT_duplicateColliderAsMirror,
-    DDDVT_OT_removeAllUneditableEmptyChildren,
+    DDDVT_OT_registerSpringBone,
     DDDVT_OT_prepareToExportVRM,
     DDDVT_OT_openAddonPage,
     DDDVT_UL_MaterialList,
