@@ -124,6 +124,42 @@ class DDDBT_OT_createMeshFromSelectedBones(Operator):
             return {'CANCELLED'}
 
 ################
+class DDDBT_OT_selectAncestralBones(Operator):
+    bl_idname = 'dddbt.select_root_bones'
+    bl_label = _('Select Ancestral Bones')
+    bl_description = _('Select bones that are not related to each other by parent-child relationship. In other words, select only the bones that are closest to the ancestors of the selected bones.')
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        return bt.get_selected_bone_names()
+
+    def execute(self, context):
+        arma = iu.ObjectWrapper(bpy.context.active_object)
+        selected_bones = bt.get_selected_bone_names()
+        ancestral_bones = bt.get_ancestral_bones(arma, selected_bones)
+        bt.select_bones(arma, ancestral_bones)
+        return {'FINISHED'}
+
+################
+class DDDBT_OT_printSelectedBoneNamess(Operator):
+    bl_idname = 'dddbt.print_selected_bone_names'
+    bl_label = _('Print Selected Bone Names')
+    bl_description = _('Enumerate the name of the selected bone in the information.')
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        return bt.get_selected_bone_names()
+
+    def execute(self, context):
+        selected_bones = bt.get_selected_bone_names()
+        self.report({'INFO'},
+                    iface_('Selected bones are: {selected_bones}').format(
+                        selected_bones=sorted(selected_bones)))
+        return {'FINISHED'}
+
+################
 class DDDBT_PT_BoneTool(Panel):
     bl_idname = 'BT_PT_BoneTool'
     bl_label = 'BoneTool'
@@ -135,6 +171,8 @@ class DDDBT_PT_BoneTool(Panel):
         prop = context.scene.dddtools_bt_prop
         layout = self.layout
         col = layout.column(align=True)
+        col.operator(DDDBT_OT_selectAncestralBones.bl_idname)
+        col.operator(DDDBT_OT_printSelectedBoneNamess.bl_idname)
         col.operator(DDDBT_OT_renameChildBonesWithNumber.bl_idname)
         col.operator(DDDBT_OT_resetStretchTo.bl_idname)
         col.operator(DDDBT_OT_applyArmatureToRestPose.bl_idname)
@@ -154,6 +192,8 @@ classes = (
     DDDBT_OT_applyArmatureToRestPose,
     DDDBT_OT_createArmatureFromSelectedEdges,
     DDDBT_OT_createMeshFromSelectedBones,
+    DDDBT_OT_selectAncestralBones,
+    DDDBT_OT_printSelectedBoneNamess,
     DDDBT_PT_BoneTool,
 )
 

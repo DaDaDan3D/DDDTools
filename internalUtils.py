@@ -74,9 +74,9 @@ class EditBoneWrapper:
     def select_set(self, tf):
         obj = self.obj
         if obj:
-            obj.select = True
-            obj.select_head = True
-            obj.select_tail = True
+            obj.select = tf
+            obj.select_head = tf
+            obj.select_tail = tf
 
     def rename(self, newName):
         obj = self.obj

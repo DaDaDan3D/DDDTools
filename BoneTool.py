@@ -365,3 +365,43 @@ Vertex weights are also set appropriately.
     del modeChanger
 
     return obj
+
+################
+# 現在選択されているボーンの名前を得る
+def get_selected_bone_names():
+    armature = bpy.context.active_object
+    if not armature or armature.type != 'ARMATURE':
+        return None
+
+    if armature.mode == 'POSE':
+        return [b.name for b in armature.data.bones if b.select]
+    elif armature.mode == 'EDIT':
+        return [b.name for b in armature.data.edit_bones if b.select]
+    else:
+        return None
+
+################
+# 指定したボーンだけを選択した状態にする
+def select_bones(arma, selectBoneNames):
+    modeChanger = iu.ModeChanger(arma.obj, 'EDIT')
+    for bone in arma.obj.data.edit_bones:
+        iu.EditBoneWrapper(bone).select_set(bone.name in selectBoneNames)
+    del modeChanger
+
+################
+# boneNames の中で、最も先祖に近い骨達だけを得る
+def get_ancestral_bones(arma, boneNames):
+    bones_left = set(boneNames)
+    result = set(boneNames)
+
+    while bones_left:
+        boneName = bones_left.pop()
+        bone = arma.obj.data.bones.get(boneName)
+        if not bone:
+            result -= boneName
+        else:
+            children = set([b.name for b in bone.children_recursive])
+            result -= children
+            bones_left -= children
+
+    return result
