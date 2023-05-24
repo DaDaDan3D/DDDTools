@@ -30,22 +30,22 @@ class DDDMT_propertyGroup(PropertyGroup):
         default=True)
     orderList: CollectionProperty(
         type=DDDMT_MaterialListItem,
-        name=_('マテリアル順指定リスト'),
-        description=_('マテリアルをソートする時に順番を指定するためのリスト'),
+        name=_('Material Order Specification List'),
+        description=_('A list to specify the order when sorting materials.'),
     )
     orderList_index: IntProperty()
 
     materialSelectorForOrderList: PointerProperty(
         type=bpy.types.Material,
-        name=_('マテリアル選択'),
-        description=_('マテリアル順指定リストに追加するマテリアルを選択します'),
+        name=_('Material Selector'),
+        description=_('Select the material to be added to the material order list.'),
     )
 
 ################################################################
 class DDDMT_OT_reloadTexture(Operator):
     bl_idname = 'dddmt.reload_texture'
-    bl_label = _('テクスチャのリロード')
-    bl_description = _('指定したテクスチャをリロードします')
+    bl_label = _('Reload Texture')
+    bl_description = _('Reloads the specified texture.')
 
     @classmethod
     def poll(self, context):
@@ -61,8 +61,8 @@ class DDDMT_OT_reloadTexture(Operator):
 ################################################################
 class DDDMT_OT_selectAllObjectsUsingTexture(Operator):
     bl_idname = 'dddmt.select_all_objects_using_texture'
-    bl_label = _('オブジェクト選択')
-    bl_description = _('指定したテクスチャを使用しているオブジェクトを選択します')
+    bl_label = _('Select Objects')
+    bl_description = _('Selects objects that use the specified texture.')
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -79,8 +79,8 @@ class DDDMT_OT_selectAllObjectsUsingTexture(Operator):
 ################################################################
 class DDDMT_OT_selectAllImageNodesUsingTexture(Operator):
     bl_idname = 'dddmt.select_all_image_nodes_using_texture'
-    bl_label = _('シェーダーノード選択')
-    bl_description = _('指定したテクスチャを使用しているイメージシェーダーノードを選択状態にします')
+    bl_label = _('Select Shader Nodes')
+    bl_description = _('Makes the image shader node that uses the specified texture selected.')
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -97,8 +97,8 @@ class DDDMT_OT_selectAllImageNodesUsingTexture(Operator):
 ################################################################
 class DDDMT_OT_listupAllMaterialsUsingTexture(Operator):
     bl_idname = 'dddmt.listup_all_materials_using_texture'
-    bl_label = _('マテリアル列挙')
-    bl_description = _('指定したテクスチャを使用しているマテリアルをコンソールに列挙します')
+    bl_label = _('Enumerate Materials')
+    bl_description = _('Enumerates the materials using the specified texture in the console.')
     bl_options = {'REGISTER'}
 
     @classmethod
@@ -112,12 +112,12 @@ class DDDMT_OT_listupAllMaterialsUsingTexture(Operator):
             mats = mt.listupAllMaterialsUsingTexture(prop.texture.name)
             if mats:
                 self.report({'INFO'},
-                            iface_('テクスチャ({prop_texture_name})を使用しているマテリアルは{sorted_mats}です').format(
+                            iface_('Material using texture ({prop_texture_name}) is {sorted_mats}.').format(
                                 prop_texture_name=prop.texture.name,
                                 sorted_mats=str(sorted(mats))))
             else:
                 self.report({'INFO'},
-                            iface_('テクスチャ({prop_texture_name})を使用しているマテリアルはありません').format(
+                            iface_('No material using texture ({prop_texture_name}).').format(
                                 prop_texture_name=prop.texture.name))
 
         return{'FINISHED'}
@@ -125,8 +125,8 @@ class DDDMT_OT_listupAllMaterialsUsingTexture(Operator):
 ################################################################
 class DDDMT_OT_setupMaterialContainerObject(Operator):
     bl_idname = 'dddmt.setup_material_container_object'
-    bl_label = _('全マテリアルを設定')
-    bl_description = _('指定したテクスチャを使用している全マテリアルを、アクティブなメッシュオブジェクトに登録します')
+    bl_label = _('Setup All Materials')
+    bl_description = _('Sets all materials using the specified texture to the active mesh object.')
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -148,8 +148,8 @@ class DDDMT_OT_setupMaterialContainerObject(Operator):
 ################################################################
 class DDDMT_OT_selectAllObjectsUsingMaterial(Operator):
     bl_idname = 'dddmt.select_all_objects_using_material'
-    bl_label = _('オブジェクト選択')
-    bl_description = _('指定したマテリアルを使用しているオブジェクトを選択します')
+    bl_label = _('Select Objects')
+    bl_description = _('Selects objects using the specified material.')
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -166,8 +166,8 @@ class DDDMT_OT_selectAllObjectsUsingMaterial(Operator):
 ################################################################
 class DDDMT_OT_listupAllObjectsUsingMaterial(Operator):
     bl_idname = 'dddmt.listup_all_objects_using_material'
-    bl_label = _('オブジェクト列挙')
-    bl_description = _('指定したマテリアルを使用しているオブジェクトをコンソールに列挙します')
+    bl_label = _('Enumerate Objects')
+    bl_description = _('Enumerates objects using the specified material in the console.')
     bl_options = {'REGISTER'}
 
     @classmethod
@@ -181,12 +181,12 @@ class DDDMT_OT_listupAllObjectsUsingMaterial(Operator):
             objs = mt.listupAllObjectsUsingMaterial(prop.material.name)
             if objs:
                 self.report({'INFO'},
-                            iface_('マテリアル({prop_material_name})を使用しているオブジェクトは{sorted_objs}です').format(
+                            iface_('Objects using material ({prop_material_name}) are {sorted_objs}.').format(
                                 prop_material_name=prop.material.name,
                                 sorted_objs=str(sorted(objs))))
             else:
                 self.report({'INFO'},
-                            iface_('マテリアル({prop_material_name})を使用しているオブジェクトはありません').format(
+                            iface_('No objects using material ({prop_material_name}).').format(
                                 prop_material_name=prop.material.name))
         return{'FINISHED'}
 
@@ -202,8 +202,8 @@ class DDDMT_UL_materialList(UIList):
 ################
 class DDDMT_OT_addMaterialToOrderList(Operator):
     bl_idname = 'dddmt.add_material_to_order_list'
-    bl_label = _('マテリアル追加')
-    bl_description = _('マテリアル順指定リストに、ドロップダウンで選択しているマテリアルを追加します')
+    bl_label = _('Add Material')
+    bl_description = _('Add the material selected in the drop-down to the material order list.')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -224,8 +224,8 @@ class DDDMT_OT_addMaterialToOrderList(Operator):
 ################
 class DDDMT_OT_removeMaterialFromOrderList(Operator):
     bl_idname = 'dddmt.remove_material_from_order_list'
-    bl_label = _('マテリアル削除')
-    bl_description = _('マテリアル順指定リストで選択中のマテリアルを削除します')
+    bl_label = _('Remove Material')
+    bl_description = _('Removes the currently selected material in the material order list.')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -246,14 +246,14 @@ class DDDMT_OT_removeMaterialFromOrderList(Operator):
 ################
 class DDDMT_OT_moveMaterialInOrderList(Operator):
     bl_idname = 'dddmt.move_material_in_order_list'
-    bl_label = _('マテリアル移動')
-    bl_description = _('マテリアル順指定リストで選択中のマテリアルの位置を移動します')
+    bl_label = _('Move Material')
+    bl_description = _('Moves the position of the currently selected material in the material order list.')
     bl_options = {'UNDO'}
 
-    direction: EnumProperty(items=[('UP', 'Up', _('選択中のマテリアルを上に移動')),
-                                   ('DOWN', 'Down', _('選択中のマテリアルを下に移動')),
-                                   ('TOP', 'Top', _('選択中のマテリアルを一番上に移動')),
-                                   ('BOTTOM', 'Bottom', _('選択中のマテリアルを一番下に移動'))])
+    direction: EnumProperty(items=[('UP', 'Up', _('Move selected material up.')),
+                                   ('DOWN', 'Down', _('Move selected material down.')),
+                                   ('TOP', 'Top', _('Move selected material to the top.')),
+                                   ('BOTTOM', 'Bottom', _('Move selected material to the bottom.'))])
 
     def execute(self, context):
         prop = context.scene.dddtools_mt_prop
@@ -276,8 +276,8 @@ class DDDMT_OT_moveMaterialInOrderList(Operator):
 ################
 class DDDMT_OT_sortMaterialSlots(Operator):
     bl_idname = 'dddmt.sort_material_slots'
-    bl_label = _('マテリアルのソート')
-    bl_description = _('選択中のオブジェクトのマテリアルスロットを、指定順にソートします。マテリアル順指定リストに含まれるマテリアルをリストの順で→それ以外のマテリアルを名前順で、という順に並べます')
+    bl_label = _('Sort Materials')
+    bl_description = _('Sorts the material slots of the selected object in the order specified. Materials in the material order list are sorted in the order of the list, other materials are sorted by name, and so on.')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -302,13 +302,13 @@ class DDDMT_PT_MaterialTool(Panel):
 
     def draw(self, context):
         prop = context.scene.dddtools_mt_prop
-        layout = self.layout
+        layout = self.layout.column(translate=True)
 
         # TextureTools
         display, split = ui.splitSwitch(layout, prop, 'display_texture_tools')
-        split.label(text=iface_('テクスチャ関係'))
+        split.label(text=iface_('Texture related'))
         if display:
-            col = layout.box().column(align=True)
+            col = layout.box().column(align=True, translate=True)
 
             split = col.split(factor=0.8, align=True)
             split.prop_search(prop, 'texture', context.blend_data, 'images')
@@ -322,7 +322,7 @@ class DDDMT_PT_MaterialTool(Panel):
 
         # MaterialTools
         display, split = ui.splitSwitch(layout, prop, 'display_material_tools')
-        split.label(text=iface_('マテリアル関係'))
+        split.label(text=iface_('Material related'))
         if display:
             col = layout.box().column(align=True)
             col.prop_search(prop, 'material', context.blend_data, 'materials')
@@ -335,7 +335,7 @@ class DDDMT_PT_MaterialTool(Panel):
         if display:
             col = layout.box().column(align=True)
 
-            col.label(text=iface_('マテリアル順指定リスト'))
+            col.label(text=iface_('Material Order Specification List'))
 
             # Draw material list
             row = col.row()

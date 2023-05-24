@@ -20,30 +20,30 @@ from bpy.app.translations import pgettext_iface as iface_
 ################################################################
 class DDDET_OT_selectDividingLoops(Operator):
     bl_idname = 'dddet.select_dividing_loops'
-    bl_label = _('分割線の選択')
-    bl_description = _('選択メッシュの分割線を選択します')
+    bl_label = _('Select Dividing Loops')
+    bl_description = _('Select the dividing loops of the active mesh.')
     bl_options = {'REGISTER', 'UNDO'}
 
     excludeSeam: BoolProperty(
-        name=_('シーム'),
-        description=_('シームは選択しません'),
+        name=_('Seam'),
+        description=_('Seams will no longer be selected.'),
         default=True,
     )
 
     excludeSharp: BoolProperty(
-        name=_('シャープ'),
-        description=_('シャープは選択しません'),
+        name=_('Sharp'),
+        description=_('Sharps will no longer be selected.'),
         default=True,
     )
 
     excludeBevelWeight: BoolProperty(
-        name=_('ベベルウェイト'),
-        description=_('ベベルウェイトを除外するかどうか'),
+        name=_('Bevel Weight'),
+        description=_('Whether to refer to bevel weights.'),
         default=False,
     )
     bevelWeight: FloatProperty(
-        name=_('ベベルウェイト'),
-        description=_('ベベルウェイトがこれ以上の辺は選択しません'),
+        name=_('Bevel Weight'),
+        description=_('If the bevel weights of the edges are higher than this, they are not selected.'),
         default=1.0,
         min=0.0,
         max=1.0,
@@ -53,13 +53,13 @@ class DDDET_OT_selectDividingLoops(Operator):
     )
 
     excludeCrease: BoolProperty(
-        name=_('クリース'),
-        description=_('クリースを除外するかどうか'),
+        name=_('Crease'),
+        description=_('Whether to refer to crease.'),
         default=True,
     )
     crease: FloatProperty(
-        name=_('クリース'),
-        description=_('クリースがこれ以上の辺は選択しません'),
+        name=_('Crease'),
+        description=_('If the crease of the edges are higher than this, they are not selected.'),
         default=1.0,
         min=0.0,
         max=1.0,
@@ -69,13 +69,13 @@ class DDDET_OT_selectDividingLoops(Operator):
     )
 
     excludeFaceAngle: BoolProperty(
-        name=_('面の角度'),
-        description=_('鋭角な面を除外するかどうか'),
+        name=_('Face Angle'),
+        description=_('Whether to exclude sharp-edged surfaces.'),
         default=False,
     )
     faceAngle: FloatProperty(
-        name=_('面の角度'),
-        description=_('面の角度がこれ以上の辺は選択しません'),
+        name=_('Face Angle'),
+        description=_('No edge with a face angle larger than this will be selected.'),
         default=math.radians(30),
         min=0.0,
         max=math.pi,
@@ -86,14 +86,14 @@ class DDDET_OT_selectDividingLoops(Operator):
 
     randomSeed: IntProperty(
         name = 'Random Seed',
-        description = _('選択に使う乱数の種です'),
+        description = _('Random number seeds for selection.'),
         default=0,
         min=0
     )
 
     ratio: FloatProperty(
-        name=_('選択率'),
-        description=_('分割線を選択する割合です'),
+        name=_('Selection Rate'),
+        description=_('The rate at which the dividing line is selected.'),
         default=1.0,
         min=0.0,
         max=1.0,
@@ -104,23 +104,23 @@ class DDDET_OT_selectDividingLoops(Operator):
 
     mirrorX: BoolProperty(
         name='X',
-        description=_('ループ決定後、X方向のミラー選択を追加で実行します'),
+        description=_('After loop determination, perform additional mirror selection in X direction.'),
         default=False,
     )
     mirrorY: BoolProperty(
         name='Y',
-        description=_('ループ決定後、Y方向のミラー選択を追加で実行します'),
+        description=_('After loop determination, perform additional mirror selection in Y direction.'),
         default=False,
     )
     mirrorZ: BoolProperty(
         name='Z',
-        description=_('ループ決定後、Z方向のミラー選択を追加で実行します'),
+        description=_('After loop determination, perform additional mirror selection in Z direction.'),
         default=False,
     )
 
     dissolve: BoolProperty(
-        name=_('辺の溶解'),
-        description=_('選択後、自動的に辺を溶解します'),
+        name=_('Dissolve Edge'),
+        description=_('After selection, the edges are automatically dissolved.'),
         default=False,
     )
 
@@ -136,7 +136,7 @@ class DDDET_OT_selectDividingLoops(Operator):
         layout = self.layout
 
         box = layout.box()
-        box.label(text=iface_('除外'))
+        box.label(text=iface_('Exclude'))
         column = box.column()
         row = column.row()
         row.prop(self, 'excludeSeam')
@@ -165,20 +165,20 @@ class DDDET_OT_selectDividingLoops(Operator):
         layout.separator()
 
         box = layout.box()
-        box.label(text=iface_('選択'))
+        box.label(text=iface_('Selection'))
         column = box.column()
         column.prop(self, 'randomSeed')
         column.prop(self, 'ratio')
         row = column.row()
-        row.label(text=iface_('{self_lastSelected} / {self_lastFound} の分割線を選択しました').format(self_lastSelected=self.lastSelected, self_lastFound=self.lastFound), icon='INFO')
+        row.label(text=iface_('{self_lastSelected} / {self_lastFound} dividing loops are selected.').format(self_lastSelected=self.lastSelected, self_lastFound=self.lastFound), icon='INFO')
 
         layout.separator()
 
         box = layout.box()
-        box.label(text=iface_('自動実行'))
+        box.label(text=iface_('Auto-Execution'))
         column = box.column()
         split = column.split(factor=0, align=True)
-        split.label(text=iface_('ミラー選択'))
+        split.label(text=iface_('Mirror Select'))
         row = split.row()
         row.prop(self, 'mirrorX')
         row.prop(self, 'mirrorY')
@@ -249,7 +249,7 @@ def calcCenterOfSphereFromSelectedVertices():
     
     try:
         if len(verts) < 4:
-            raise ValueError(iface_('4つ以上の頂点を選択してください。現在{len_verts}個の頂点が選択されています。').format(len_verts=len(verts)))
+            raise ValueError(iface_('Please select 4 or more vertices. Currently {len_verts} vertices are selected.').format(len_verts=len(verts)))
         elif len(verts) == 4:
             result = mu.calcCircumcenter(np.array(verts))
         else:
@@ -262,21 +262,21 @@ def calcCenterOfSphereFromSelectedVertices():
     
 class DDDET_OT_addApproximateSphere(Operator):
     bl_idname = 'dddet.add_approximate_sphere'
-    bl_label = _('近似球の追加')
-    bl_description = _('選択した頂点群に近似した球を追加します')
+    bl_label = _('Add Approximate Sphere')
+    bl_description = _('Adds a sphere approximating the selected vertices.')
     bl_options = {'REGISTER', 'UNDO'}
 
     segments: IntProperty(
-        name=_('セグメント'),
-        description=_('追加する球のセグメントの数を指定します'),
+        name=_('Segments'),
+        description=_('Specifies the number of sphere segments to be added.'),
         min=3,
         max=500,
         default=32,
     )
 
     ring_count: IntProperty(
-        name=_('リング'),
-        description=_('追加する球のリングの数を指定します'),
+        name=_('Rings'),
+        description=_('Specifies the number of sphere rings to be added.'),
         min=3,
         max=500,
         default=16,
@@ -303,7 +303,7 @@ class DDDET_OT_addApproximateSphere(Operator):
             return {'FINISHED'}
         else:
             self.report({'WARNING'},
-                        iface_('球を追加できませんでした。詳細はログを参照してください'))
+                        iface_('Could not add sphere. See log for details.'))
             return {'CANCELLED'}
 
     def invoke(self, context, event):
@@ -313,8 +313,8 @@ class DDDET_OT_addApproximateSphere(Operator):
 ################################################################
 class DDDET_OT_addApproximateEmpty(Operator):
     bl_idname = 'dddet.add_approximate_empty'
-    bl_label = _('エンプティ球の追加')
-    bl_description = _('選択した頂点群に近似したEMPTY球を追加します')
+    bl_label = _('Add Empty Sphere')
+    bl_description = _('Adds an EMPTY sphere that approximates the selected vertices.')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -334,14 +334,14 @@ class DDDET_OT_addApproximateEmpty(Operator):
             return {'FINISHED'}
         else:
             self.report({'WARNING'},
-                        iface_('エンプティ球を追加できませんでした。詳細はログを参照してください'))
+                        iface_('Empty sphere could not be added. See log for details.'))
             return {'CANCELLED'}
 
 ################################################################
 class DDDET_OT_convertEmptyAndSphere(Operator):
     bl_idname = 'dddet.convert_empty_and_sphere'
-    bl_label = _('エンプティとメッシュの相互変換')
-    bl_description = _('選択中のオブジェクトがメッシュならエンプティ球に、エンプティ球ならメッシュに変換します')
+    bl_label = _('Inter-Convert Mesh and Empty')
+    bl_description = _('Converts the selected object to an empty sphere if it is a mesh, or to a mesh if it is an empty sphere.')
     bl_options = {'UNDO'}
 
     @classmethod
@@ -362,7 +362,7 @@ class DDDET_OT_convertEmptyAndSphere(Operator):
                     sphereObjects.append(sphere)
         if sphereObjects or emptyObjects:
             self.report({'INFO'},
-                        iface_('{len_sphereObjects} 個のエンプティと {len_emptyObjects} 個のメッシュを変換しました: {sphereObjects} {emptyObjects}').format(
+                        iface_('Converted {len_sphereObjects} empties and {len_emptyObjects} meshes: {sphereObjects} {emptyObjects}.').format(
                             len_sphereObjects=len(sphereObjects),
                             len_emptyObjects=len(emptyObjects),
                             sphereObjects=str(sphereObjects),
@@ -372,7 +372,7 @@ class DDDET_OT_convertEmptyAndSphere(Operator):
             return {'FINISHED'}
         else:
             self.report({'INFO'},
-                        iface_('変換できるオブジェクトはありませんでした'))
+                        iface_('No objects were found that could be converted.'))
             return {'CANCELLED'}
 
 ################################################################
