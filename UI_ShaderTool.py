@@ -390,8 +390,7 @@ class DDDST_PT_mainPanel(Panel):
         else:
             split.prop(prop, 'display_calcSpecular_settings',
                        text='', icon='RIGHTARROW')
-        split.operator(DDDST_OT_calcSpecularFromIOR.bl_idname,
-                       text=iface_('Calculate Specular'))
+        split.operator(DDDST_OT_calcSpecularFromIOR.bl_idname)
         if prop.display_calcSpecular_settings:
             col = layout.box().column(align=True)
             col.prop(prop, 'ior')

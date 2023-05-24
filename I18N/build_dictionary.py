@@ -51,11 +51,18 @@ def build_dictionary():
 #
 ################################################################
 
-translations_dict = """        
+translations_dict = {
+"""
         f.write(header_str)
         
-        dict_str = str(translations_dict)
-        f.write(dict_str)
+        for locale, local_dict in translations_dict.items():
+            f.write(f"    '{locale}': {{\n")
+            for key, msg in local_dict.items():
+                f.write(f'        {key}: "{msg}",\n')
+            f.write('    },\n')
+
+        f.write('}\n')
+
     print('done.')
 
 if __name__ == '__main__':
