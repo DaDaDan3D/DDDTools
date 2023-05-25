@@ -723,9 +723,11 @@ def center_vertex_triangulate(obj, mean_func=mu.arithmetic_centroid_of_polygon):
         for loop in face.loops:
             verts = [new_vert, loop.vert, loop.link_loop_next.vert]
             uvs = [uv_center, loop[uv_layer].uv, loop.link_loop_next[uv_layer].uv]
+            pin_uvs = [False, loop[uv_layer].pin_uv, loop.link_loop_next[uv_layer].pin_uv]
             new_face = bm.faces.new(verts)
-            for l, uv in zip(new_face.loops, uvs):
+            for l, uv, pin_uv in zip(new_face.loops, uvs, pin_uvs):
                 l[uv_layer].uv = uv
+                l[uv_layer].pin_uv = pin_uv
 
             # Copy face attributes
             for attr in ['hide', 'material_index', 'select', 'smooth']:
