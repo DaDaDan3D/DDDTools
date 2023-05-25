@@ -190,6 +190,8 @@ translations_dict = {
         ('*', 'Triangulates polygons.'): "ポリゴンを三角化します",
         ('*', 'Blendshape.json'): "ブレンドシェイプを定義する.jsonテキスト",
         ('*', 'Springbone.json'): "スプリングボーンを定義する.jsonテキスト",
+        ('*', 'Remove unwanted empties'): "不要なエンプティを削除する",
+        ('*', 'Removes any remaining internal uneditable empties when registering Springbone.json. Normally this should be checked as it affects the collider.'): "Springbone.json を登録する際、内部に残った編集不能なエンプティを削除します。コライダに影響があるため、通常はチェックを付けておいてください",
         ('*', 'Not Export Bone Groups'): "出力しないボーングループ",
         ('*', 'The specified bone group is not output and is dissolved.'): "指定したボーングループは出力せず、溶解します。",
         ('*', 'Name for merged mesh'): "マージしたメッシュに付ける名前",

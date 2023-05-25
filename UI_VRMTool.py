@@ -76,6 +76,12 @@ class DDDVT_propertyGroup(PropertyGroup):
         description=_('Springbone.json'),
         type=Text,
     )
+    
+    removeEmpty: BoolProperty(
+        name=_('Remove unwanted empties'),
+        description=_('Removes any remaining internal uneditable empties when registering Springbone.json. Normally this should be checked as it affects the collider.'),
+        default=True,
+    )
 
     notExportBoneGroup: StringProperty(
         name=_('Not Export Bone Groups'),
@@ -320,7 +326,7 @@ class DDDVT_OT_registerSpringBone(Operator):
     def execute(self, context):
         prop = context.scene.dddtools_vt_prop
         try:
-            vt.migrateSpringBone(iu.ObjectWrapper(prop.skeleton), prop.sb_json.name)
+            vt.migrateSpringBone(iu.ObjectWrapper(prop.skeleton), prop.sb_json.name, prop.removeEmpty)
             self.report({'INFO'},
                         iface_('{sb_json} information has been registered.').format(
                             sb_json=prop.sb_json.name))
@@ -372,6 +378,7 @@ class DDDVT_OT_prepareToExportVRM(Operator):
                                            excludeMaterials=excludeMaterials,
                                            bs_json=prop.bs_json.name,
                                            sb_json=sb_json,
+                                           removeEmpty=prop.removeEmpty,
                                            notExport=prop.notExportBoneGroup,
                                            materialOrderList=materialOrderList,
                                            removeUnusedMaterialSlots=prop.removeUnusedMaterialSlots)
@@ -554,6 +561,7 @@ class DDDVT_PT_VRMTool(Panel):
                 if display:
                     box = col.box().column()
                     box.prop_search(prop, 'sb_json', context.blend_data, 'texts')
+                    box.prop(prop, 'removeEmpty')
 
             else:
                 col.label(text=iface_('VRM_Addon_for_Blender is not installed.'),

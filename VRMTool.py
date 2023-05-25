@@ -610,7 +610,7 @@ def applyCollidersScale(arma):
             iu.applyEmptyScale(obj)
 
 ################################################################
-def migrateSpringBone(arma, sb_json):
+def migrateSpringBone(arma, sb_json, removeEmpty):
     va = getAddon()
     if not va:
         raise ValueError('VRM addon is not found')
@@ -619,9 +619,10 @@ def migrateSpringBone(arma, sb_json):
     # clear old data
     ext.vrm0.secondary_animation.bone_groups.clear()
     ext.vrm0.secondary_animation.collider_groups.clear()
-    removed = removeAllUneditableEmptyChildren(arma.obj)
-    if removed:
-        print(f'Removed {len(removed)} empty objects: {removed}')
+    if removeEmpty:
+        removed = removeAllUneditableEmptyChildren(arma.obj)
+        if removed:
+            print(f'Removed {len(removed)} empty objects: {removed}')
 
     applyCollidersScale(arma.obj)
 
@@ -644,7 +645,8 @@ def prepareToExportVRM(skeleton='skeleton',
                        materialOrderList=None,
                        removeUnusedMaterialSlots=False,
                        neutral='Neutral',
-                       sb_json=None):
+                       sb_json=None,
+                       removeEmpty=True):
     """
     Prepares to export.
     
@@ -711,6 +713,6 @@ def prepareToExportVRM(skeleton='skeleton',
 
     # migrate spring_bone.json
     if sb_json:
-        migrateSpringBone(arma, sb_json)
+        migrateSpringBone(arma, sb_json, removeEmpty)
 
     return mergedObjs
