@@ -431,8 +431,9 @@ class DDDET_OT_centerVertexTriangulate(Operator):
         items=[
             ('ARITHMETIC', _('Arithmetic Centroid'), _('Find the center from the average of the coordinates of each vertex.')),
             ('AREA', _('Area Centroid'), _('Find the center by considering the area of the polygon.')),
-            ],
-        default='AREA',
+            (('MEDIAN_WEIGHTED'), _('Consider the Edge'), _('Find the center of the face weighted by edge lengths.')),
+        ],
+        default='MEDIAN_WEIGHTED',
     )
 
     @classmethod
@@ -441,15 +442,8 @@ class DDDET_OT_centerVertexTriangulate(Operator):
         return obj and obj.mode == 'EDIT' and obj.type == 'MESH'
 
     def execute(self, context):
-        if self.method == 'ARITHMETIC':
-            mean_func = mu.arithmetic_centroid_of_polygon
-        elif self.method == 'AREA':
-            mean_func = mu.area_centroid_of_polygon
-        else:
-            raise ValueError(f'Illegal methd: {self.method}')
-
         iu.center_vertex_triangulate(bpy.context.edit_object,
-                                     mean_func=mean_func)
+                                     method=self.method)
         return {'FINISHED'}
 
     def draw(self, context):

@@ -2,6 +2,7 @@
 
 import bpy
 import bmesh
+import mathutils
 from mathutils import (
     Vector,
     Matrix,
@@ -10,6 +11,7 @@ import traceback
 import numpy as np
 import uuid
 from . import mathUtils as mu
+from dataclasses import dataclass
 
 ################################################################
 class ObjectWrapper:
@@ -666,7 +668,19 @@ def selected_instances_to_real(rtol=1e-5, atol=1e-5):
     return result
 
 ################
-def center_vertex_triangulate(obj, mean_func=mu.arithmetic_centroid_of_polygon):
+@dataclass
+class LoopUVData:
+    pin_uv: bool
+    select: bool
+    select_edge: bool
+    uv: Vector
+dtype_BMLoopUV = [('pin_uv', np.bool),
+                  ('select', np.bool),
+                  ('select_edge', np.bool),
+                  ('uv', np.ndarray)]
+
+################
+def center_vertex_triangulate(obj, method='AREA'):
     """
     Triangulates selected faces of a given object by adding a new vertex at the center. 
 
@@ -697,49 +711,77 @@ def center_vertex_triangulate(obj, mean_func=mu.arithmetic_centroid_of_polygon):
     # Setup
     result = 0
     bm = bmesh.from_edit_mesh(obj.data)
-    uv_layer = bm.loops.layers.uv.verify()
     faces = [face for face in bm.faces if face.select]
     for face in faces:
+        coords = np.array([v.co for v in face.verts])
+
+        # Calculate center
+        if method == 'ARITHMETIC':
+            center = Vector(mu.arithmetic_centroid_of_polygon(coords))
+
+        elif method == 'AREA':
+            center = Vector(mu.area_centroid_of_polygon(coords))
+
+        elif method == 'MEDIAN_WEIGHTED':
+            center = face.calc_center_median_weighted()
+
+        else:
+            raise ValueError(f'Illegal methd: {method}')
+
         # Create new vertex at the center of the face
-        coords = np.array([np.array(v.co) for v in face.verts])
-        center = Vector(mean_func(coords))
         new_vert = bm.verts.new(center)
         bm.verts.index_update()
+        new_vert.copy_from_face_interp(face)
 
-        # Set the normal of the new vertex as the average of the normals of the vertices of the face
-        normals = np.array([np.array(v.normal) for v in face.verts])
-        distances = np.linalg.norm(coords - center, axis=1)
-        weights = 1 / np.clip(distances, 1e-5, None)
-        weights /= np.sum(weights)  # normalize weights
-        new_vert.normal = Vector(np.sum(normals.T * weights, axis=1))
-        new_vert.normal.normalize()
+        # Calculate interpolate weights
+        weights = np.array(mathutils.interpolate.poly_3d_calc(coords, center))
 
-        # Set the UV coordinates of the new vertex as the average of the UV coordinates of the vertices of the face
-        uvs = np.array([np.array(l[uv_layer].uv) for l in face.loops])
-        uvs = np.hstack((uvs, np.zeros((uvs.shape[0], 1))))
-        uv_center = Vector(mean_func(uvs))[:2]
+        # Interpolate uv
+        center_luvs = []
+        for uv_layer in bm.loops.layers.uv.values():
+            luvs = np.array([(l[uv_layer].pin_uv,
+                              l[uv_layer].select,
+                              l[uv_layer].select_edge,
+                              np.array(l[uv_layer].uv))
+                             for l in face.loops], dtype=dtype_BMLoopUV)
+            uvs = np.array(luvs['uv'])
+            uv_center = Vector(np.dot(uvs.T, weights.T).T)
+            center_luvs.append(LoopUVData(
+                np.all(luvs['pin_uv']),
+                np.all(luvs['select']),
+                np.all(luvs['select_edge']),
+                uv_center))
 
-        # Create new faces
+        # Split face
         for loop in face.loops:
             verts = [new_vert, loop.vert, loop.link_loop_next.vert]
-            uvs = [uv_center, loop[uv_layer].uv, loop.link_loop_next[uv_layer].uv]
-            pin_uvs = [False, loop[uv_layer].pin_uv, loop.link_loop_next[uv_layer].pin_uv]
             new_face = bm.faces.new(verts)
-            for l, uv, pin_uv in zip(new_face.loops, uvs, pin_uvs):
-                l[uv_layer].uv = uv
-                l[uv_layer].pin_uv = pin_uv
 
             # Copy face attributes
-            for attr in ['hide', 'material_index', 'select', 'smooth']:
-                setattr(new_face, attr, getattr(face, attr))
+            new_face.copy_from(face)
+            new_face.select_set(face.select)
 
-            # Recalculate normals
-            new_face.normal_update()
+            # Copy loop attributes
+            idx = 0
+            for uv_layer in bm.loops.layers.uv.values():
+                luvs = [center_luvs[idx],
+                        loop[uv_layer],
+                        loop.link_loop_next[uv_layer]]
+                idx += 1
+                for l, luv in zip(new_face.loops, luvs):
+                    # ↓が Blender のバグにより使えないので、自前で何とかする
+                    # l.copy_from_face_interp(face)
 
+                    for attr in ['pin_uv', 'select', 'select_edge', 'uv']:
+                        setattr(l[uv_layer], attr, getattr(luv, attr))
+        
             result += 1
         
         # Remove the original face
         bm.faces.remove(face)
+
+    # Recalculate normals
+    bm.normal_update()
 
     # Update the mesh data from the BMesh
     bmesh.update_edit_mesh(obj.data)

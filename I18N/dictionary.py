@@ -90,6 +90,8 @@ translations_dict = {
         ('*', 'Find the center from the average of the coordinates of each vertex.'): "各頂点の座標の平均から中心を求めます",
         ('*', 'Area Centroid'): "面積中心",
         ('*', 'Find the center by considering the area of the polygon.'): "多角形の面積を考慮して中心を求めます",
+        ('*', 'Consider the Edge'): "辺を考慮",
+        ('*', 'Find the center of the face weighted by edge lengths.'): "辺の長さを考慮して計算します",
         ('*', 'Material Order Specification List'): "マテリアル順指定リスト",
         ('*', 'A list to specify the order when sorting materials.'): "マテリアルをソートする時に順番を指定するためのリスト",
         ('*', 'Material Selector'): "マテリアル選択",
