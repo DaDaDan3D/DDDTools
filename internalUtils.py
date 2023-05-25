@@ -664,3 +664,82 @@ def selected_instances_to_real(rtol=1e-5, atol=1e-5):
         if obj.obj.instance_type != 'NONE':
             result.append(instance_to_real(obj.obj, rtol=rtol, atol=atol))
     return result
+
+################
+def center_vertex_triangulate(obj, mean_func=mu.arithmetic_centroid_of_polygon):
+    """
+    Triangulates selected faces of a given object by adding a new vertex at the center. 
+
+    The function works by creating a new vertex in the center of each selected face and 
+    creating new triangular faces from the center vertex to each edge of the original face.
+
+    Parameters
+    ----------
+    obj : bpy.types.Object
+        The object to triangulate. The object should be in edit mode and have some faces selected.
+
+    Returns
+    -------
+    integer
+        Number of triangles created.
+
+    Notes
+    -----
+    The function modifies the input object mesh directly, the changes can be observed immediately 
+    in the viewport if the object is in edit mode.
+
+    The UV coordinates of the new vertices are calculated as the average of the UV coordinates of 
+    the vertices of the original face. The normals of the new vertices are calculated as the average 
+    of the normals of the vertices of the original face.
+
+    The original faces are deleted after the new triangular faces are created.
+    """
+    # Setup
+    result = 0
+    bm = bmesh.from_edit_mesh(obj.data)
+    uv_layer = bm.loops.layers.uv.verify()
+    faces = [face for face in bm.faces if face.select]
+    for face in faces:
+        # Create new vertex at the center of the face
+        coords = np.array([np.array(v.co) for v in face.verts])
+        center = Vector(mean_func(coords))
+        new_vert = bm.verts.new(center)
+        bm.verts.index_update()
+
+        # Set the normal of the new vertex as the average of the normals of the vertices of the face
+        normals = np.array([np.array(v.normal) for v in face.verts])
+        distances = np.linalg.norm(coords - center, axis=1)
+        weights = 1 / np.clip(distances, 1e-5, None)
+        weights /= np.sum(weights)  # normalize weights
+        new_vert.normal = Vector(np.sum(normals.T * weights, axis=1))
+        new_vert.normal.normalize()
+
+        # Set the UV coordinates of the new vertex as the average of the UV coordinates of the vertices of the face
+        uvs = np.array([np.array(l[uv_layer].uv) for l in face.loops])
+        uvs = np.hstack((uvs, np.zeros((uvs.shape[0], 1))))
+        uv_center = Vector(mean_func(uvs))[:2]
+
+        # Create new faces
+        for loop in face.loops:
+            verts = [new_vert, loop.vert, loop.link_loop_next.vert]
+            uvs = [uv_center, loop[uv_layer].uv, loop.link_loop_next[uv_layer].uv]
+            new_face = bm.faces.new(verts)
+            for l, uv in zip(new_face.loops, uvs):
+                l[uv_layer].uv = uv
+
+            # Copy face attributes
+            for attr in ['hide', 'material_index', 'select', 'smooth']:
+                setattr(new_face, attr, getattr(face, attr))
+
+            # Recalculate normals
+            new_face.normal_update()
+
+            result += 1
+        
+        # Remove the original face
+        bm.faces.remove(face)
+
+    # Update the mesh data from the BMesh
+    bmesh.update_edit_mesh(obj.data)
+
+    return result

@@ -1,5 +1,9 @@
 # -*- encoding:utf-8 -*-
 
+from mathutils import (
+    Vector,
+    Matrix,
+)
 import numpy as np
 
 ################################################################
@@ -79,3 +83,158 @@ def calcCircumcenter(verts):
     center = np.linalg.solve(mtx, yy)
 
     return (np.linalg.norm(verts[0] - center), center)
+
+################################################################
+# 点群の平面近似の多次元対応版
+def calcFitPlane(points):
+    """
+    Fit a plane to a set of points using PCA.
+
+    Parameters
+    ----------
+    points : ndarray
+        An array of coordinates.
+
+    Returns
+    -------
+    ndarray, ndarray
+        The normal vector of the plane and a point on the plane.
+
+    Raises
+    ------
+    ValueError
+        If the input points array does not shape a point cloud.
+    """
+    if points.ndim != 2:
+        raise ValueError('Input points must be 2-dim point array.')
+
+    # Compute the mean of the points
+    mean = np.mean(points, axis=0)
+
+    # Center the points
+    centered_points = points - mean
+
+    # Compute the covariance matrix
+    cov_matrix = np.cov(centered_points.T)
+
+    # Compute the eigenvalues and eigenvectors of the covariance matrix
+    eigenvalues, eigenvectors = np.linalg.eig(cov_matrix)
+
+    # The plane's normal vector is the eigenvector associated with the smallest eigenvalue
+    normal = eigenvectors[:, np.argmin(eigenvalues)]
+
+    return normal, mean
+
+################################################################
+# 点から平面に降ろした垂線の足を計算する
+# 多次元対応版
+def perpendicular_foot_on_plane(point, plane_normal, plane_point):
+    if point.shape != plane_point.shape or point.shape != plane_normal.shape:
+        raise ValueError('Vector dimensions are differ.')
+
+    point_to_plane_vector = point - plane_point
+    distance_to_plane = np.dot(point_to_plane_vector, plane_normal)
+    perpendicular_foot = point - distance_to_plane * plane_normal
+
+    return perpendicular_foot
+
+################################################################
+# 中心を計算する関数各種
+
+################
+# 与えられたポリゴンの幾何中心を計算する
+def arithmetic_centroid_of_polygon(verts):
+    return np.mean(verts, axis=0)
+
+################
+# 与えられたポリゴンの面積中心を計算する
+def area_centroid_of_polygon(verts):
+    """
+    Compute the area centroid of a polygon.
+
+    Parameters
+    ----------
+    verts : ndarray
+        An array of the positions of the vertices.
+
+    Returns
+    -------
+    ndarray
+        The position of the area centroid.
+
+    Raises
+    ------
+    ValueError
+        If the input vertices array does not shape a polygon.
+    """
+    if verts.ndim != 2 or len(verts) < 3:
+        raise ValueError('Input verts must be 2-dim vector array and must have at least 3 vertices.')
+
+    # Pairwise vertices
+    v1 = np.roll(verts, -1, axis=0) - verts
+    v2 = np.roll(verts, -2, axis=0) - verts
+
+    # Pairwise triangle areas (1/2 * cross product magnitudes)
+    pairwise_areas = 0.5 * np.linalg.norm(np.cross(v1, v2), axis=-1)
+
+    # Pairwise centroids
+    pairwise_centroids = (v1 + v2) / 3 + verts
+
+    # Polygon area
+    total_area = np.sum(pairwise_areas)
+
+    # Area-weighted sum of pairwise centroids
+    area_centroid = np.sum(pairwise_centroids.T * pairwise_areas, axis=1) / total_area
+
+    return area_centroid
+
+################
+# 与えられたポリゴンの球面近似と平面近似を使って中心を計算する
+# 中心というか外心なので、使えるケースが限られる
+def fit_centroid_of_polygon(verts):
+    if verts.shape[1] not in (2, 3):
+        raise ValueError('verts must be 2D or 3D points.')
+
+    # 2D の場合
+    if verts.shape[1] == 2:
+        try:
+            radius, center = calcFit(verts)
+            return center
+        except:
+            return np.mean(verts, axis=0)
+
+    # 3D の場合
+    # 平面に全ての点を投影して calcFit() をかける
+    normal, mean = calcFitPlane(verts)
+    normal /= np.linalg.norm(normal)
+
+    # 平面のローカル空間を求める
+    forward = np.cross(normal, np.array((1, 0, 0)))
+    if np.linalg.norm(forward) > 1e-2:
+        right = np.cross(forward, normal)
+    else:
+        right = np.cross(np.array((0, 1, 0)), normal)
+        forward = np.cross(normal, right)
+    right /= np.linalg.norm(right)
+    forward /= np.linalg.norm(forward)
+
+    matrix_world = np.array((forward, right, normal, mean)).T
+    matrix_world = np.append(matrix_world, [(0, 0, 0, 1)], axis=0)
+    matrix_world_inv = np.linalg.inv(matrix_world)
+
+    # verts に同次座標を追加し、ローカル座標に変換する
+    homogeneous = np.ones((verts.shape[0], 1))
+    verts_homogeneous = np.hstack((verts, homogeneous))
+    v2d = np.dot(verts_homogeneous, matrix_world_inv.T)
+    v2d = v2d[:, :2]
+
+    try:
+        radius, center = calcFit(v2d)
+    except:
+        return mean
+
+    # 座標の次元を拡張し、ワールド座標に変換
+    center = np.append(center, (0, 1))
+    center = np.dot(center, matrix_world.T)
+
+    return center[:3]

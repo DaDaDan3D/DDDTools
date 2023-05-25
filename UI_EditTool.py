@@ -2,7 +2,7 @@
 
 import bpy
 import bmesh
-from bpy.props import BoolProperty, FloatProperty, IntProperty
+from bpy.props import BoolProperty, FloatProperty, IntProperty, EnumProperty
 from bpy.types import Panel, Operator
 
 import math
@@ -419,6 +419,44 @@ class DDDET_OT_selectedInstancesToReal(Operator):
             return {'CANCELLED'}
 
 ################################################################
+class DDDET_OT_centerVertexTriangulate(Operator):
+    bl_idname = 'dddet.center_vertex_triangulate'
+    bl_label = _('Center Vertex Triangulate')
+    bl_description = _('Triangulates selected faces of a given object by adding a new vertex at the center. ')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    method: EnumProperty(
+        name=_('Calculation Method'),
+        description=_('Select the method for finding the center.'),
+        items=[
+            ('ARITHMETIC', _('Arithmetic Centroid'), _('Find the center from the average of the coordinates of each vertex.')),
+            ('AREA', _('Area Centroid'), _('Find the center by considering the area of the polygon.')),
+            ],
+        default='AREA',
+    )
+
+    @classmethod
+    def poll(self, context):
+        obj = bpy.context.edit_object
+        return obj and obj.mode == 'EDIT' and obj.type == 'MESH'
+
+    def execute(self, context):
+        if self.method == 'ARITHMETIC':
+            mean_func = mu.arithmetic_centroid_of_polygon
+        elif self.method == 'AREA':
+            mean_func = mu.area_centroid_of_polygon
+        else:
+            raise ValueError(f'Illegal methd: {self.method}')
+
+        iu.center_vertex_triangulate(bpy.context.edit_object,
+                                     mean_func=mean_func)
+        return {'FINISHED'}
+
+    def draw(self, context):
+        col = self.layout.column()
+        col.prop(self, 'method')
+
+################################################################
 class DDDET_PT_main(Panel):
     bl_idname = 'DDDET_PT_main'
     bl_label = 'EditTool'
@@ -429,6 +467,7 @@ class DDDET_PT_main(Panel):
     def draw(self, context):
         col = self.layout.column(align=True)
         col.operator(DDDET_OT_selectDividingLoops.bl_idname)
+        col.operator(DDDET_OT_centerVertexTriangulate.bl_idname)
         col.operator(DDDET_OT_addApproximateSphere.bl_idname)
         col.operator(DDDET_OT_addApproximateEmpty.bl_idname)
         col.operator(DDDET_OT_convertEmptyAndSphere.bl_idname)
@@ -447,6 +486,7 @@ classes = (
     DDDET_OT_addApproximateEmpty,
     DDDET_OT_convertEmptyAndSphere,
     DDDET_OT_selectedInstancesToReal,
+    DDDET_OT_centerVertexTriangulate,
     DDDET_PT_main,
 )
 
