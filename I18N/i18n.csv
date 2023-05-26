@@ -288,3 +288,13 @@ Operator,Equalize vertex weights to the left and right,頂点の左右ウェイ�
 Operator,Dissolve selected bones,選択した骨の溶解,UI_WeightTool.py,166,
 ,"After transferring the weight of the selected bone to the nearest ancestral deformed bone, dissolve .",選択した骨のウェイトを直近祖先の変形ボーンに移した後、溶解する,UI_WeightTool.py,167,
 ,Bone dissolved. {ans},骨を溶解しました。{ans},UI_WeightTool.py,180,
+Operator,Check JSON text,JSON のチェック,UI_TextTool.py,12,
+,Checks if the currently active text is correct as JSON.,現在アクティブなテキストが JSON として正しいかどうかをチェックします,UI_TextTool.py,13,
+,No problem with {text_name}.,{text_name}に問題はありませんでした,UI_TextTool.py,25,
+,Text is not opened in the editor.,テキストがエディターで開かれていません,TextTool.py,12,
+,Invalid JSON string: {e_msg} at line {line_number} column {column_number},{line_number} 行目の {column_number} 文字目に間違いがあります: {e_msg},TextTool.py,31,
+,Expecting value,"値がありません(余計な ',' や ':' が付いているかも？）",,,JSON error message
+,"Expecting ',' delimiter","',' がありません",,,JSON error message
+,Expecting ':' delimiter,':' がありません,,,JSON error message
+,Expecting property name enclosed in double quotes,文字列がダブルクォーテーションで囲まれていません,,,JSON error message
+,Extra data,余分なデータです(ファイル先頭の '[' が無くなっているかも？),,,JSON error message

@@ -35,6 +35,7 @@ modules = [
     'SelectTool',
     'NormalTool',
     'UVTool',
+    'TextTool',
 
     'UI_MaterialTool',
     'UI_EditTool',
@@ -44,6 +45,7 @@ modules = [
     'UI_NormalTool',
     'UI_UVTool',
     'UI_ShaderTool',
+    'UI_TextTool',
 ]
 modules = [f'{__package__}.{mn}' for mn in modules]
 
