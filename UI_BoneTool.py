@@ -157,6 +157,8 @@ class DDDBT_OT_printSelectedBoneNamess(Operator):
         self.report({'INFO'},
                     iface_('Selected bones are: {selected_bones}').format(
                         selected_bones=sorted(selected_bones)))
+        bpy.context.window_manager.clipboard = iu.format_list_as_string(
+            selected_bones, indent_level=0)
         return {'FINISHED'}
 
 ################

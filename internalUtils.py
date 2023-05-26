@@ -10,6 +10,8 @@ from mathutils import (
 import traceback
 import numpy as np
 import uuid
+import json
+import re
 from . import mathUtils as mu
 from dataclasses import dataclass
 
@@ -747,3 +749,9 @@ def triangulate_with_center_vertex(obj, method='AREA'):
     del modeChanger
 
     return num_triangulated_faces
+
+################
+def format_list_as_string(lst, tab=4, indent_level=0):
+    formatted = json.dumps(sorted(lst), indent=tab)
+    indented = re.sub('^', ' ' * tab * indent_level, formatted, flags=re.MULTILINE)
+    return indented

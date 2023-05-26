@@ -3,6 +3,7 @@
 import bpy
 from bpy.props import StringProperty, EnumProperty, CollectionProperty, PointerProperty, BoolProperty, FloatProperty, IntProperty
 from bpy.types import PropertyGroup, Operator, Panel, UIList
+from . import internalUtils as iu
 from . import UIUtils as ui
 from . import MaterialTool as mt
 
@@ -115,6 +116,8 @@ class DDDMT_OT_listupAllMaterialsUsingTexture(Operator):
                             iface_('Material using texture ({prop_texture_name}) is {sorted_mats}.').format(
                                 prop_texture_name=prop.texture.name,
                                 sorted_mats=str(sorted(mats))))
+                bpy.context.window_manager.clipboard = iu.format_list_as_string(
+                    mats, indent_level=0)
             else:
                 self.report({'INFO'},
                             iface_('No material using texture ({prop_texture_name}).').format(
@@ -184,6 +187,9 @@ class DDDMT_OT_listupAllObjectsUsingMaterial(Operator):
                             iface_('Objects using material ({prop_material_name}) are {sorted_objs}.').format(
                                 prop_material_name=prop.material.name,
                                 sorted_objs=str(sorted(objs))))
+                bpy.context.window_manager.clipboard = iu.format_list_as_string(
+                    objs, indent_level=0)
+
             else:
                 self.report({'INFO'},
                             iface_('No objects using material ({prop_material_name}).').format(
