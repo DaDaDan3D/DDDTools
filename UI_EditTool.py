@@ -419,9 +419,9 @@ class DDDET_OT_selectedInstancesToReal(Operator):
             return {'CANCELLED'}
 
 ################################################################
-class DDDET_OT_centerVertexTriangulate(Operator):
-    bl_idname = 'dddet.center_vertex_triangulate'
-    bl_label = _('Center Vertex Triangulate')
+class DDDET_OT_triangulateWithCenterVertex(Operator):
+    bl_idname = 'dddet.triangulate_with_center_vertex'
+    bl_label = _('Triangulate with Center')
     bl_description = _('Triangulates selected faces of a given object by adding a new vertex at the center. ')
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -442,8 +442,8 @@ class DDDET_OT_centerVertexTriangulate(Operator):
         return obj and obj.mode == 'EDIT' and obj.type == 'MESH'
 
     def execute(self, context):
-        iu.center_vertex_triangulate(bpy.context.edit_object,
-                                     method=self.method)
+        iu.triangulate_with_center_vertex(bpy.context.edit_object,
+                                          method=self.method)
         return {'FINISHED'}
 
     def draw(self, context):
@@ -461,7 +461,7 @@ class DDDET_PT_main(Panel):
     def draw(self, context):
         col = self.layout.column(align=True)
         col.operator(DDDET_OT_selectDividingLoops.bl_idname)
-        col.operator(DDDET_OT_centerVertexTriangulate.bl_idname)
+        col.operator(DDDET_OT_triangulateWithCenterVertex.bl_idname)
         col.operator(DDDET_OT_addApproximateSphere.bl_idname)
         col.operator(DDDET_OT_addApproximateEmpty.bl_idname)
         col.operator(DDDET_OT_convertEmptyAndSphere.bl_idname)
@@ -480,7 +480,7 @@ classes = (
     DDDET_OT_addApproximateEmpty,
     DDDET_OT_convertEmptyAndSphere,
     DDDET_OT_selectedInstancesToReal,
-    DDDET_OT_centerVertexTriangulate,
+    DDDET_OT_triangulateWithCenterVertex,
     DDDET_PT_main,
 )
 

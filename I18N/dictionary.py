@@ -82,7 +82,7 @@ translations_dict = {
         ('*', 'Makes the selected instance real. If the instance is a collection and contains an armature, also restores the action.'): "選択したインスタンスを実体化します。インスタンスがコレクションでアーマチュアが含まれていた場合、アクションも復元します。",
         ('*', 'Realized {len_objs} instances.'): "{len_objs}個のインスタンスを実体化しました。",
         ('*', 'No instances were selected.'): "選択されているインスタンスはありませんでした。",
-        ('Operator', 'Center Vertex Triangulate'): "中心を追加して三角化",
+        ('Operator', 'Triangulate with Center'): "中心を追加して三角化",
         ('*', 'Triangulates selected faces of a given object by adding a new vertex at the center. '): "面の中心に頂点を追加して、面全体を三角化します",
         ('*', 'Calculation Method'): "計算方法",
         ('*', 'Select the method for finding the center.'): "中心を求める方法を選択します",

@@ -668,19 +668,7 @@ def selected_instances_to_real(rtol=1e-5, atol=1e-5):
     return result
 
 ################
-@dataclass
-class LoopUVData:
-    pin_uv: bool
-    select: bool
-    select_edge: bool
-    uv: Vector
-dtype_BMLoopUV = [('pin_uv', np.bool),
-                  ('select', np.bool),
-                  ('select_edge', np.bool),
-                  ('uv', np.ndarray)]
-
-################
-def center_vertex_triangulate(obj, method='AREA'):
+def triangulate_with_center_vertex(obj, method='AREA'):
     """
     Triangulates selected faces of a given object by adding a new vertex at the center. 
 
@@ -691,35 +679,34 @@ def center_vertex_triangulate(obj, method='AREA'):
     ----------
     obj : bpy.types.Object
         The object to triangulate. The object should be in edit mode and have some faces selected.
+    method : string
+        Method for finding the center.
+        'ARITHMETIC' : Find the center from the average of the coordinates of each vertex.
+        'AREA' : Find the center by considering the area of the polygon.
+        'MEDIAN_WEIGHTED' : Find the center of the face weighted by edge lengths.
 
     Returns
     -------
     integer
         Number of triangles created.
-
-    Notes
-    -----
-    The function modifies the input object mesh directly, the changes can be observed immediately 
-    in the viewport if the object is in edit mode.
-
-    The UV coordinates of the new vertices are calculated as the average of the UV coordinates of 
-    the vertices of the original face. The normals of the new vertices are calculated as the average 
-    of the normals of the vertices of the original face.
-
-    The original faces are deleted after the new triangular faces are created.
     """
-    # Setup
-    result = 0
-    bm = bmesh.from_edit_mesh(obj.data)
-    faces = [face for face in bm.faces if face.select]
-    for face in faces:
-        coords = np.array([v.co for v in face.verts])
 
+    num_triangulated_faces = 0
+
+    modeChanger = ModeChanger(obj, 'OBJECT')
+    
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+
+    faces = [f for f in bm.faces if f.select]
+    for face in faces:
         # Calculate center
         if method == 'ARITHMETIC':
+            coords = np.array([v.co for v in face.verts])
             center = Vector(mu.arithmetic_centroid_of_polygon(coords))
 
         elif method == 'AREA':
+            coords = np.array([v.co for v in face.verts])
             center = Vector(mu.area_centroid_of_polygon(coords))
 
         elif method == 'MEDIAN_WEIGHTED':
@@ -728,62 +715,35 @@ def center_vertex_triangulate(obj, method='AREA'):
         else:
             raise ValueError(f'Illegal methd: {method}')
 
-        # Create new vertex at the center of the face
-        new_vert = bm.verts.new(center)
-        bm.verts.index_update()
-        new_vert.copy_from_face_interp(face)
+        # Split first face and make center vertex
+        loop0 = face.loops[0]
+        loop1 = loop0.link_loop_next
+        new_face, new_loop = bmesh.utils.face_split(face,
+                                                    loop0.vert,
+                                                    loop1.vert,
+                                                    coords=[center])
+        new_loop = new_loop.link_loop_next
+        center_vert = new_loop.vert
+        new_face.select = True
+        num_triangulated_faces += 2
 
-        # Calculate interpolate weights
-        weights = np.array(mathutils.interpolate.poly_3d_calc(coords, center))
-
-        # Interpolate uv
-        center_luvs = []
-        for uv_layer in bm.loops.layers.uv.values():
-            luvs = np.array([(l[uv_layer].pin_uv,
-                              l[uv_layer].select,
-                              l[uv_layer].select_edge,
-                              np.array(l[uv_layer].uv))
-                             for l in face.loops], dtype=dtype_BMLoopUV)
-            uvs = np.array(luvs['uv'])
-            uv_center = Vector(np.dot(uvs.T, weights.T).T)
-            center_luvs.append(LoopUVData(
-                np.all(luvs['pin_uv']),
-                np.all(luvs['select']),
-                np.all(luvs['select_edge']),
-                uv_center))
-
-        # Split face
-        for loop in face.loops:
-            verts = [new_vert, loop.vert, loop.link_loop_next.vert]
-            new_face = bm.faces.new(verts)
-
-            # Copy face attributes
-            new_face.copy_from(face)
-            new_face.select_set(face.select)
-
-            # Copy loop attributes
-            idx = 0
-            for uv_layer in bm.loops.layers.uv.values():
-                luvs = [center_luvs[idx],
-                        loop[uv_layer],
-                        loop.link_loop_next[uv_layer]]
-                idx += 1
-                for l, luv in zip(new_face.loops, luvs):
-                    # ↓が Blender のバグにより使えないので、自前で何とかする
-                    # l.copy_from_face_interp(face)
-
-                    for attr in ['pin_uv', 'select', 'select_edge', 'uv']:
-                        setattr(l[uv_layer], attr, getattr(luv, attr))
-        
-            result += 1
-        
-        # Remove the original face
-        bm.faces.remove(face)
+        # Split new_face into triangles
+        while len(new_face.verts) > 3:
+            next_vert = new_loop.link_loop_next.link_loop_next.vert
+            new_face, new_loop = bmesh.utils.face_split(new_face,
+                                                        center_vert,
+                                                        next_vert,
+                                                        use_exist=False)
+            new_face.select = True
+            num_triangulated_faces += 1
 
     # Recalculate normals
     bm.normal_update()
 
-    # Update the mesh data from the BMesh
-    bmesh.update_edit_mesh(obj.data)
+    # Update the mesh data
+    bm.to_mesh(obj.data)
+    bm.free()
 
-    return result
+    del modeChanger
+
+    return num_triangulated_faces
