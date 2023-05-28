@@ -10,6 +10,8 @@
 translations_dict = {
     'ja_JP': {
         ('*', 'An error has occurred. See console for details.'): "エラーが発生しました。詳細はコンソールを参照してください。",
+        ('*', 'Object Name to Bone Name'): "オブジェクト名をボーン名に",
+        ('*', 'The object name is automatically set as the bone name.'): "オブジェクト名を自動的にボーン名として設定します",
         ('*', 'Bone Name'): "ボーンの名前",
         ('*', 'The name of the bone to be created.'): "作成するボーンに付ける名前です",
         ('Operator', 'Rename Child Bones'): "子ボーンをリネーム",
@@ -293,8 +295,8 @@ translations_dict = {
         ('*', 'Text is not opened in the editor.'): "テキストがエディターで開かれていません",
         ('*', 'Invalid JSON string: {e_msg} at line {line_number} column {column_number}'): "{line_number} 行目の {column_number} 文字目に間違いがあります: {e_msg}",
         ('*', 'Expecting value'): "値がありません(余計な ',' や ':' が付いているかも？）",
-        ('*', "Expecting ',' delimiter"): "',' がありません",
-        ('*', "Expecting ':' delimiter"): "':' がありません",
+        ('*', "Expecting ',' delimiter"): "’,’ がありません",
+        ('*', "Expecting ':' delimiter"): "’:’ がありません",
         ('*', 'Expecting property name enclosed in double quotes'): "文字列がダブルクォーテーションで囲まれていません",
         ('*', 'Extra data'): "余分なデータです(ファイル先頭の '[' が無くなっているかも？)",
     },

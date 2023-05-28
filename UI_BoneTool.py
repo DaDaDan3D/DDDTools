@@ -17,6 +17,11 @@ class DDDBT_propertyGroup(PropertyGroup):
         name='createArmatureFromSelectedEdgesSettings',
         default=True,
     )
+    objNameToBasename: BoolProperty(
+        name=_('Object Name to Bone Name'),
+        description=_('The object name is automatically set as the bone name.'),
+        default=True,
+    )
     basename: StringProperty(
         name=_('Bone Name'),
         description=_('The name of the bone to be created.'),
@@ -98,7 +103,11 @@ class DDDBT_OT_createArmatureFromSelectedEdges(Operator):
     def execute(self, context):
         prop = context.scene.dddtools_bt_prop
         obj = iu.ObjectWrapper(bpy.context.active_object)
-        arma = bt.createArmatureFromSelectedEdges(obj, basename=prop.basename)
+        if prop.objNameToBasename:
+            basename = obj.name
+        else:
+            basename = prop.basename
+        arma = bt.createArmatureFromSelectedEdges(obj, basename=basename)
         if arma:
             return {'FINISHED'}
         else:
@@ -183,8 +192,10 @@ class DDDBT_PT_BoneTool(Panel):
         split.operator(DDDBT_OT_createArmatureFromSelectedEdges.bl_idname)
         if display:
             box = col.box().column()
-            box.prop(prop, 'basename')
-
+            box.prop(prop, 'objNameToBasename')
+            col2 = box.column(align=True)
+            col2.enabled = not prop.objNameToBasename
+            col2.prop(prop, 'basename')
     
 ################################################################
 classes = (

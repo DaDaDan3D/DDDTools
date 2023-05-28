@@ -1,5 +1,7 @@
 context,key,ja_JP,source_file,source_line,memo
 ,An error has occurred. See console for details.,エラーが発生しました。詳細はコンソールを参照してください。,,,汎用エラーメッセージ
+,Object Name to Bone Name,オブジェクト名をボーン名に,UI_BoneTool.py,21,
+,The object name is automatically set as the bone name.,オブジェクト名を自動的にボーン名として設定します,UI_BoneTool.py,22,
 ,Bone Name,ボーンの名前,UI_BoneTool.py,21,
 ,The name of the bone to be created.,作成するボーンに付ける名前です,UI_BoneTool.py,22,
 Operator,Rename Child Bones,子ボーンをリネーム,UI_BoneTool.py,29,
@@ -294,7 +296,7 @@ Operator,Check JSON text,JSON のチェック,UI_TextTool.py,12,
 ,Text is not opened in the editor.,テキストがエディターで開かれていません,TextTool.py,12,
 ,Invalid JSON string: {e_msg} at line {line_number} column {column_number},{line_number} 行目の {column_number} 文字目に間違いがあります: {e_msg},TextTool.py,31,
 ,Expecting value,"値がありません(余計な ',' や ':' が付いているかも？）",,,JSON error message
-,"Expecting ',' delimiter","',' がありません",,,JSON error message
-,Expecting ':' delimiter,':' がありません,,,JSON error message
+,"Expecting ',' delimiter","’,’ がありません",,,JSON error message
+,Expecting ':' delimiter,’:’ がありません,,,JSON error message
 ,Expecting property name enclosed in double quotes,文字列がダブルクォーテーションで囲まれていません,,,JSON error message
 ,Extra data,余分なデータです(ファイル先頭の '[' が無くなっているかも？),,,JSON error message
