@@ -147,7 +147,7 @@ def addCollider(meshObj,
                 radius=0.3,
                 insideToOutside=True):
     """
-    Adds a collision sphere to the selected bone for the selected mesh.
+    Adds a collision sphere to the selected bones for the selected mesh.
     You should select one mesh and one armature.
 
     Parameters
@@ -186,17 +186,18 @@ def addCollider(meshObj,
     #print('mesh:', mesh.name, 'arma:', arma.name)
 
     modeChanger = iu.ModeChanger(arma.obj, 'POSE')
-    bone = bpy.context.active_bone
-    if not bone:
+    selected_bones = bt.get_selected_bone_names()
+    if not selected_bones:
         return {'CANCELLED'}, 'Please select a bone'
 
-    addColliderToBone(mesh.obj, arma.obj, bone.name,
-                      t_from=t_from,
-                      t_to=t_to,
-                      t_step=t_step,
-                      numberOfRays=numberOfRays,
-                      radius=radius,
-                      insideToOutside=insideToOutside)
+    for bone in selected_bones:
+        addColliderToBone(mesh.obj, arma.obj, bone,
+                          t_from=t_from,
+                          t_to=t_to,
+                          t_step=t_step,
+                          numberOfRays=numberOfRays,
+                          radius=radius,
+                          insideToOutside=insideToOutside)
     del modeChanger
 
     return{'FINISHED'}
