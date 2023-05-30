@@ -10,7 +10,7 @@ Blender 3.1 以降用。
 ビューの右上の < を押すかキーボードの N を押すかすると出てくるツールシェルフの DDDTools タブにパネルがまとまっています。  
 
 ## チュートリアル
-[!['ボーンとコライダの設定']('https://github.com/DaDaDan3D/DDDTools/assets/108515309/1fb4c1b5-5a74-4f93-9145-551b642f01fa')]('https://youtu.be/fiLOib-N_S8')
+[![ボーンとコライダの設定](https://img.youtube.com/vi/fiLOib-N_S8/0.jpg)](https://www.youtube.com/watch?v=fiLOib-N_S8)
 
 ## EditTool
 ![EditTool](/images/Panel_EditTool.png)
