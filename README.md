@@ -19,6 +19,22 @@ Blender 3.1 以降用。
 
 https://user-images.githubusercontent.com/108515309/176989212-1da4d9cf-2309-4fea-8d16-3d5cd5a5e507.mp4
 
+### EditTool / 中心を追加して三角化
+選択した面の中心に頂点を追加し、そこから各頂点を結んで三角化します。  
+中心の計算方法をいくつか選べます。  
+|計算方法|解説|
+|----|----|
+|辺を考慮|Blender標準の計算方法です<br>辺を頂点で分割しているような場合でも良い感じの中心になります|
+|面積中心|三角形の面積を考慮に入れて中心を計算します|
+|幾何中心|単純に各頂点の座標の平均を中心とします|
+
+トポロジを整える時に便利です。  
+
+面白い形状も作れるかも？  
+![TriangulateWithCenter_cube](/images/TriangulateWithCenter_cube.jpg)
+![TriangulateWithCenter_cube2](/images/TriangulateWithCenter_cube2.jpg)
+![TriangulateWithCenter_torus](/images/TriangulateWithCenter_torus.jpg)
+
 ### EditTool / 近似球の追加
 選択した頂点に近似した球オブジェクトを追加します。  
 頂点は 4 つ以上選択している必要があります。  
@@ -34,6 +50,11 @@ https://programming-surgeon.com/script/sphere-fit/
 コライダの調整をする時に便利です。
 
 ![ConvertEmptyAndSphere](/images/ConvertEmptyAndSphere.png)
+
+### EditTool / 選択インスタンスの実体化
+Blender では、コレクションを中身のアーマチュアごとインスタンスとして複製することができ、複数のインスタンスで同じアクションを再生することができます。  
+しかし、エクスポートなどのために「適用」→「インスタンスの実体化」をするとアクションとのリンクが途切れてしまいます。  
+この「選択インスタンスの実体化」では、アクションのリンクがなるべく途切れないように実体化することができます。  
 
 ## MaterialTool
 ![MaterialTool](/images/Panel_MaterialTool.png)
@@ -65,9 +86,8 @@ https://programming-surgeon.com/script/sphere-fit/
 ## VRMTool
 ![VRMTool](/images/Panel_VRMTool.png)
 
-### VRMTool / コライダー関係 / 不要エンプティ削除
-指定したアーマチュアの、UI に表示されない隠れたエンプティを削除します。  
-通常は使うことはありません。  
+### VRMTool / スケルトン
+VRM モデルのスケルトンオブジェクトを指定します。  
 
 ### VRMTool / コライダー関係 / エンプティのコライダ化
 選択したエンプティを、アクティブなアーマチュアのアクティブなボーンのコライダとして設定します。  
@@ -80,7 +100,7 @@ https://programming-surgeon.com/script/sphere-fit/
 親が「Hips」などの、左右のないボーンの場合には、対称な位置にコライダが作られます。  
 
 ### VRMTool / コライダ追加
-ポーズモード時、アクティブなボーンに対して、指定したメッシュに沿うようなサイズの Empty 球を追加します。  
+ポーズモード時、選択したボーンに対して、指定したメッシュに沿うようなサイズの Empty 球を追加します。  
 具体的には、ボーンに沿った方向で一定間隔に、ボーンを軸として放射状にレイを飛ばし、メッシュとの交点を近似するような球をコライダとして作成します。  
 実行後、プロパティパネルで調整ができます。    
 
@@ -100,12 +120,9 @@ https://programming-surgeon.com/script/sphere-fit/
 ポーズアセットを使って表情を付ける仕組みとして設計されています。  
 ポーズアセットを使うことでシェイプキーを使わなくて済むので、エクスポート後にモデルを修正するといった手戻りに強くなります。  
 [blendshape_group.json のサンプル](/sample/blendshape_group.json)
-[spring_bone.json のサンプル](/sample/spring_bone.json)
 
 「VRM 出力前の準備」ボタンを押すと、具体的には、指定したアーマチュアに対して以下の操作を行います。(オプションでオンオフできる箇所もあります)  
 
-1. VRM Addon for Blender の BlendShape の情報を削除する
-1. spring_bone.json を指定した場合、VRM Addon for Blender の SpringBone の情報を削除する
 1. 透明なポリゴンを削除する。具体的にやっていることは後述の「ポリゴン削除」を参照
 1. blendshape_group.json の内容に応じて、メッシュを一つにまとめる。
 具体的には、binds の mesh で指定した名前の Collection を探し、Collection に含まれるメッシュのモディファイアを適用した後、一つにする
@@ -115,8 +132,8 @@ https://programming-surgeon.com/script/sphere-fit/
 1. ウェイトのクリーンアップを行う
 1. 未使用マテリアルを削除する
 1. MaterialTool パネルの「マテリアル順指定リスト」を参照し、マテリアルのソートを行う
-1. blendshape_group.json の内容をアーマチュアに登録する
-1. spring_bone.json の内容に従い、コライダを登録し、不要なエンプティがあれば削除する
+1. blendshape_group.json の内容を VRM Addon for Blender の BlendShape の情報として設定する
+1. spring_bone.json の内容を VRM Addon for Blender の SpringBone の情報として設定する
 1. *.export.blend として名前を付けて保存する
 
 ### VRMTool / ポリゴン削除
@@ -132,8 +149,22 @@ https://programming-surgeon.com/script/sphere-fit/
 
 https://github.com/DaDaDan3D/DDDTools/assets/108515309/8466814a-9545-4ed7-897a-51636ee4881f
 
+### VRMTool / Springbone.json を登録
+SpringBone の設定をした JSON テキストを元に、VRM Addon for Blender の spring bone とコライダの情報を登録します。  
+[spring_bone.json のサンプル](/sample/spring_bone.json)
+「不要なエンプティを削除する」を設定すると、UI に表示されない隠れたエンプティを削除します。
+通常はチェックを外さないでください。  
+
 ## BoneTool
 ![BoneTool](/images/Panel_BoneTool.png)
+
+### BoneTool / 祖先に近いボーンの選択
+選択中のボーンのうち、最も根っこに近いボーンだけを選択します。  
+spring_bone.json への登録をする時に便利です。
+
+### BoneTool / 選択中の骨を列挙
+選択中のボーンの名前を情報に表示し、クリップボードにもコピーします。  
+spring_bone.json への登録をする時に便利です。
 
 ### BoneTool / 子ボーンをリネーム
 アクティブなボーンの子供のボーンの名前を、番号付きでリネームします。  
@@ -230,6 +261,21 @@ VRM Addon for Blender の過去のバージョンの MToon_unversioned を、新
 一覧で項目を選び、下の「値をコピー」ボタンを押すと、選択した項目の内容を一覧すべてにコピーします。  
 
 ![ShaderToolSample](/images/Blender_EditMaterialInputNodes.png)
+
+## TextTool
+![TextTool](/images/Panel_TextTool.png)
+
+### TextTool / JSON のチェック
+現在開いているテキストを JSON フォーマットとしてチェックし、結果を表示します。  
+
+## 翻訳について
+I18N フォルダの i18n.csv が翻訳データベースになっています。  
+もし他の言語を追加したい場合は、以下の手順で追加できます。  
+1. I18N/i18n.csv に新しい言語列を追加する(例: it_IT)
+1. key の列に対応する翻訳を、追加した言語列に追加していく
+1. DDDTools フォルダの下で 'python I18N/build_dictionary.py' を実行する(dictionary.py ができる)
+
+編集する際は、key 列を変更しないように注意してください。  
 
 ## 免責
 このアドオンを使用して生じたいかなる損害に対しても、当方は責任を負いません。  
