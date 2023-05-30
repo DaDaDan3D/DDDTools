@@ -32,6 +32,7 @@ https://user-images.githubusercontent.com/108515309/176989212-1da4d9cf-2309-4fea
 |幾何中心|単純に各頂点の座標の平均を中心とします|
 
 トポロジを整える時に便利です。  
+
 https://github.com/DaDaDan3D/DDDTools/assets/108515309/c042b320-4e1c-4c17-811c-380ee9859c7c
 
 面白い形状も作れるかも？  
@@ -59,6 +60,7 @@ https://programming-surgeon.com/script/sphere-fit/
 Blender では、コレクションを中身のアーマチュアごとインスタンスとして複製することができ、複数のインスタンスで同じアクションを再生することができます。  
 しかし、エクスポートなどのために「適用」→「インスタンスの実体化」をするとアクションとのリンクが途切れてしまいます。  
 この「選択インスタンスの実体化」では、アクションのリンクがなるべく途切れないように実体化することができます。  
+
 https://github.com/DaDaDan3D/DDDTools/assets/108515309/098080d7-244c-4c4d-a6e4-1624456c5409
 
 ## MaterialTool
