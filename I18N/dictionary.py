@@ -295,6 +295,8 @@ translations_dict = {
         ('*', 'Vertex weight to be set.'): "設定する頂点ウェイトです",
         ('*', 'Failed to set the weights. Please select vertices and bones.'): "ウェイトが設定できませんでした。頂点と骨を選択してください",
         ('*', 'Set {weight:.3} to the target bones at {count} vertices. Target bones: {bone_names}'): "{count} 個の頂点の対象の骨へのウェイトを {weight:.3} に設定しました。対象の骨: {bone_names}",
+        ('*', '{bone_name} is not a deform bone.'): "{bone_name}はdeformボーンではありません。",
+        ('*', 'No bones to be set in vertex group.'): "頂点グループに設定するボーンはありません。",
         ('Operator', 'Check JSON text'): "JSON のチェック",
         ('*', 'Checks if the currently active text is correct as JSON.'): "現在アクティブなテキストが JSON として正しいかどうかをチェックします",
         ('*', 'No problem with {text_name}.'): "{text_name}に問題はありませんでした",

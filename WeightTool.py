@@ -5,6 +5,9 @@ import bpy
 import bmesh
 from . import internalUtils as iu
 
+_ = lambda s: s
+from bpy.app.translations import pgettext_iface as iface_
+
 ################
 # reg-exp for _L
 re_name_L = re.compile(r'(.*[._-])L$')
@@ -587,13 +590,16 @@ def set_weight_for_selected_bones(mesh_object, armature_object, weight):
     bone_names = []
     for bone in armature_object.data.bones:
         if bone.select:
+            if not bone.use_deform:
+                return 0, None, iface_('{bone_name} is not a deform bone.').format(bone_name=bone.name)
             vg = mesh_object.vertex_groups.get(bone.name)
-            if vg:
-                vg_indices.append(vg.index)
-                bone_names.append(bone.name)
+            if not vg:
+                vg = mesh_object.vertex_groups.new(name=bone.name)
+            vg_indices.append(vg.index)
+            bone_names.append(bone.name)
+
     if not vg_indices:
-        print('No bones to be set in vertex group.')
-        return 0, bone_names
+        return 0, None, iface_('No bones to be set in vertex group.')
 
     # Create a BMesh from the mesh
     bm = bmesh.from_edit_mesh(mesh_object.data)
@@ -615,4 +621,4 @@ def set_weight_for_selected_bones(mesh_object, armature_object, weight):
     # Write the BMesh back to the mesh
     bmesh.update_edit_mesh(mesh_object.data)
 
-    return count_verts, bone_names
+    return count_verts, bone_names, ''

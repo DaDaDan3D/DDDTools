@@ -3,6 +3,7 @@
 import bpy
 from bpy.props import BoolProperty, IntProperty, PointerProperty, FloatProperty, StringProperty, EnumProperty
 from bpy.types import Panel, Operator, PropertyGroup
+import traceback
 
 from . import internalUtils as iu
 from . import UIUtils as ui
@@ -223,10 +224,13 @@ class DDDWT_OT_setWeightForSelectedBones(Operator):
     def execute(self, context):
         obj = bpy.context.active_object
         arma = iu.findfirst_selected_object('ARMATURE')
-        count, bones = wt.set_weight_for_selected_bones(obj, arma, self.weight)
+        count, bones, errormsg = wt.set_weight_for_selected_bones(obj, arma, self.weight)
         if count == 0:
-            self.report({'WARNING'},
-                        iface_('Failed to set the weights. Please select vertices and bones.'))
+            if errormsg:
+                self.report({'WARNING'}, errormsg)
+            else:
+                self.report({'WARNING'},
+                            iface_('Failed to set the weights. Please select vertices and bones.'))
             return {'CANCELLED'}
         else:
             self.report({'INFO'},

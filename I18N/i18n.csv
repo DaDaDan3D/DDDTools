@@ -296,6 +296,8 @@ Operator,Batch setting of vertex weights,ウェイト一括設定,UI_WeightTool.
 ,Vertex weight to be set.,設定する頂点ウェイトです,UI_WeightTool.py,,
 ,Failed to set the weights. Please select vertices and bones.,ウェイトが設定できませんでした。頂点と骨を選択してください,UI_WeightTool.py,,
 ,Set {weight:.3} to the target bones at {count} vertices. Target bones: {bone_names},{count} 個の頂点の対象の骨へのウェイトを {weight:.3} に設定しました。対象の骨: {bone_names},UI_WeightTool.py,,
+,{bone_name} is not a deform bone.,{bone_name}はdeformボーンではありません。,WeightTool.py,,
+,No bones to be set in vertex group.,頂点グループに設定するボーンはありません。,WeightTool.py,,
 Operator,Check JSON text,JSON のチェック,UI_TextTool.py,12,
 ,Checks if the currently active text is correct as JSON.,現在アクティブなテキストが JSON として正しいかどうかをチェックします,UI_TextTool.py,13,
 ,No problem with {text_name}.,{text_name}に問題はありませんでした,UI_TextTool.py,25,
