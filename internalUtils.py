@@ -755,3 +755,7 @@ def format_list_as_string(lst, tab=4, indent_level=0):
     formatted = json.dumps(sorted(lst), indent=tab)
     indented = re.sub('^', ' ' * tab * indent_level, formatted, flags=re.MULTILINE)
     return indented
+
+################
+def findfirst_selected_object(type):
+    return next((obj for obj in bpy.context.selected_objects if obj.type == type), None)
