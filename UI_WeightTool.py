@@ -62,6 +62,19 @@ class DDDWT_propertyGroup(PropertyGroup):
         unit='LENGTH',
     )
 
+    display_setWeightForSelectedBones: BoolProperty(
+        name='setWeightForSelectedBones_settings',
+        default=True)
+    weight: FloatProperty(
+        name=_('Vertex Weight'),
+        description=_('Vertex weight to be set.'),
+        #subtype='FACTOR',
+        default=0.0,
+        min=0.0,
+        max=1.0,
+        precision=3,
+        step=1,
+    )
 
 ################################################################
 class DDDWT_OT_resetWeightOfSelectedObjects(bpy.types.Operator):
@@ -182,6 +195,53 @@ class DDDWT_OT_dissolveWeightedBones(bpy.types.Operator):
         return {'FINISHED'}
 
 ################################################################
+class DDDWT_OT_setWeightForSelectedBones(Operator):
+    bl_idname = 'dddwt.set_weight_for_selected_bones'
+    bl_label = _('Batch setting of vertex weights')
+    bl_description = _('Set the weights of the selected bones for the selected vertices at once.')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    weight: FloatProperty(
+        name=_('Vertex Weight'),
+        description=_('Vertex weight to be set.'),
+        #subtype='FACTOR',
+        default=0.0,
+        min=0.0,
+        max=1.0,
+        precision=3,
+        step=1,
+    )
+
+    @classmethod
+    def poll(self, context):
+        obj = bpy.context.active_object
+        arma = iu.findfirst_selected_object('ARMATURE')
+        return obj and obj.type == 'MESH' and obj.mode == 'EDIT' and\
+            arma and arma.type == 'ARMATURE' and\
+            len(bpy.context.selected_objects) == 2
+
+    def execute(self, context):
+        obj = bpy.context.active_object
+        arma = iu.findfirst_selected_object('ARMATURE')
+        count, bones = wt.set_weight_for_selected_bones(obj, arma, self.weight)
+        if count == 0:
+            self.report({'WARNING'},
+                        iface_('Failed to set the weights. Please select vertices and bones.'))
+            return {'CANCELLED'}
+        else:
+            self.report({'INFO'},
+                        iface_('Set {weight:.3} to the target bones at {count} vertices. Target bones: {bone_names}').format(
+                            count=count,
+                            weight=self.weight,
+                            bone_names=str(sorted(bones))))
+            return {'FINISHED'}
+
+    def invoke(self, context, event):
+        prop = context.scene.dddtools_wt_prop
+        self.weight = prop.weight
+        return self.execute(context)
+
+################################################################
 class DDDWT_PT_WeightTool(bpy.types.Panel):
     bl_idname = 'WT_PT_WeightTool'
     bl_label = 'WeightTool'
@@ -224,7 +284,13 @@ class DDDWT_PT_WeightTool(bpy.types.Panel):
 
         # dissolveWeightedBones
         layout.operator(DDDWT_OT_dissolveWeightedBones.bl_idname)
-    
+
+        display, split = ui.splitSwitch(layout, prop, 'display_setWeightForSelectedBones')
+        split.operator(DDDWT_OT_setWeightForSelectedBones.bl_idname)
+        if display:
+            col = layout.box().column(align=True)
+            col.prop(prop, 'weight')
+
 ################################################################
 classes = (
     DDDWT_propertyGroup,
@@ -233,6 +299,7 @@ classes = (
     DDDWT_OT_transferWeightsForSelectedObjects,
     DDDWT_OT_equalizeVertexWeightsForMirroredBones,
     DDDWT_OT_dissolveWeightedBones,
+    DDDWT_OT_setWeightForSelectedBones,
     DDDWT_PT_WeightTool,
 )
 

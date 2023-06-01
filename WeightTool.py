@@ -574,3 +574,45 @@ def dissolveWeightedBones(arma, boneNames):
     print('---------------- finished')
     
     return targetBones
+
+################################################################
+def set_weight_for_selected_bones(mesh_object, armature_object, weight):
+    # Ensure the objects are of the correct type
+    assert mesh_object.type == 'MESH'
+    assert armature_object.type == 'ARMATURE'
+    assert mesh_object.mode == 'EDIT'
+
+    # Get the vertex groups corresponding to the selected bones
+    vg_indices = []
+    bone_names = []
+    for bone in armature_object.data.bones:
+        if bone.select:
+            vg = mesh_object.vertex_groups.get(bone.name)
+            if vg:
+                vg_indices.append(vg.index)
+                bone_names.append(bone.name)
+    if not vg_indices:
+        print('No bones to be set in vertex group.')
+        return 0, bone_names
+
+    # Create a BMesh from the mesh
+    bm = bmesh.from_edit_mesh(mesh_object.data)
+    bm.verts.ensure_lookup_table()
+
+    # Ensure custom data exists.
+    bm.verts.layers.deform.verify()
+    deform = bm.verts.layers.deform.active
+
+    # Set the weight of each selected vertex
+    count_verts = 0
+    for vert in bm.verts:
+        if vert.select:
+            count_verts += 1
+            gr = vert[deform]
+            for vg_index in vg_indices:
+                gr[vg_index] = weight
+
+    # Write the BMesh back to the mesh
+    bmesh.update_edit_mesh(mesh_object.data)
+
+    return count_verts, bone_names
