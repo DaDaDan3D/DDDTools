@@ -485,6 +485,44 @@ def getSkinMesh(mesh,
     return points
 
 ################
+# 骨を、接続ごとに分離した構造を返す
+# use_connect が False ならば、親はないと見なす
+def getBranches(arma):
+    branches = []
+    bones = set(arma.pose.bones)
+
+    # ボーン名 -> 親 の辞書と、親のセットを作成する
+    bone_to_parent = dict()
+    parents = set()
+    for bone in bones:
+        if bone.parent and bone.bone.use_connect:
+            parent = bone.parent
+            bone_to_parent[bone.name] = parent
+            parents.add(parent.name)
+
+    # 子のないボーンのリストを作成し、それぞれの枝を検索する
+    leaf_bones = [bone for bone in bones if bone.name not in parents]
+    for bone in leaf_bones:
+        branch = []
+
+        # 親へ遡りながら枝を保存していく
+        while bones:
+            bones.remove(bone)
+            branch.append(bone)
+
+            parent = bone_to_parent.get(bone.name)
+            if parent and parent in bones:
+                bone = parent
+            else:
+                break
+                
+        branches.append(reversed(branch))
+
+    assert not bones
+
+    return branches
+
+################
 def makeSkin(mesh,
              arma,
              t_step=0.05,
@@ -505,37 +543,47 @@ def makeSkin(mesh,
                             padding,
                             phase)
 
+    # メッシュデータを格納する配列
     bone_to_indices = dict()
     index_from = 0
     verts = np.empty((0, 3))
     faces = []
 
-    tube = np.empty((0, numberOfRays, 3))
-    for bone in arma.pose.bones:
-        points = getSkinMesh(mesh, arma, bone, params)
-        tube = np.vstack((tube, points))
-        index_to = index_from + points.shape[0] * points.shape[1]
-        bone_to_indices[bone.name] = range(index_from, index_to)
-        index_from = index_to
-    #print(tube)
+    # 枝ごとにチューブを作っていく
+    branches = getBranches(arma)
+    for branch in branches:
+        #print('New branch ----------------')
+        index_base = index_from
 
-    # tube をメッシュにするためのデータを作成
-    vs = tube.reshape((-1, 3))
-    verts = np.vstack((verts, vs))
-    
-    indices_0_0 = np.arange(vs.shape[0]).reshape((-1, tube.shape[1]))
-    indices_1_0 = np.roll(indices_0_0, -1, axis=1)
-    indices_0_1 = np.roll(indices_0_0, -1, axis=0)
-    indices_1_1 = np.roll(indices_0_1, -1, axis=1)
-    
-    face_sides = np.stack((indices_0_0, indices_0_1, indices_1_1, indices_1_0),
-                          axis=2)[:-1].reshape((-1, 4))
-    face_top = indices_0_0[0]
-    face_bottom = indices_0_0[-1][::-1]
+        # ボーンの周りをスキャンしてチューブ状の頂点群を作る
+        # 頂点インデックスも同時に保存していく
+        tube = np.empty((0, numberOfRays, 3))
+        for bone in branch:
+            #print(f' {bone.name}')
+            points = getSkinMesh(mesh, arma, bone, params)
+            tube = np.vstack((tube, points))
+            index_to = index_from + points.shape[0] * points.shape[1]
+            bone_to_indices[bone.name] = range(index_from, index_to)
+            index_from = index_to
+        #print(tube)
 
-    faces.extend(face_sides)
-    faces.append(face_top)
-    faces.append(face_bottom)
+        # tube をメッシュにするためのデータを作成
+        vs = tube.reshape((-1, 3))
+        verts = np.vstack((verts, vs))
+
+        indices_0_0 = np.arange(index_base, index_base + vs.shape[0]).reshape((-1, tube.shape[1]))
+        indices_1_0 = np.roll(indices_0_0, -1, axis=1)
+        indices_0_1 = np.roll(indices_0_0, -1, axis=0)
+        indices_1_1 = np.roll(indices_0_1, -1, axis=1)
+
+        face_sides = np.stack((indices_0_0, indices_0_1, indices_1_1, indices_1_0),
+                              axis=2)[:-1].reshape((-1, 4))
+        face_top = indices_0_0[0]
+        face_bottom = indices_0_0[-1][::-1]
+
+        faces.extend(face_sides)
+        faces.append(face_top)
+        faces.append(face_bottom)
 
     # メッシュオブジェクトを作成
     name = f'{arma.name}_skin'
