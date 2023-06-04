@@ -238,3 +238,83 @@ def fit_centroid_of_polygon(verts):
     center = np.dot(center, matrix_world.T)
 
     return center[:3]
+
+################
+def gaussian_window(window_size, std_dev):
+    """ガウス分布を使用したウィンドウを生成します。
+
+    Args:
+        window_size (int): ウィンドウのサイズ
+        std_dev (float): ガウス分布の標準偏差
+
+    Returns:
+        numpy array: ガウスウィンドウ。
+    """
+    
+    # 標準偏差を設定
+    std_dev *= window_size
+
+    # ウィンドウの中心（平均値）を設定
+    mean = (window_size - 1) / 2.0
+
+    # ガウスウィンドウを生成
+    window = np.exp(-0.5 * ((np.arange(window_size) - mean) / std_dev) ** 2)
+
+    # ウィンドウを正規化（合計が1になるように）
+    window /= np.sum(window)
+
+    return window
+
+################
+def circular_convolve(y, window):
+    # フィルタの半分のサイズを計算
+    pad_size = len(window) // 2
+
+    # 配列の最初と最後に要素をパディング
+    padded_y = np.pad(y, pad_width=pad_size, mode='wrap')
+
+    # convolveを実行
+    result = np.convolve(padded_y, window, mode='same')
+
+    # 追加したパディングを取り除く
+    result = result[pad_size:-pad_size]
+
+    return result
+
+################
+def edge_padded_convolve(y, window):
+    # フィルタの半分のサイズを計算
+    pad_size = len(window) // 2
+
+    # 配列の最初と最後に要素をパディング
+    padded_y = np.pad(y, pad_width=pad_size, mode='edge')
+
+    # convolveを実行
+    result = np.convolve(padded_y, window, mode='same')
+
+    # 追加したパディングを取り除く
+    result = result[pad_size:-pad_size]
+
+    return result
+
+################
+def convolve_tube(mesh, window_size, std_dev):
+    window = gaussian_window(window_size, std_dev)
+
+    # 出力のメッシュを初期化
+    smooth_mesh = np.empty_like(mesh)
+
+    # 横方向（行ごと）にピーク保持平滑化を適用
+    if mesh.shape[1] >= window_size:
+        for i in range(mesh.shape[0]):
+            smooth_mesh[i, :] = circular_convolve(mesh[i, :], window)
+    else:
+        smooth_mesh = mesh
+
+    # 縦方向（列ごと）にピーク保持平滑化を適用
+    if mesh.shape[0] >= window_size:
+        for j in range(mesh.shape[1]):
+            smooth_mesh[:, j] = edge_padded_convolve(smooth_mesh[:, j], window)
+
+    return smooth_mesh
+
