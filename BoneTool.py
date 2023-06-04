@@ -7,7 +7,11 @@ from mathutils import (
     Vector,
     Matrix,
 )
+import numpy as np
+import math
+from dataclasses import dataclass
 from . import internalUtils as iu
+from . import mathUtils as mu
 
 ################
 def renameChildBonesAsUnique(bone):
@@ -405,3 +409,141 @@ def get_ancestral_bones(arma, boneNames):
             bones_left -= children
 
     return result
+
+################
+@dataclass
+class SkinMeshParams:
+    t_step : float
+    numberOfRays : int
+    radius : float
+    window_size : int
+    std_dev : float
+    padding : float
+    phase : float
+
+################
+def getSkinMesh(mesh,
+                arma,
+                bone,
+                params):
+    length = (bone.tail - bone.head).length
+
+    mtx = bone.matrix.copy()
+    mtx.translation = bone.tail
+    matrix_parent = arma.matrix_world @ mtx # 親のワールド行列
+
+    # ボーン空間からメッシュ空間への変換行列を作成
+    mtxB2M = np.array(mesh.matrix_world.inverted() @ matrix_parent)
+    mtxB2M_rot = mtxB2M[:3, :3]
+
+    # 全てのレイを作成する
+    t_from = -length
+    t_to = max(t_from, 0)
+    t_values = np.arange(t_from, t_to, params.t_step)
+    angle_values = np.linspace(params.phase, params.phase + math.tau,
+                               params.numberOfRays, endpoint=False)
+
+    # meshgridでX, Y, Z座標を生成
+    T, Angle = np.meshgrid(t_values, angle_values, indexing='ij')
+    xx = np.cos(Angle)
+    yy = T
+    zz = np.sin(Angle)
+    zeros = np.zeros(T.shape)
+    ones = np.ones(T.shape)
+
+    # 外から内へ
+    dirs = np.dot(np.stack((-xx, zeros, -zz), axis=-1), mtxB2M_rot.T)
+    dirs = dirs / np.linalg.norm(dirs, axis=-1, keepdims=True)
+    origs = np.dot(
+        np.stack((xx * params.radius, yy, zz * params.radius, ones), axis=-1),
+        mtxB2M.T)[:, :, :3]
+    cylindricalRays = np.stack((origs, dirs), axis=-2)
+    #print(cylindricalRays)
+
+    # レイを飛ばし、当たった点と軸との距離を配列として作成する
+    # 0 で初期化しておく
+    dists_mesh = np.zeros((cylindricalRays.shape[0], cylindricalRays.shape[1]))
+    for i, rays in enumerate(cylindricalRays):
+        for j, (orig, dir) in enumerate(rays):
+            hit, location, normal, index = mesh.ray_cast(orig, dir, distance=params.radius)
+            if hit:
+                dists_mesh[i,j] = params.radius - np.linalg.norm(np.array(location) - orig)
+
+    # 平滑化
+    if params.window_size > 1:
+        dists_mesh = mu.convolve_tube(dists_mesh, params.window_size, params.std_dev)
+
+    dists_mesh += params.padding
+
+    # 座標を計算
+    points = origs + dirs * (params.radius - dists_mesh)[..., np.newaxis]
+
+    # ワールド座標に変換
+    oneones = ones.reshape((ones.shape[0], ones.shape[1], 1))
+    points = np.concatenate((points, oneones), axis=-1)
+    points = np.dot(points, np.array(mesh.matrix_world).T)[:, :, :3]
+    return points
+
+################
+def makeSkin(mesh,
+             arma,
+             t_step=0.05,
+             numberOfRays=32,
+             radius=0.3,
+             window_size=3,
+             std_dev=1/6,
+             padding=0.1,
+             phase=0):
+    if not mesh or not arma:
+        raise ValueError(f'Error: no mesh or no arma in makeSkin({mesh}, {arma})')
+
+    params = SkinMeshParams(t_step,
+                            numberOfRays,
+                            radius,
+                            window_size,
+                            std_dev,
+                            padding,
+                            phase)
+
+    tube = np.empty((0, numberOfRays, 3))
+    for bone in arma.pose.bones:
+        points = getSkinMesh(mesh, arma, bone, params)
+        tube = np.vstack((tube, points))
+    #print(tube)
+
+    # リングを繋いでメッシュを作成する
+    new_mesh = bpy.data.meshes.new(name="New_Mesh")
+    new_obj = bpy.data.objects.new("New_Object", new_mesh)
+
+    scene = bpy.context.scene
+    scene.collection.objects.link(new_obj)
+    bpy.context.view_layer.objects.active = new_obj
+    new_obj.select_set(True)
+
+    bm = bmesh.new()
+
+    prev_ring_verts = None
+    prev_ring_verts_roll = None
+    for ring in tube:
+        ring_verts = np.array([bm.verts.new(pt) for pt in ring])
+        ring_verts_roll = np.roll(ring_verts, -1)
+
+        # connect the vertices with the previous ring
+        if prev_ring_verts is None:
+            bmesh.ops.contextual_create(bm, geom=ring_verts)
+        else:
+            for i in range(len(ring_verts)):
+                bmesh.ops.contextual_create(bm,
+                                            geom=[prev_ring_verts[i],
+                                                  ring_verts[i],
+                                                  ring_verts_roll[i],
+                                                  prev_ring_verts_roll[i]])
+        prev_ring_verts = ring_verts
+        prev_ring_verts_roll = ring_verts_roll
+
+    if prev_ring_verts is not None:
+        bmesh.ops.contextual_create(bm, geom=prev_ring_verts)
+
+    bm.to_mesh(new_mesh)
+    bm.free()
+
