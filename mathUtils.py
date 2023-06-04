@@ -302,14 +302,12 @@ def convolve_tube(mesh, window_size, std_dev):
     window = gaussian_window(window_size, std_dev)
 
     # 出力のメッシュを初期化
-    smooth_mesh = np.empty_like(mesh)
+    smooth_mesh = np.copy(mesh)
 
     # 横方向（行ごと）にピーク保持平滑化を適用
     if mesh.shape[1] >= window_size:
         for i in range(mesh.shape[0]):
             smooth_mesh[i, :] = circular_convolve(mesh[i, :], window)
-    else:
-        smooth_mesh = mesh
 
     # 縦方向（列ごと）にピーク保持平滑化を適用
     if mesh.shape[0] >= window_size:
