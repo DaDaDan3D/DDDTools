@@ -452,8 +452,7 @@ def getSkinMesh(mesh,
     ones = np.ones(T.shape)
 
     # 外から内へ
-    dirs = np.dot(np.stack((-xx, zeros, -zz), axis=-1), mtxB2M_rot.T)
-    dirs = dirs / np.linalg.norm(dirs, axis=-1, keepdims=True)
+    dirs = np.dot(np.stack((-xx, zeros, -zz), axis=-1), mtxB2M_rot.T) * params.radius
     origs = np.dot(
         np.stack((xx * params.radius, yy, zz * params.radius, ones), axis=-1),
         mtxB2M.T)[:, :, :3]
@@ -465,23 +464,24 @@ def getSkinMesh(mesh,
     dists_mesh = np.zeros((cylindricalRays.shape[0], cylindricalRays.shape[1]))
     for i, rays in enumerate(cylindricalRays):
         for j, (orig, dir) in enumerate(rays):
-            hit, location, normal, index = mesh.ray_cast(orig, dir, distance=params.radius)
+            rad = np.linalg.norm(dir)
+            hit, location, normal, index = mesh.ray_cast(orig, dir, distance=rad)
             if hit:
-                dists_mesh[i,j] = params.radius - np.linalg.norm(np.array(location) - orig)
+                #print(hit, location, normal, index)
+                dists_mesh[i,j] = 1 - np.dot(np.array(location) - orig, dir) / (rad * rad)
 
     # 平滑化
     if params.window_size > 1:
         dists_mesh = mu.convolve_tube(dists_mesh, params.window_size, params.std_dev)
 
-    dists_mesh += params.padding
-
     # 座標を計算
-    points = origs + dirs * (params.radius - dists_mesh)[..., np.newaxis]
+    points = origs - dirs * (dists_mesh - 1 + params.padding)[..., np.newaxis]
 
     # ワールド座標に変換
     oneones = ones.reshape((ones.shape[0], ones.shape[1], 1))
     points = np.concatenate((points, oneones), axis=-1)
     points = np.dot(points, np.array(mesh.matrix_world).T)[:, :, :3]
+
     return points
 
 ################
@@ -505,45 +505,65 @@ def makeSkin(mesh,
                             padding,
                             phase)
 
+    bone_to_indices = dict()
+    index_from = 0
+    verts = np.empty((0, 3))
+    faces = []
+
     tube = np.empty((0, numberOfRays, 3))
     for bone in arma.pose.bones:
         points = getSkinMesh(mesh, arma, bone, params)
         tube = np.vstack((tube, points))
+        index_to = index_from + points.shape[0] * points.shape[1]
+        bone_to_indices[bone.name] = range(index_from, index_to)
+        index_from = index_to
     #print(tube)
 
-    # リングを繋いでメッシュを作成する
-    new_mesh = bpy.data.meshes.new(name="New_Mesh")
-    new_obj = bpy.data.objects.new("New_Object", new_mesh)
+    # tube をメッシュにするためのデータを作成
+    vs = tube.reshape((-1, 3))
+    verts = np.vstack((verts, vs))
+    
+    indices_0_0 = np.arange(vs.shape[0]).reshape((-1, tube.shape[1]))
+    indices_1_0 = np.roll(indices_0_0, -1, axis=1)
+    indices_0_1 = np.roll(indices_0_0, -1, axis=0)
+    indices_1_1 = np.roll(indices_0_1, -1, axis=1)
+    
+    face_sides = np.stack((indices_0_0, indices_0_1, indices_1_1, indices_1_0),
+                          axis=2)[:-1].reshape((-1, 4))
+    face_top = indices_0_0[0]
+    face_bottom = indices_0_0[-1][::-1]
 
-    scene = bpy.context.scene
-    scene.collection.objects.link(new_obj)
+    faces.extend(face_sides)
+    faces.append(face_top)
+    faces.append(face_bottom)
+
+    # メッシュオブジェクトを作成
+    name = f'{arma.name}_skin'
+    new_mesh = bpy.data.meshes.new(name=name)
+    new_mesh.from_pydata(verts, [], faces)
+    new_mesh.update()
+
+    new_obj = bpy.data.objects.new(name, new_mesh)
+
+    # ウェイト設定
+    for name, indices in bone_to_indices.items():
+        vg = new_obj.vertex_groups.new(name=name)
+        vg.add(indices, 1, type='REPLACE')
+
+    # シーンに追加
+    collection = iu.findCollectionIn(arma)
+    collection.objects.link(new_obj)
     bpy.context.view_layer.objects.active = new_obj
     new_obj.select_set(True)
 
-    bm = bmesh.new()
+    # アーマチュアの子にする
+    iu.setupObject(new_obj,
+                   arma,
+                   'OBJECT',
+                   '',
+                   Matrix())
 
-    prev_ring_verts = None
-    prev_ring_verts_roll = None
-    for ring in tube:
-        ring_verts = np.array([bm.verts.new(pt) for pt in ring])
-        ring_verts_roll = np.roll(ring_verts, -1)
-
-        # connect the vertices with the previous ring
-        if prev_ring_verts is None:
-            bmesh.ops.contextual_create(bm, geom=ring_verts)
-        else:
-            for i in range(len(ring_verts)):
-                bmesh.ops.contextual_create(bm,
-                                            geom=[prev_ring_verts[i],
-                                                  ring_verts[i],
-                                                  ring_verts_roll[i],
-                                                  prev_ring_verts_roll[i]])
-        prev_ring_verts = ring_verts
-        prev_ring_verts_roll = ring_verts_roll
-
-    if prev_ring_verts is not None:
-        bmesh.ops.contextual_create(bm, geom=prev_ring_verts)
-
-    bm.to_mesh(new_mesh)
-    bm.free()
-
+    # アーマチュアモディファイアを追加
+    modifier = new_obj.modifiers.new('ArmatureMod', 'ARMATURE')
+    modifier.object = arma
+    modifier.use_vertex_groups = True
