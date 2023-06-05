@@ -418,7 +418,7 @@ class SkinMeshParams:
     radius : float
     window_size : int
     std_dev : float
-    padding : float
+    outward_shift : float
     phase : float
 
 ################
@@ -475,7 +475,7 @@ def getSkinMesh(mesh,
         dists_mesh = mu.convolve_tube(dists_mesh, params.window_size, params.std_dev)
 
     # 座標を計算
-    points = origs - dirs * (dists_mesh - 1 + params.padding)[..., np.newaxis]
+    points = origs - dirs * (dists_mesh - 1 + params.outward_shift)[..., np.newaxis]
 
     # ワールド座標に変換
     oneones = ones.reshape((ones.shape[0], ones.shape[1], 1))
@@ -523,24 +523,26 @@ def getBranches(arma):
     return branches
 
 ################
-def makeSkin(mesh,
-             arma,
-             t_step=0.05,
-             numberOfRays=32,
-             radius=0.3,
-             window_size=3,
-             std_dev=1/6,
-             padding=0.1,
-             phase=0):
+def createEncasedSkin(mesh,
+                      arma,
+                      t_step=0.05,
+                      numberOfRays=32,
+                      radius=0.3,
+                      window_size=3,
+                      std_dev=1/6,
+                      outward_shift=0.1,
+                      phase=0):
     if not mesh or not arma:
         raise ValueError(f'Error: no mesh or no arma in makeSkin({mesh}, {arma})')
+
+    modeChanger = iu.ModeChanger(arma.obj, 'POSE')
 
     params = SkinMeshParams(t_step,
                             numberOfRays,
                             radius,
                             window_size,
                             std_dev,
-                            padding,
+                            outward_shift,
                             phase)
 
     # メッシュデータを格納する配列
@@ -550,7 +552,7 @@ def makeSkin(mesh,
     faces = []
 
     # 枝ごとにチューブを作っていく
-    branches = getBranches(arma)
+    branches = getBranches(arma.obj)
     for branch in branches:
         #print('New branch ----------------')
         index_base = index_from
@@ -560,7 +562,7 @@ def makeSkin(mesh,
         tube = np.empty((0, numberOfRays, 3))
         for bone in branch:
             #print(f' {bone.name}')
-            points = getSkinMesh(mesh, arma, bone, params)
+            points = getSkinMesh(mesh.obj, arma.obj, bone, params)
             tube = np.vstack((tube, points))
             index_to = index_from + points.shape[0] * points.shape[1]
             bone_to_indices[bone.name] = range(index_from, index_to)
@@ -599,19 +601,21 @@ def makeSkin(mesh,
         vg.add(indices, 1, type='REPLACE')
 
     # シーンに追加
-    collection = iu.findCollectionIn(arma)
+    collection = iu.findCollectionIn(arma.obj)
     collection.objects.link(new_obj)
-    bpy.context.view_layer.objects.active = new_obj
-    new_obj.select_set(True)
 
     # アーマチュアの子にする
     iu.setupObject(new_obj,
-                   arma,
+                   arma.obj,
                    'OBJECT',
                    '',
                    Matrix())
 
     # アーマチュアモディファイアを追加
     modifier = new_obj.modifiers.new('ArmatureMod', 'ARMATURE')
-    modifier.object = arma
+    modifier.object = arma.obj
     modifier.use_vertex_groups = True
+
+    del modeChanger
+
+    return new_obj

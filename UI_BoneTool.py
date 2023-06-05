@@ -1,8 +1,9 @@
 # -*- encoding:utf-8 -*-
 
 import bpy
-from bpy.props import StringProperty, BoolProperty, PointerProperty
+from bpy.props import PointerProperty, CollectionProperty, StringProperty, EnumProperty, BoolProperty, IntProperty, FloatProperty
 from bpy.types import Panel, Operator, PropertyGroup
+import math
 
 from . import internalUtils as iu
 from . import UIUtils as ui
@@ -12,6 +13,91 @@ _ = lambda s: s
 from bpy.app.translations import pgettext_iface as iface_
 
 ################################################################
+class DDDBT_createEncasedSkip_propertyGroup(PropertyGroup):
+    t_step: FloatProperty(
+        name=_('Ring spacing'),
+        description=_('Specifies the interval (in meters) to create a ring around the target mesh.'),
+        subtype='DISTANCE',
+        default=0.03,
+        min=0.01,
+        precision=3,
+        step=1,
+        unit='LENGTH',
+    )
+    numberOfRays: IntProperty(
+        name=_('Number of ring divisions'),
+        description=_('Specifies the number of ring edges surrounding the target mesh.'),
+        min=3,
+        max=256,
+        default=16,
+    )
+    radius: FloatProperty(
+        name=_('Ring radius'),
+        description=_('Specify the approximate radius of the ring around the target mesh. Note that if the radius is smaller than the target mesh, the skin will not be created properly and will be a line.'),
+        subtype='DISTANCE',
+        default=3.0,
+        min=0.000,
+        precision=3,
+        step=1,
+        unit='LENGTH',
+    )
+    window_size: IntProperty(
+        name=_('Smoothing range'),
+        description=_('Specifies the range of the Gaussian window when smoothing the skin. The larger the window, the wider the area considered and the more smoothing will be done.'),
+        #subtype='FACTOR',
+        min=1,
+        max=256,
+        default=3,
+    )
+    std_dev: FloatProperty(
+        name=_('Standard Deviation'),
+        description=_('Specifies the standard deviation of the Gaussian window when smoothing the skin. The larger the value, the stronger the smoothing.'),
+        #subtype='FACTOR',
+        default=1/6,
+        min=0.00,
+        max=1.00,
+        precision=2,
+        step=1,
+    )
+    outward_shift: FloatProperty(
+        name=_('Ring dilation'),
+        description=_('Specifies the amount by which the ring is fattened outward.'),
+        #subtype='FACTOR',
+        default=0,
+        precision=3,
+        step=1,
+    )
+    phase: FloatProperty(
+        name=_('Ring rotation'),
+        description=_('Specifies the amount of subtle rotation by which the ring is phased.'),
+        #subtype='FACTOR',
+        default=0,
+        min=0.00,
+        max=1.00,
+        precision=2,
+        step=1,
+    )
+
+    def draw(self, layout):
+        col = layout.column(align=True)
+        col.prop(self, 'radius')
+        col.prop(self, 't_step')
+        col.prop(self, 'numberOfRays')
+        col.prop(self, 'phase')
+        col.prop(self, 'outward_shift')
+        col.prop(self, 'window_size')
+        col.prop(self, 'std_dev')
+
+    def copy_from(self, src):
+        self.t_step = src.t_step
+        self.numberOfRays = src.numberOfRays
+        self.radius = src.radius
+        self.window_size = src.window_size
+        self.std_dev = src.std_dev
+        self.outward_shift = src.outward_shift
+        self.phase = src.phase
+
+################
 class DDDBT_propertyGroup(PropertyGroup):
     display_createArmatureFromSelectedEdges_settings: BoolProperty(
         name='createArmatureFromSelectedEdgesSettings',
@@ -27,6 +113,10 @@ class DDDBT_propertyGroup(PropertyGroup):
         description=_('The name of the bone to be created.'),
         default='Bone',
     )
+
+    display_createEncasedSkinProp: BoolProperty(default=True)
+    createEncasedSkinProp: PointerProperty(
+        type=DDDBT_createEncasedSkip_propertyGroup)
 
 ################
 class DDDBT_OT_renameChildBonesWithNumber(Operator):
@@ -171,6 +261,54 @@ class DDDBT_OT_printSelectedBoneNamess(Operator):
         return {'FINISHED'}
 
 ################
+class DDDBT_OT_createEncasedSkin(Operator):
+    bl_idname = 'dddbt.create_encased_skin'
+    bl_label = _('Create Encased Skin')
+    bl_description = _('Create a skin that encases the active armature with reference to the selected mesh.')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    m_prop: PointerProperty(type=DDDBT_createEncasedSkip_propertyGroup)
+    
+    @classmethod
+    def poll(self, context):
+        arma = bpy.context.active_object
+        mesh = iu.findfirst_selected_object('MESH')
+        return arma and arma.type == 'ARMATURE' and mesh and len(bpy.context.selected_objects) == 2
+
+    def execute(self, context):
+        prop = context.scene.dddtools_bt_prop
+        arma = bpy.context.active_object
+        mesh = iu.findfirst_selected_object('MESH')
+        numberOfRays = self.m_prop.numberOfRays
+        if self.m_prop.std_dev < 1e-5:
+            window_size = 0
+        else:
+            window_size = min(self.m_prop.window_size, numberOfRays)
+        phase = math.tau / numberOfRays * self.m_prop.phase
+        skin = bt.createEncasedSkin(iu.ObjectWrapper(mesh),
+                                    iu.ObjectWrapper(arma),
+                                    t_step=self.m_prop.t_step,
+                                    numberOfRays=numberOfRays,
+                                    radius=self.m_prop.radius,
+                                    window_size=window_size,
+                                    std_dev=self.m_prop.std_dev,
+                                    outward_shift=self.m_prop.outward_shift,
+                                    phase=phase)
+        self.report({'INFO'},
+                    iface_('Created {skin_name}').format(
+                        skin_name=skin.name))
+        prop.createEncasedSkinProp.copy_from(self.m_prop)
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        prop = context.scene.dddtools_bt_prop
+        self.m_prop.copy_from(prop.createEncasedSkinProp)
+        return self.execute(context)
+
+    def draw(self, context):
+        self.m_prop.draw(self.layout)
+
+################
 class DDDBT_PT_BoneTool(Panel):
     bl_idname = 'BT_PT_BoneTool'
     bl_label = 'BoneTool'
@@ -197,8 +335,15 @@ class DDDBT_PT_BoneTool(Panel):
             col2.enabled = not prop.objNameToBasename
             col2.prop(prop, 'basename')
     
+        display, split = ui.splitSwitch(col, prop, 'display_createEncasedSkinProp')
+        split.operator(DDDBT_OT_createEncasedSkin.bl_idname)
+        if display:
+            box = col.box().column()
+            prop.createEncasedSkinProp.draw(box)
+
 ################################################################
 classes = (
+    DDDBT_createEncasedSkip_propertyGroup,
     DDDBT_propertyGroup,
     DDDBT_OT_renameChildBonesWithNumber,
     DDDBT_OT_resetStretchTo,
@@ -207,6 +352,7 @@ classes = (
     DDDBT_OT_createMeshFromSelectedBones,
     DDDBT_OT_selectAncestralBones,
     DDDBT_OT_printSelectedBoneNamess,
+    DDDBT_OT_createEncasedSkin,
     DDDBT_PT_BoneTool,
 )
 
