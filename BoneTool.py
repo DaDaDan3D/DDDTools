@@ -619,3 +619,112 @@ def createEncasedSkin(mesh,
     del modeChanger
 
     return new_obj
+
+################
+def getDirection(axis, length=1):
+    if   axis == 'POS_X': return Vector((length, 0, 0))
+    elif axis == 'POS_Y': return Vector((0, length, 0))
+    elif axis == 'POS_Z': return Vector((0, 0, length))
+    elif axis == 'NEG_X': return Vector((-length, 0, 0))
+    elif axis == 'NEG_Y': return Vector((0, -length, 0))
+    elif axis == 'NEG_Z': return Vector((0, 0, -length))
+    else:
+        raise ValueError(f'Illegal axis: {axis}')
+
+################
+def buildHandleFromVertices(bone_length=0.1,
+                            set_parent=False,
+                            axis='NEG_Y',
+                            basename='handle'):
+    selected_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
+    created_bones = []
+
+    # Create new armature
+    arm_data = bpy.data.armatures.new('Armature')
+    armature = bpy.data.objects.new('Armature', arm_data)
+    iu.setupObject(armature, None, 'OBJECT', '', Matrix())
+    bpy.context.collection.objects.link(armature)
+
+    modeChanger = iu.ModeChanger(armature, 'EDIT')
+
+    for obj in selected_objects:
+        # For each vertex, create a new bone
+        for vertex in obj.data.vertices:
+            if vertex.select:
+                new_bone = armature.data.edit_bones.new(f"{basename}_{obj.name}_{vertex.index}")
+                new_bone.head = obj.matrix_world @ vertex.co
+                new_bone.tail = new_bone.head + getDirection(axis, length=bone_length)
+                created_bones.append(new_bone.name)
+    
+    del modeChanger
+
+    if not created_bones:
+        # When no bones are created, remove armature
+        iu.removeObject(armature)
+        return None
+
+    if set_parent:
+        modeChanger = iu.ModeChanger(armature, 'POSE')
+
+        for obj in selected_objects:
+            # Parent the mesh to the armature
+            obj.parent = armature
+
+            # Add armature modifier to the object
+            armature_mod = obj.modifiers.new(name="ArmatureMod", type='ARMATURE')
+            armature_mod.object = armature
+
+            # Add new bone to vertex group and set the weight to 1
+            for vertex in obj.data.vertices:
+                if vertex.select:
+                    group_name = f"{basename}_{obj.name}_{vertex.index}"
+                    if group_name not in obj.vertex_groups:
+                        obj.vertex_groups.new(name=group_name)
+                    obj.vertex_groups[group_name].add([vertex.index], 1.0, 'REPLACE')
+            
+        del modeChanger
+
+    return armature
+
+################
+def buildHandleFromBones(bone_length=0.1, axis='NEG_Y', pre='handle'):
+    armature = bpy.context.object
+    selected_bones = get_selected_bone_names()
+    if not selected_bones:
+        return None
+    
+    modeChanger = iu.ModeChanger(armature, 'EDIT')
+    
+    # Find parent
+    ans = get_ancestral_bones(iu.ObjectWrapper(armature), selected_bones)
+    if ans:
+        parent = armature.data.edit_bones[ans.pop()].parent
+    else:
+        parent = None
+
+    # Clear all selections
+    bpy.ops.armature.select_all(action='DESELECT')
+    
+    created_bones = []
+    for boneName in selected_bones:
+        bone = armature.data.edit_bones[boneName]
+        new_bone = armature.data.edit_bones.new(f'{pre}_{boneName}')
+        new_bone.head = bone.tail
+        new_bone.tail = bone.tail + getDirection(axis, length=bone_length)
+        new_bone.parent = parent
+        new_bone.use_connect = False
+        new_bone.select = True
+        created_bones.append(new_bone.name)
+
+    del modeChanger
+    
+    # Add 'stretch-to' modifier
+    modeChanger = iu.ModeChanger(armature, 'POSE')
+    for boneName in selected_bones:
+        pbone = armature.pose.bones[boneName]
+        constraint = pbone.constraints.new('STRETCH_TO')
+        constraint.target = armature
+        constraint.subtarget = f'{pre}_{boneName}'
+    del modeChanger
+
+    return created_bones

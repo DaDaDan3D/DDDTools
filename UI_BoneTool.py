@@ -19,7 +19,7 @@ class DDDBT_createEncasedSkip_propertyGroup(PropertyGroup):
         description=_('Specifies the interval (in meters) to create a ring around the target mesh.'),
         subtype='DISTANCE',
         default=0.03,
-        min=0.01,
+        min=0.001,
         precision=3,
         step=1,
         unit='LENGTH',
@@ -98,11 +98,74 @@ class DDDBT_createEncasedSkip_propertyGroup(PropertyGroup):
         self.phase = src.phase
 
 ################
-class DDDBT_propertyGroup(PropertyGroup):
-    display_createArmatureFromSelectedEdges_settings: BoolProperty(
-        name='createArmatureFromSelectedEdgesSettings',
+def get_axis_enum():
+    return EnumProperty(
+        name=_('Bone Axis'),
+        description=_('Specifies the direction of the axis of the handle bone.'),
+        items=[('POS_X', _('Local +X'), _('The bone axis is oriented in the positive direction of the local X-axis.')),
+               ('POS_Y', _('Local +Y'), _('The bone axis is oriented in the positive direction of the local Y-axis.')),
+               ('POS_Z', _('Local +Z'), _('The bone axis is oriented in the positive direction of the local Z-axis.')),
+               ('NEG_X', _('Local -X'), _('The bone axis is oriented in the negaitive direction of the local X-axis.')),
+               ('NEG_Y', _('Local -Y'), _('The bone axis is oriented in the negaitive direction of the local Y-axis.')),
+               ('NEG_Z', _('Local -Z'), _('The bone axis is oriented in the negaitive direction of the local Z-axis.'))],
+        default='NEG_Y')
+
+################
+class DDDBT_buildHandleFromVertices_propertyGroup(PropertyGroup):
+    bone_length: FloatProperty(
+        name=_('Bone Length'),
+        description=_('Specify the length of the handle bone (m).'),
+        subtype='DISTANCE',
+        default=0.1,
+        min=0.001,
+        precision=2,
+        step=1,
+        unit='LENGTH',
+    )
+    set_parent: BoolProperty(
+        name=_('Set Parent'),
+        description=_('Make the created armature the parent of the mesh and set the vertex group and armature deformation modifier.'),
         default=True,
     )
+    axis: get_axis_enum()
+
+    def draw(self, layout):
+        col = layout.column(align=True)
+        col.prop(self, 'axis')
+        col.prop(self, 'bone_length')
+        col.prop(self, 'set_parent')
+
+    def copy_from(self, src):
+        self.bone_length = src.bone_length
+        self.set_parent = src.set_parent
+        self.axis = src.axis
+
+################
+class DDDBT_buildHandleFromBones_propertyGroup(PropertyGroup):
+    bone_length: FloatProperty(
+        name=_('Bone Length'),
+        description=_('Specify the length of the handle bone (m).'),
+        subtype='DISTANCE',
+        default=0.1,
+        min=0.001,
+        precision=2,
+        step=1,
+        unit='LENGTH',
+    )
+    axis: get_axis_enum()
+
+    def draw(self, layout):
+        col = layout.column(align=True)
+        col.prop(self, 'axis')
+        col.prop(self, 'bone_length')
+
+    def copy_from(self, src):
+        self.bone_length = src.bone_length
+        self.axis = src.axis
+
+################
+class DDDBT_propertyGroup(PropertyGroup):
+    display_createArmatureFromSelectedEdges: BoolProperty(default=False)
     objNameToBasename: BoolProperty(
         name=_('Object Name to Bone Name'),
         description=_('The object name is automatically set as the bone name.'),
@@ -114,9 +177,17 @@ class DDDBT_propertyGroup(PropertyGroup):
         default='Bone',
     )
 
-    display_createEncasedSkinProp: BoolProperty(default=True)
+    display_createEncasedSkin: BoolProperty(default=False)
     createEncasedSkinProp: PointerProperty(
         type=DDDBT_createEncasedSkip_propertyGroup)
+
+    display_buildHandleFromVertices: BoolProperty(default=False)
+    buildHandleFromVerticesProp: PointerProperty(
+        type=DDDBT_buildHandleFromVertices_propertyGroup)
+
+    display_buildHandleFromBones: BoolProperty(default=False)
+    buildHandleFromBonesProp: PointerProperty(
+        type=DDDBT_buildHandleFromBones_propertyGroup)
 
 ################
 class DDDBT_OT_renameChildBonesWithNumber(Operator):
@@ -309,6 +380,79 @@ class DDDBT_OT_createEncasedSkin(Operator):
         self.m_prop.draw(self.layout)
 
 ################
+class DDDBT_OT_buildHandleFromVertices(Operator):
+    bl_idname = 'dddbt.build_handle_from_vertices'
+    bl_label = _('Create vertex handles')
+    bl_description = _('Creates the rig handles from the selected vertices of the selected objects.')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    m_prop: PointerProperty(type=DDDBT_buildHandleFromVertices_propertyGroup)
+    
+    @classmethod
+    def poll(self, context):
+        return iu.findfirst_selected_object('MESH')
+
+    def execute(self, context):
+        prop = context.scene.dddtools_bt_prop
+        prop.buildHandleFromVerticesProp.copy_from(self.m_prop)
+        arma = bt.buildHandleFromVertices(bone_length=self.m_prop.bone_length,
+                                          set_parent=self.m_prop.set_parent,
+                                          axis=self.m_prop.axis)
+        if arma:
+            self.report({'INFO'},
+                        iface_('Created {arma_name}').format(
+                            arma_name=arma.name))
+            return {'FINISHED'}
+        else:
+            self.report({'WARNING'},
+                        iface_('Failed to build armature.'))
+            return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        prop = context.scene.dddtools_bt_prop
+        self.m_prop.copy_from(prop.buildHandleFromVerticesProp)
+        return self.execute(context)
+
+    def draw(self, context):
+        self.m_prop.draw(self.layout)
+
+################
+class DDDBT_OT_buildHandleFromBones(Operator):
+    bl_idname = 'dddbt.build_handle_from_bones'
+    bl_label = _('Create rig handles')
+    bl_description = _('Creates the rig handles from the selected bones.')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    m_prop: PointerProperty(type=DDDBT_buildHandleFromBones_propertyGroup)
+    
+    @classmethod
+    def poll(self, context):
+        return bt.get_selected_bone_names()
+
+    def execute(self, context):
+        prop = context.scene.dddtools_bt_prop
+        prop.buildHandleFromBonesProp.copy_from(self.m_prop)
+        bones = bt.buildHandleFromBones(bone_length=self.m_prop.bone_length,
+                                        axis=self.m_prop.axis)
+        if bones:
+            self.report({'INFO'},
+                        iface_('Created {sorted_bones}').format(
+                            sorted_bones=sorted(bones)))
+            return {'FINISHED'}
+        else:
+            self.report({'WARNING'},
+                        iface_('Failed to build bone rigs.'))
+            return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        prop = context.scene.dddtools_bt_prop
+        self.m_prop.copy_from(prop.buildHandleFromVerticesProp)
+        return self.execute(context)
+
+    def draw(self, context):
+        self.m_prop.draw(self.layout)
+
+################
 class DDDBT_PT_BoneTool(Panel):
     bl_idname = 'BT_PT_BoneTool'
     bl_label = 'BoneTool'
@@ -326,7 +470,7 @@ class DDDBT_PT_BoneTool(Panel):
         col.operator(DDDBT_OT_resetStretchTo.bl_idname)
         col.operator(DDDBT_OT_applyArmatureToRestPose.bl_idname)
         col.operator(DDDBT_OT_createMeshFromSelectedBones.bl_idname)
-        display, split = ui.splitSwitch(col, prop, 'display_createArmatureFromSelectedEdges_settings')
+        display, split = ui.splitSwitch(col, prop, 'display_createArmatureFromSelectedEdges')
         split.operator(DDDBT_OT_createArmatureFromSelectedEdges.bl_idname)
         if display:
             box = col.box().column()
@@ -335,15 +479,29 @@ class DDDBT_PT_BoneTool(Panel):
             col2.enabled = not prop.objNameToBasename
             col2.prop(prop, 'basename')
     
-        display, split = ui.splitSwitch(col, prop, 'display_createEncasedSkinProp')
+        display, split = ui.splitSwitch(col, prop, 'display_createEncasedSkin')
         split.operator(DDDBT_OT_createEncasedSkin.bl_idname)
         if display:
-            box = col.box().column()
+            box = col.box()
             prop.createEncasedSkinProp.draw(box)
+
+        display, split = ui.splitSwitch(col, prop, 'display_buildHandleFromVertices')
+        split.operator(DDDBT_OT_buildHandleFromVertices.bl_idname)
+        if display:
+            box = col.box()
+            prop.buildHandleFromVerticesProp.draw(box)
+
+        display, split = ui.splitSwitch(col, prop, 'display_buildHandleFromBones')
+        split.operator(DDDBT_OT_buildHandleFromBones.bl_idname)
+        if display:
+            box = col.box()
+            prop.buildHandleFromBonesProp.draw(box)
 
 ################################################################
 classes = (
     DDDBT_createEncasedSkip_propertyGroup,
+    DDDBT_buildHandleFromVertices_propertyGroup,
+    DDDBT_buildHandleFromBones_propertyGroup,
     DDDBT_propertyGroup,
     DDDBT_OT_renameChildBonesWithNumber,
     DDDBT_OT_resetStretchTo,
@@ -353,6 +511,8 @@ classes = (
     DDDBT_OT_selectAncestralBones,
     DDDBT_OT_printSelectedBoneNamess,
     DDDBT_OT_createEncasedSkin,
+    DDDBT_OT_buildHandleFromVertices,
+    DDDBT_OT_buildHandleFromBones,
     DDDBT_PT_BoneTool,
 )
 
