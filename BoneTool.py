@@ -65,67 +65,6 @@ def renameChildBonesWithNumber(bone, baseName):
         bone.name = newName
 
 ################
-def applyScaleAndRotationToArmature(arma):
-    """
-    Applies scale and rotation to the armature's child meshes and empties.
-
-    Parameters
-    ----------------
-    arma : Object Wrapper
-        Skeleton Object
-    """
-
-    # 1st step
-    # listup and select all child empties
-    bpy.ops.object.select_all(action='DESELECT')
-    boneToEmpties = dict()
-    for co in arma.obj.children:
-        if co.type == 'EMPTY' and co in bpy.context.selectable_objects:
-            bone = co.parent_bone
-            if bone:
-                if bone not in boneToEmpties:
-                    boneToEmpties[bone] = set()
-                boneToEmpties[bone].add(co.name)
-                co.select_set(True)
-
-    # 2nd step
-    # clear parent of empties
-    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-
-    # 3rd step
-    # apply scale and rotation to empties and skeleton
-    for co in arma.obj.children:
-        if co in bpy.context.selectable_objects:
-            co.select_set(True)
-    arma.select_set(True)
-    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
-
-    # 4th step
-    # restore parent of empties
-    for key, value in boneToEmpties.items():
-        print(key, ':', value)
-
-        bpy.ops.object.select_all(action='DESELECT')
-        for en in value:
-            empty = iu.ObjectWrapper(en)
-            empty.select_set(True)
-        arma.select_set(True)
-        bpy.context.view_layer.objects.active = arma.obj
-
-        modeChanger = iu.ModeChanger(arma.obj, 'EDIT')
-        bpy.ops.armature.select_all(action='DESELECT')
-        bone = iu.EditBoneWrapper(key)
-        bone.select_set(True)
-        arma.obj.data.edit_bones.active = bone.obj
-        del modeChanger
-
-        bpy.ops.object.parent_set(type='BONE', keep_transform=True)
-
-    # 5th step
-    # reset StretchTo
-    resetStretchTo(arma)
-
-################
 def resetStretchTo(arma):
     """
     Resets all 'Stretch-to' modifiers .
@@ -138,15 +77,14 @@ def resetStretchTo(arma):
     """
     
     result = 0
-    modeChanger = iu.ModeChanger(arma.obj, 'POSE')
-    for bone in arma.obj.pose.bones:
-        for cn in bone.constraints:
-            #print(bone.name, cn.name, cn.type)
-            if cn.type == 'STRETCH_TO':
-                #print(cn.rest_length)
-                cn.rest_length = 0
-                result += 1
-    del modeChanger
+    with iu.mode_context(arma.obj, 'POSE'):
+        for bone in arma.obj.pose.bones:
+            for cn in bone.constraints:
+                #print(bone.name, cn.name, cn.type)
+                if cn.type == 'STRETCH_TO':
+                    #print(cn.rest_length)
+                    cn.rest_length = 0
+                    result += 1
     return result
 
 ################
@@ -163,28 +101,25 @@ def applyArmatureToRestPose(arma):
     #print(f'---------------- applyArmatureToRestPose({arma.name})')
 
     # copy and apply armature modifier
-    modeChanger = iu.ModeChanger(arma.obj, 'OBJECT')
-    for co in arma.obj.children_recursive:
-        if co in bpy.context.selectable_objects:
-            #print(co.name)
-            bpy.context.view_layer.objects.active = co
+    with iu.mode_context(arma.obj, 'OBJECT'):
+        for co in arma.obj.children_recursive:
+            if co in bpy.context.selectable_objects:
+                #print(co.name)
+                bpy.context.view_layer.objects.active = co
 
-            # find ARMATURE modifier
-            for mod in co.modifiers:
-                if mod.type == 'ARMATURE':
-                    nameSave = mod.name
-                    mod.name = str(uuid.uuid4())
-                    bpy.ops.object.modifier_apply_as_shapekey(keep_modifier=True, modifier=mod.name)
-                    iu.blendShapekeyToBasis(co, mod.name, blend=1.0, remove_shapekey=True)
-                    mod.name = nameSave
-                    break
-    del modeChanger
+                # find ARMATURE modifier
+                for mod in co.modifiers:
+                    if mod.type == 'ARMATURE':
+                        nameSave = mod.name
+                        mod.name = str(uuid.uuid4())
+                        bpy.ops.object.modifier_apply_as_shapekey(keep_modifier=True, modifier=mod.name)
+                        iu.blendShapekeyToBasis(co, mod.name, blend=1.0, remove_shapekey=True)
+                        mod.name = nameSave
+                        break
             
     # apply pose
-    bpy.context.view_layer.objects.active = arma.obj
-    modeChanger = iu.ModeChanger(arma.obj, 'POSE')
-    bpy.ops.pose.armature_apply(selected=False)
-    del modeChanger
+    with iu.mode_context(arma.obj, 'POSE'):
+        bpy.ops.pose.armature_apply(selected=False)
 
     # reset StretchTo
     resetStretchTo(arma)
@@ -215,7 +150,8 @@ def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
         return None
 
     # 明示的に OBJECT モードにすることで EditMesh を確定させる
-    bpy.ops.object.mode_set(mode='OBJECT')
+    with iu.mode_context(meshObj.obj, 'OBJECT'): 
+        pass
 
     # アーマチュアを作成
     arm_data = bpy.data.armatures.new('Armature')
@@ -224,55 +160,52 @@ def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
     bpy.context.collection.objects.link(armature)
 
     # ボーンを作成するために編集モードにする
-    modeChanger = iu.ModeChanger(armature, 'EDIT')
-    edit_bones = armature.data.edit_bones
-    
-    obj = meshObj.obj
-    cursor_loc = obj.matrix_world.inverted() @ bpy.context.scene.cursor.location
+    with iu.mode_context(armature, 'EDIT'):
+        edit_bones = armature.data.edit_bones
 
-    # 3D カーソルの位置にルートボーンを作成
-    root_bone = edit_bones.new(f'{basename}_Root')
-    root_bone.head = cursor_loc
-    root_bone.tail = cursor_loc + Vector((0, 0, 1))
+        obj = meshObj.obj
+        cursor_loc = obj.matrix_world.inverted() @ bpy.context.scene.cursor.location
 
-    # メッシュの選択したエッジに基づいてボーンを作成
-    mesh = obj.data
-    mesh.update()
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bm.edges.ensure_lookup_table()
+        # 3D カーソルの位置にルートボーンを作成
+        root_bone = edit_bones.new(f'{basename}_Root')
+        root_bone.head = cursor_loc
+        root_bone.tail = cursor_loc + Vector((0, 0, 1))
 
-    # 選択されたエッジから頂点を取得
-    edges = [[edge.verts[0], edge.verts[1]] for edge in bm.edges if edge.select]
+        # メッシュの選択したエッジに基づいてボーンを作成
+        mesh = obj.data
+        mesh.update()
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        bm.edges.ensure_lookup_table()
 
-    # 3D カーソルからの距離で頂点及びエッジをソート
-    for idx in range(len(edges)):
-        edges[idx].sort(key=lambda vert:(vert.co - cursor_loc).length)
-    edges.sort(key=lambda edge: ((edge[0].co + edge[1].co) / 2 - cursor_loc).length)
+        # 選択されたエッジから頂点を取得
+        edges = [[edge.verts[0], edge.verts[1]] for edge in bm.edges if edge.select]
 
-    # 近い順にボーンを作成し、接続できるならしていく
-    vert_to_bone = dict()
-    count = 0
-    for edge in edges:
-        vert_head, vert_tail = edge
-        parent = vert_to_bone.get(vert_head)
-        if parent:
-            newName = parent.name
-        else:
-            newName = f'{basename}_{count:03d}'
-            count += 1
-            parent = root_bone
-        
-        bone = edit_bones.new(newName)
-        bone.head = vert_head.co
-        bone.tail = vert_tail.co
-        bone.parent = parent
-        bone.use_connect = (parent != root_bone)
-        if vert_tail not in vert_to_bone:
-            vert_to_bone[vert_tail] = bone
+        # 3D カーソルからの距離で頂点及びエッジをソート
+        for idx in range(len(edges)):
+            edges[idx].sort(key=lambda vert:(vert.co - cursor_loc).length)
+        edges.sort(key=lambda edge: ((edge[0].co + edge[1].co) / 2 - cursor_loc).length)
 
-    # 元のモードに戻る
-    del modeChanger
+        # 近い順にボーンを作成し、接続できるならしていく
+        vert_to_bone = dict()
+        count = 0
+        for edge in edges:
+            vert_head, vert_tail = edge
+            parent = vert_to_bone.get(vert_head)
+            if parent:
+                newName = parent.name
+            else:
+                newName = f'{basename}_{count:03d}'
+                count += 1
+                parent = root_bone
+
+            bone = edit_bones.new(newName)
+            bone.head = vert_head.co
+            bone.tail = vert_tail.co
+            bone.parent = parent
+            bone.use_connect = (parent != root_bone)
+            if vert_tail not in vert_to_bone:
+                vert_to_bone[vert_tail] = bone
 
     return armature
 
@@ -305,68 +238,66 @@ Vertex weights are also set appropriately.
     """
 
     # ポーズモードでボーンの情報を取得
-    modeChanger = iu.ModeChanger(armaObj.obj, 'POSE')
-    armature = armaObj.obj
+    with iu.mode_context(armaObj.obj, 'POSE'):
+        armature = armaObj.obj
 
-    # 選択されたボーンを取得
-    bones = [bone for bone in armature.data.bones if bone.select]
-    if not bones:
-        print('No bones are selected.')
-        return None
+        # 選択されたボーンを取得
+        bones = [bone for bone in armature.data.bones if bone.select]
+        if not bones:
+            print('No bones are selected.')
+            return None
 
-    # 親から子の順になるようにソート
-    boneIndexDic = getBoneIndexDictionary(armature)
-    bones.sort(key=lambda bone: boneIndexDic[bone.name])
+        # 親から子の順になるようにソート
+        boneIndexDic = getBoneIndexDictionary(armature)
+        bones.sort(key=lambda bone: boneIndexDic[bone.name])
 
-    # メッシュを作成
-    mesh = bpy.data.meshes.new('Mesh')
-    obj = bpy.data.objects.new('Mesh', mesh)
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
+        # メッシュを作成
+        mesh = bpy.data.meshes.new('Mesh')
+        obj = bpy.data.objects.new('Mesh', mesh)
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
 
-    # エッジを作成
-    boneToTail = dict()
-    weights = []
-    for bone in bones:
-        tail = bm.verts.new(bone.tail_local)
-        boneToTail[bone] = tail
-        if bone.parent in boneToTail and bone.use_connect:
-            head = boneToTail[bone.parent]
-            verts = [tail]
-        else:
-            head = bm.verts.new(bone.head_local)
-            verts = [head, tail]
-        bm.edges.new((head, tail))
-        weights.append((bone, verts))
+        # エッジを作成
+        boneToTail = dict()
+        weights = []
+        for bone in bones:
+            tail = bm.verts.new(bone.tail_local)
+            boneToTail[bone] = tail
+            if bone.parent in boneToTail and bone.use_connect:
+                head = boneToTail[bone.parent]
+                verts = [tail]
+            else:
+                head = bm.verts.new(bone.head_local)
+                verts = [head, tail]
+            bm.edges.new((head, tail))
+            weights.append((bone, verts))
 
-    # 頂点インデックスを確定し、weights を安全なデータに変換
-    bm.verts.index_update()
-    weightsEx = []
-    for bone, verts in weights:
-        index = [vert.index for vert in verts]
-        weightsEx.append((bone.name, index))
-        
-    # メッシュを反映
-    bm.to_mesh(mesh)
-    bm.free()
+        # 頂点インデックスを確定し、weights を安全なデータに変換
+        bm.verts.index_update()
+        weightsEx = []
+        for bone, verts in weights:
+            index = [vert.index for vert in verts]
+            weightsEx.append((bone.name, index))
 
-    # 頂点グループを作成
-    for boneName, index in weightsEx:
-        vg = obj.vertex_groups.new(name=boneName)
-        vg.add(index, 1.0, type='REPLACE')
+        # メッシュを反映
+        bm.to_mesh(mesh)
+        bm.free()
 
-    # アーマチュアと同じ位置に配置
-    iu.setupObject(obj, armature, 'OBJECT', '', armature.matrix_world)
+        # 頂点グループを作成
+        for boneName, index in weightsEx:
+            vg = obj.vertex_groups.new(name=boneName)
+            vg.add(index, 1.0, type='REPLACE')
 
-    # シーンにメッシュを追加
-    bpy.context.collection.objects.link(obj)
+        # アーマチュアと同じ位置に配置
+        iu.setupObject(obj, armature, 'OBJECT', '', armature.matrix_world)
 
-    # アーマチュアモディファイアを追加
-    modifier = obj.modifiers.new('ArmatureMod', 'ARMATURE')
-    modifier.object = armature
-    modifier.use_vertex_groups = True
+        # シーンにメッシュを追加
+        bpy.context.collection.objects.link(obj)
 
-    del modeChanger
+        # アーマチュアモディファイアを追加
+        modifier = obj.modifiers.new('ArmatureMod', 'ARMATURE')
+        modifier.object = armature
+        modifier.use_vertex_groups = True
 
     return obj
 
@@ -387,10 +318,9 @@ def get_selected_bone_names():
 ################
 # 指定したボーンだけを選択した状態にする
 def select_bones(arma, selectBoneNames):
-    modeChanger = iu.ModeChanger(arma.obj, 'EDIT')
-    for bone in arma.obj.data.edit_bones:
-        iu.EditBoneWrapper(bone).select_set(bone.name in selectBoneNames)
-    del modeChanger
+    with iu.mode_context(arma.obj, 'EDIT'):
+        for bone in arma.obj.data.edit_bones:
+            iu.EditBoneWrapper(bone).select_set(bone.name in selectBoneNames)
 
 ################
 # boneNames の中で、最も先祖に近い骨達だけを得る
@@ -402,7 +332,9 @@ def get_ancestral_bones(arma, boneNames):
         boneName = bones_left.pop()
         bone = arma.obj.data.bones.get(boneName)
         if not bone:
-            result -= boneName
+            print(f'Cannot find {boneName} in {arma}')
+            print([b.name for b in arma.obj.data.bones])
+            result.discard(boneName)
         else:
             children = set([b.name for b in bone.children_recursive])
             result -= children
@@ -535,88 +467,85 @@ def createEncasedSkin(mesh,
     if not mesh or not arma:
         raise ValueError(f'Error: no mesh or no arma in makeSkin({mesh}, {arma})')
 
-    modeChanger = iu.ModeChanger(arma.obj, 'POSE')
+    with iu.mode_context(arma.obj, 'POSE'):
+        params = SkinMeshParams(t_step,
+                                numberOfRays,
+                                radius,
+                                window_size,
+                                std_dev,
+                                outward_shift,
+                                phase)
 
-    params = SkinMeshParams(t_step,
-                            numberOfRays,
-                            radius,
-                            window_size,
-                            std_dev,
-                            outward_shift,
-                            phase)
+        # メッシュデータを格納する配列
+        bone_to_indices = dict()
+        index_from = 0
+        verts = np.empty((0, 3))
+        faces = []
 
-    # メッシュデータを格納する配列
-    bone_to_indices = dict()
-    index_from = 0
-    verts = np.empty((0, 3))
-    faces = []
+        # 枝ごとにチューブを作っていく
+        branches = getBranches(arma.obj)
+        for branch in branches:
+            #print('New branch ----------------')
+            index_base = index_from
 
-    # 枝ごとにチューブを作っていく
-    branches = getBranches(arma.obj)
-    for branch in branches:
-        #print('New branch ----------------')
-        index_base = index_from
+            # ボーンの周りをスキャンしてチューブ状の頂点群を作る
+            # 頂点インデックスも同時に保存していく
+            tube = np.empty((0, numberOfRays, 3))
+            for bone in branch:
+                #print(f' {bone.name}')
+                points = getSkinMesh(mesh.obj, arma.obj, bone, params)
+                tube = np.vstack((tube, points))
+                index_to = index_from + points.shape[0] * points.shape[1]
+                bone_to_indices[bone.name] = range(index_from, index_to)
+                index_from = index_to
+            #print(tube)
 
-        # ボーンの周りをスキャンしてチューブ状の頂点群を作る
-        # 頂点インデックスも同時に保存していく
-        tube = np.empty((0, numberOfRays, 3))
-        for bone in branch:
-            #print(f' {bone.name}')
-            points = getSkinMesh(mesh.obj, arma.obj, bone, params)
-            tube = np.vstack((tube, points))
-            index_to = index_from + points.shape[0] * points.shape[1]
-            bone_to_indices[bone.name] = range(index_from, index_to)
-            index_from = index_to
-        #print(tube)
+            # tube をメッシュにするためのデータを作成
+            vs = tube.reshape((-1, 3))
+            verts = np.vstack((verts, vs))
 
-        # tube をメッシュにするためのデータを作成
-        vs = tube.reshape((-1, 3))
-        verts = np.vstack((verts, vs))
+            indices_0_0 = np.arange(index_base, index_base + vs.shape[0]).reshape((-1, tube.shape[1]))
+            indices_1_0 = np.roll(indices_0_0, -1, axis=1)
+            indices_0_1 = np.roll(indices_0_0, -1, axis=0)
+            indices_1_1 = np.roll(indices_0_1, -1, axis=1)
 
-        indices_0_0 = np.arange(index_base, index_base + vs.shape[0]).reshape((-1, tube.shape[1]))
-        indices_1_0 = np.roll(indices_0_0, -1, axis=1)
-        indices_0_1 = np.roll(indices_0_0, -1, axis=0)
-        indices_1_1 = np.roll(indices_0_1, -1, axis=1)
+            face_sides = np.stack((indices_0_0, indices_0_1, indices_1_1, indices_1_0),
+                                  axis=2)[:-1].reshape((-1, 4))
+            face_top = indices_0_0[0]
+            face_bottom = indices_0_0[-1][::-1]
 
-        face_sides = np.stack((indices_0_0, indices_0_1, indices_1_1, indices_1_0),
-                              axis=2)[:-1].reshape((-1, 4))
-        face_top = indices_0_0[0]
-        face_bottom = indices_0_0[-1][::-1]
+            faces.extend(face_sides)
+            faces.append(face_top)
+            faces.append(face_bottom)
 
-        faces.extend(face_sides)
-        faces.append(face_top)
-        faces.append(face_bottom)
+        # メッシュオブジェクトを作成
+        name = f'{arma.name}_skin'
+        new_mesh = bpy.data.meshes.new(name=name)
+        new_mesh.from_pydata(verts, [], faces)
+        new_mesh.update()
 
-    # メッシュオブジェクトを作成
-    name = f'{arma.name}_skin'
-    new_mesh = bpy.data.meshes.new(name=name)
-    new_mesh.from_pydata(verts, [], faces)
-    new_mesh.update()
+        new_obj = bpy.data.objects.new(name, new_mesh)
 
-    new_obj = bpy.data.objects.new(name, new_mesh)
+        # ウェイト設定
+        for name, indices in bone_to_indices.items():
+            vg = new_obj.vertex_groups.new(name=name)
+            vg.add(indices, 1, type='REPLACE')
 
-    # ウェイト設定
-    for name, indices in bone_to_indices.items():
-        vg = new_obj.vertex_groups.new(name=name)
-        vg.add(indices, 1, type='REPLACE')
+        # シーンに追加
+        collection = iu.findCollectionIn(arma.obj)
+        collection.objects.link(new_obj)
 
-    # シーンに追加
-    collection = iu.findCollectionIn(arma.obj)
-    collection.objects.link(new_obj)
+        # アーマチュアの子にする
+        iu.setupObject(new_obj,
+                       arma.obj,
+                       'OBJECT',
+                       '',
+                       Matrix())
 
-    # アーマチュアの子にする
-    iu.setupObject(new_obj,
-                   arma.obj,
-                   'OBJECT',
-                   '',
-                   Matrix())
-
-    # アーマチュアモディファイアを追加
-    modifier = new_obj.modifiers.new('ArmatureMod', 'ARMATURE')
-    modifier.object = arma.obj
-    modifier.use_vertex_groups = True
-
-    del modeChanger
+        # アーマチュアモディファイアを追加
+        modifier = new_obj.modifiers.new('ArmatureMod', 'ARMATURE')
+        modifier.object = arma.obj
+        modifier.use_vertex_groups = True
 
     return new_obj
 
@@ -645,18 +574,16 @@ def buildHandleFromVertices(bone_length=0.1,
     iu.setupObject(armature, None, 'OBJECT', '', Matrix())
     bpy.context.collection.objects.link(armature)
 
-    modeChanger = iu.ModeChanger(armature, 'EDIT')
-
-    for obj in selected_objects:
-        # For each vertex, create a new bone
-        for vertex in obj.data.vertices:
-            if vertex.select:
-                new_bone = armature.data.edit_bones.new(f"{basename}_{obj.name}_{vertex.index}")
-                new_bone.head = obj.matrix_world @ vertex.co
-                new_bone.tail = new_bone.head + getDirection(axis, length=bone_length)
-                created_bones.append(new_bone.name)
-    
-    del modeChanger
+    with iu.mode_context(armature, 'EDIT'):
+        for obj in selected_objects:
+            with iu.mode_context(obj, 'OBJECT'):
+                # For each vertex, create a new bone
+                for vertex in obj.data.vertices:
+                    if vertex.select:
+                        new_bone = armature.data.edit_bones.new(f"{basename}_{obj.name}_{vertex.index}")
+                        new_bone.head = obj.matrix_world @ vertex.co
+                        new_bone.tail = new_bone.head + getDirection(axis, length=bone_length)
+                        created_bones.append(new_bone.name)
 
     if not created_bones:
         # When no bones are created, remove armature
@@ -664,28 +591,22 @@ def buildHandleFromVertices(bone_length=0.1,
         return None
 
     if set_parent:
-        modeChanger = iu.ModeChanger(armature, 'POSE')
-
         for obj in selected_objects:
-            mc2 = iu.ModeChanger(obj, 'OBJECT')
+            with iu.mode_context(obj, 'OBJECT'):
+                # Parent the mesh to the armature
+                obj.parent = armature
 
-            # Parent the mesh to the armature
-            obj.parent = armature
+                # Add armature modifier to the object
+                armature_mod = obj.modifiers.new(name="ArmatureMod", type='ARMATURE')
+                armature_mod.object = armature
 
-            # Add armature modifier to the object
-            armature_mod = obj.modifiers.new(name="ArmatureMod", type='ARMATURE')
-            armature_mod.object = armature
-
-            # Add new bone to vertex group and set the weight to 1
-            for vertex in obj.data.vertices:
-                if vertex.select:
-                    group_name = f"{basename}_{obj.name}_{vertex.index}"
-                    if group_name not in obj.vertex_groups:
-                        obj.vertex_groups.new(name=group_name)
-                    obj.vertex_groups[group_name].add([vertex.index], 1.0, 'REPLACE')
-            del mc2
-
-        del modeChanger
+                # Add new bone to vertex group and set the weight to 1
+                for vertex in obj.data.vertices:
+                    if vertex.select:
+                        group_name = f"{basename}_{obj.name}_{vertex.index}"
+                        if group_name not in obj.vertex_groups:
+                            obj.vertex_groups.new(name=group_name)
+                        obj.vertex_groups[group_name].add([vertex.index], 1.0, 'REPLACE')
 
     return armature
 
@@ -696,49 +617,43 @@ def buildHandleFromBones(bone_length=0.1, axis='NEG_Y', pre='handle'):
     if not selected_bones:
         return None
     
-    modeChanger = iu.ModeChanger(armature, 'EDIT')
-    
-    # Find parent
-    ans = get_ancestral_bones(iu.ObjectWrapper(armature), selected_bones)
-    if ans:
-        parent = armature.data.edit_bones[ans.pop()].parent
-    else:
-        parent = None
+    with iu.mode_context(armature, 'EDIT'):
+        # Find parent
+        ans = get_ancestral_bones(iu.ObjectWrapper(armature), selected_bones)
+        if ans:
+            parent = armature.data.edit_bones[ans.pop()].parent
+        else:
+            parent = None
 
-    # Clear all selections
-    bpy.ops.armature.select_all(action='DESELECT')
-    
-    created_bones = []
-    for boneName in selected_bones:
-        bone = armature.data.edit_bones[boneName]
-        new_bone = armature.data.edit_bones.new(f'{pre}_{boneName}')
-        new_bone.head = bone.tail
-        new_bone.tail = bone.tail + getDirection(axis, length=bone_length)
-        new_bone.parent = parent
-        new_bone.use_connect = False
-        new_bone.select = True
-        created_bones.append(new_bone.name)
+        # Clear all selections
+        bpy.ops.armature.select_all(action='DESELECT')
 
-    del modeChanger
+        created_bones = []
+        for boneName in selected_bones:
+            bone = armature.data.edit_bones[boneName]
+            new_bone = armature.data.edit_bones.new(f'{pre}_{boneName}')
+            new_bone.head = bone.tail
+            new_bone.tail = bone.tail + getDirection(axis, length=bone_length)
+            new_bone.parent = parent
+            new_bone.use_connect = False
+            new_bone.select = True
+            created_bones.append(new_bone.name)
     
     # Add 'stretch-to' modifier
-    modeChanger = iu.ModeChanger(armature, 'POSE')
-    for boneName in selected_bones:
-        pbone = armature.pose.bones[boneName]
-        constraint = pbone.constraints.new('STRETCH_TO')
-        constraint.target = armature
-        constraint.subtarget = f'{pre}_{boneName}'
-    del modeChanger
+    with iu.mode_context(armature, 'POSE'):
+        for boneName in selected_bones:
+            pbone = armature.pose.bones[boneName]
+            constraint = pbone.constraints.new('STRETCH_TO')
+            constraint.target = armature
+            constraint.subtarget = f'{pre}_{boneName}'
 
     return created_bones
 
 ################
 def changeBoneLengthDirection(armature, length, local_direction):
-    modeChanger = iu.ModeChanger(armature, 'EDIT')
+    with iu.mode_context(armature, 'EDIT'):
+        direction = Vector(local_direction).normalized() * length
+        selected_bones = [b for b in armature.data.edit_bones if b.select]
+        for bone in selected_bones:
+            bone.tail = bone.head + direction
 
-    direction = Vector(local_direction).normalized() * length
-    selected_bones = [b for b in armature.data.edit_bones if b.select]
-    for bone in selected_bones:
-        bone.tail = bone.head + direction
-
-    del modeChanger

@@ -425,7 +425,7 @@ class DDDBT_OT_buildHandleFromVertices(Operator):
     
     @classmethod
     def poll(self, context):
-        return iu.findfirst_selected_object('MESH')
+        return bpy.context.mode == 'EDIT_MESH' and iu.findfirst_selected_object('MESH')
 
     def execute(self, context):
         prop = context.scene.dddtools_bt_prop
