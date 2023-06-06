@@ -1,7 +1,7 @@
 # -*- encoding:utf-8 -*-
 
 import bpy
-from bpy.props import PointerProperty, CollectionProperty, StringProperty, EnumProperty, BoolProperty, IntProperty, FloatProperty
+from bpy.props import PointerProperty, CollectionProperty, StringProperty, EnumProperty, BoolProperty, IntProperty, FloatProperty, FloatVectorProperty
 from bpy.types import Panel, Operator, PropertyGroup
 import math
 
@@ -164,6 +164,37 @@ class DDDBT_buildHandleFromBones_propertyGroup(PropertyGroup):
         self.axis = src.axis
 
 ################
+class DDDBT_changeBoneLengthDirection_propertyGroup(PropertyGroup):
+    bone_length: FloatProperty(
+        name=_('Bone Length'),
+        description=_('Specify the length of the handle bone (m).'),
+        subtype='DISTANCE',
+        default=0.1,
+        min=0.001,
+        precision=2,
+        step=1,
+        unit='LENGTH',
+    )
+    direction: FloatVectorProperty(
+        name=_('Bone Direction'),
+        description=_('Specifies the direction of the bone.'),
+        size=3,
+        default=[0, -1, 0],
+        precision=2,
+        step=1.0,
+        unit='NONE',
+    )
+
+    def draw(self, layout):
+        col = layout.column(align=False)
+        col.prop(self, 'direction')
+        col.prop(self, 'bone_length')
+
+    def copy_from(self, src):
+        self.bone_length = src.bone_length
+        self.direction = src.direction
+
+################
 class DDDBT_propertyGroup(PropertyGroup):
     display_createArmatureFromSelectedEdges: BoolProperty(default=False)
     objNameToBasename: BoolProperty(
@@ -188,6 +219,10 @@ class DDDBT_propertyGroup(PropertyGroup):
     display_buildHandleFromBones: BoolProperty(default=False)
     buildHandleFromBonesProp: PointerProperty(
         type=DDDBT_buildHandleFromBones_propertyGroup)
+
+    display_changeBoneLengthDirection: BoolProperty(default=False)
+    changeBoneLengthDirectionProp: PointerProperty(
+        type=DDDBT_changeBoneLengthDirection_propertyGroup)
 
 ################
 class DDDBT_OT_renameChildBonesWithNumber(Operator):
@@ -453,6 +488,36 @@ class DDDBT_OT_buildHandleFromBones(Operator):
         self.m_prop.draw(self.layout)
 
 ################
+class DDDBT_OT_changeBoneLengthDirection(Operator):
+    bl_idname = 'dddbt.change_bone_length_direction'
+    bl_label = _('Set bone length and direction')
+    bl_description = _('Forces the length and direction of the selected bone.')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    m_prop: PointerProperty(type=DDDBT_changeBoneLengthDirection_propertyGroup)
+    
+    @classmethod
+    def poll(self, context):
+        return bt.get_selected_bone_names()
+
+    def execute(self, context):
+        arma = bpy.context.active_object
+        prop = context.scene.dddtools_bt_prop
+        prop.changeBoneLengthDirectionProp.copy_from(self.m_prop)
+        bt.changeBoneLengthDirection(arma,
+                                     length=self.m_prop.bone_length,
+                                     local_direction=self.m_prop.direction)
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        prop = context.scene.dddtools_bt_prop
+        self.m_prop.copy_from(prop.changeBoneLengthDirectionProp)
+        return self.execute(context)
+
+    def draw(self, context):
+        self.m_prop.draw(self.layout)
+
+################
 class DDDBT_PT_BoneTool(Panel):
     bl_idname = 'BT_PT_BoneTool'
     bl_label = 'BoneTool'
@@ -497,11 +562,18 @@ class DDDBT_PT_BoneTool(Panel):
             box = col.box()
             prop.buildHandleFromBonesProp.draw(box)
 
+        display, split = ui.splitSwitch(col, prop, 'display_changeBoneLengthDirection')
+        split.operator(DDDBT_OT_changeBoneLengthDirection.bl_idname)
+        if display:
+            box = col.box()
+            prop.changeBoneLengthDirectionProp.draw(box)
+
 ################################################################
 classes = (
     DDDBT_createEncasedSkip_propertyGroup,
     DDDBT_buildHandleFromVertices_propertyGroup,
     DDDBT_buildHandleFromBones_propertyGroup,
+    DDDBT_changeBoneLengthDirection_propertyGroup,
     DDDBT_propertyGroup,
     DDDBT_OT_renameChildBonesWithNumber,
     DDDBT_OT_resetStretchTo,
@@ -513,6 +585,7 @@ classes = (
     DDDBT_OT_createEncasedSkin,
     DDDBT_OT_buildHandleFromVertices,
     DDDBT_OT_buildHandleFromBones,
+    DDDBT_OT_changeBoneLengthDirection,
     DDDBT_PT_BoneTool,
 )
 

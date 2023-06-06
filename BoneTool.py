@@ -667,6 +667,8 @@ def buildHandleFromVertices(bone_length=0.1,
         modeChanger = iu.ModeChanger(armature, 'POSE')
 
         for obj in selected_objects:
+            mc2 = iu.ModeChanger(obj, 'OBJECT')
+
             # Parent the mesh to the armature
             obj.parent = armature
 
@@ -681,7 +683,8 @@ def buildHandleFromVertices(bone_length=0.1,
                     if group_name not in obj.vertex_groups:
                         obj.vertex_groups.new(name=group_name)
                     obj.vertex_groups[group_name].add([vertex.index], 1.0, 'REPLACE')
-            
+            del mc2
+
         del modeChanger
 
     return armature
@@ -728,3 +731,14 @@ def buildHandleFromBones(bone_length=0.1, axis='NEG_Y', pre='handle'):
     del modeChanger
 
     return created_bones
+
+################
+def changeBoneLengthDirection(armature, length, local_direction):
+    modeChanger = iu.ModeChanger(armature, 'EDIT')
+
+    direction = Vector(local_direction).normalized() * length
+    selected_bones = [b for b in armature.data.edit_bones if b.select]
+    for bone in selected_bones:
+        bone.tail = bone.head + direction
+
+    del modeChanger
