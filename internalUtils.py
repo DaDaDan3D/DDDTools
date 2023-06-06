@@ -7,6 +7,7 @@ from mathutils import (
     Vector,
     Matrix,
 )
+from contextlib import contextmanager
 import traceback
 import numpy as np
 import uuid
@@ -136,6 +137,33 @@ class ModeChanger:
     def __bool__(self):
         return isinstance(self._mode_org, str) and self._obj is not None
 
+################################################################
+@contextmanager
+def mode_context(obj, mode):
+    safe_obj = ObjectWrapper(obj)
+    prev_active = ObjectWrapper(bpy.context.view_layer.objects.active)
+    prev_mode = obj.mode
+    bpy.context.view_layer.objects.active = obj
+
+    if mode == 'EDIT' and prev_mode == 'EDIT':
+        print('vvvvvvvvvvvvvvvv Ensure Edit Data')
+        bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.mode_set(mode=mode)
+
+    try:
+        yield  # ブロック内の処理を実行
+    finally:
+        # 元のモードに戻す
+        if safe_obj and prev_mode:
+            bpy.context.view_layer.objects.active = obj
+            if mode == 'EDIT' and prev_mode == 'EDIT':
+                print('^^^^^^^^^^^^^^^^ Ensure Edit Data')
+                bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.mode_set(mode=prev_mode)
+
+        # 元のアクティブに戻す
+        if prev_active:
+            bpy.context.view_layer.objects.active = prev_active.obj
 
 ################################################################
 def replaceImagePath(strFrom=None , strTo=None):
