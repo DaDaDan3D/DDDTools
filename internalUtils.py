@@ -274,31 +274,28 @@ def unhideVertsAndApplyFunc(meshObj, func):
     if not meshObj or meshObj.type != 'MESH':
         return
 
-    modeChanger = ModeChanger(meshObj, 'EDIT')
+    with mode_context(meshObj, 'EDIT'):
+        mesh = meshObj.data
+        bm = bmesh.from_edit_mesh(mesh)
+        bm.verts.ensure_lookup_table()
+        bm.select_mode = set(['VERT'])
 
-    mesh = meshObj.data
-    bm = bmesh.from_edit_mesh(mesh)
-    bm.verts.ensure_lookup_table()
-    bm.select_mode = set(['VERT'])
+        for vtx in bm.verts:
+            # save hide status
+            vtx.tag = vtx.hide
+            # unhide
+            vtx.hide_set(False)
+            # select
+            vtx.select_set(True)
 
-    for vtx in bm.verts:
-        # save hide status
-        vtx.tag = vtx.hide
-        # unhide
-        vtx.hide_set(False)
-        # select
-        vtx.select_set(True)
+        bmesh.update_edit_mesh(mesh)
+        func()
 
-    bmesh.update_edit_mesh(mesh)
-    func()
+        for vtx in bm.verts:
+            # restore hide status
+            vtx.hide_set(vtx.tag)
 
-    for vtx in bm.verts:
-        # restore hide status
-        vtx.hide_set(vtx.tag)
-
-    bmesh.update_edit_mesh(mesh)
-
-    del modeChanger
+        bmesh.update_edit_mesh(mesh)
 
 ################
 def propagateShapekey(meshObj, shapekey, remove_shapekey=True):
@@ -321,14 +318,12 @@ def propagateShapekey(meshObj, shapekey, remove_shapekey=True):
     if idx < 0:
         print(f'Failed to find shapekey({shapekey})')
     else:
-        modeChanger = ModeChanger(meshObj, 'OBJECT')
-        bpy.context.active_object.active_shape_key_index = idx
-        unhideVertsAndApplyFunc(meshObj, bpy.ops.mesh.shape_propagate_to_all)
+        with mode_context(meshObj, 'OBJECT'):
+            bpy.context.active_object.active_shape_key_index = idx
+            unhideVertsAndApplyFunc(meshObj, bpy.ops.mesh.shape_propagate_to_all)
 
-        if remove_shapekey:
-            bpy.ops.object.shape_key_remove(all=False)
-
-        del modeChanger
+            if remove_shapekey:
+                bpy.ops.object.shape_key_remove(all=False)
             
 ################
 def blendShapekeyToBasis(meshObj, shapekey, blend=1.0, remove_shapekey=True):
@@ -351,16 +346,14 @@ def blendShapekeyToBasis(meshObj, shapekey, blend=1.0, remove_shapekey=True):
     if idx < 0:
         print(f'Failed to find shapekey({shapekey})')
     else:
-        modeChanger = ModeChanger(meshObj, 'OBJECT')
-        bpy.context.active_object.active_shape_key_index = 0
-        unhideVertsAndApplyFunc(meshObj,
-                                lambda: bpy.ops.mesh.blend_from_shape(shape=shapekey, blend=1.0, add=False))
+        with mode_context(meshObj, 'OBJECT'):
+            bpy.context.active_object.active_shape_key_index = 0
+            unhideVertsAndApplyFunc(meshObj,
+                                    lambda: bpy.ops.mesh.blend_from_shape(shape=shapekey, blend=1.0, add=False))
 
-        if remove_shapekey:
-            bpy.context.active_object.active_shape_key_index = idx
-            bpy.ops.object.shape_key_remove(all=False)
-            
-        del modeChanger
+            if remove_shapekey:
+                bpy.context.active_object.active_shape_key_index = idx
+                bpy.ops.object.shape_key_remove(all=False)
 
 ################
 def remove_isolated_edges_and_vertices(obj):
@@ -376,23 +369,20 @@ def remove_isolated_edges_and_vertices(obj):
     if not obj or obj.type != 'MESH':
         raise ValueError('Object should be a mesh object')
 
-    modeChanger = ModeChanger(obj, 'EDIT')
+    with mode_context(obj, 'EDIT'):
+        # Create a BMesh from the object's mesh data
+        bm = bmesh.from_edit_mesh(obj.data)
 
-    # Create a BMesh from the object's mesh data
-    bm = bmesh.from_edit_mesh(obj.data)
+        # Find and remove edges not part of any face
+        edges_to_remove = set(e for e in bm.edges if not e.link_faces)
+        bmesh.ops.delete(bm, geom=list(edges_to_remove), context='EDGES')
 
-    # Find and remove edges not part of any face
-    edges_to_remove = set(e for e in bm.edges if not e.link_faces)
-    bmesh.ops.delete(bm, geom=list(edges_to_remove), context='EDGES')
+        # Find and remove vertices not part of any face
+        vertices_to_remove = set(v for v in bm.verts if not v.link_faces)
+        bmesh.ops.delete(bm, geom=list(vertices_to_remove), context='VERTS')
 
-    # Find and remove vertices not part of any face
-    vertices_to_remove = set(v for v in bm.verts if not v.link_faces)
-    bmesh.ops.delete(bm, geom=list(vertices_to_remove), context='VERTS')
-
-    # Update the mesh with the changes
-    bmesh.update_edit_mesh(obj.data)
-
-    del modeChanger
+        # Update the mesh with the changes
+        bmesh.update_edit_mesh(obj.data)
 
 ################
 def image_to_alpha_array(image: bpy.types.Image, interval: int) -> np.ndarray:
@@ -723,58 +713,55 @@ def triangulate_with_center_vertex(obj, method='AREA'):
 
     num_triangulated_faces = 0
 
-    modeChanger = ModeChanger(obj, 'OBJECT')
-    
-    bm = bmesh.new()
-    bm.from_mesh(obj.data)
+    with mode_context(obj, 'OBJECT'):
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
 
-    faces = [f for f in bm.faces if f.select]
-    for face in faces:
-        # Calculate center
-        if method == 'ARITHMETIC':
-            coords = np.array([v.co for v in face.verts])
-            center = Vector(mu.arithmetic_centroid_of_polygon(coords))
+        faces = [f for f in bm.faces if f.select]
+        for face in faces:
+            # Calculate center
+            if method == 'ARITHMETIC':
+                coords = np.array([v.co for v in face.verts])
+                center = Vector(mu.arithmetic_centroid_of_polygon(coords))
 
-        elif method == 'AREA':
-            coords = np.array([v.co for v in face.verts])
-            center = Vector(mu.area_centroid_of_polygon(coords))
+            elif method == 'AREA':
+                coords = np.array([v.co for v in face.verts])
+                center = Vector(mu.area_centroid_of_polygon(coords))
 
-        elif method == 'MEDIAN_WEIGHTED':
-            center = face.calc_center_median_weighted()
+            elif method == 'MEDIAN_WEIGHTED':
+                center = face.calc_center_median_weighted()
 
-        else:
-            raise ValueError(f'Illegal methd: {method}')
+            else:
+                raise ValueError(f'Illegal methd: {method}')
 
-        # Split first face and make center vertex
-        loop0 = face.loops[0]
-        loop1 = loop0.link_loop_next
-        new_face, new_loop = bmesh.utils.face_split(face,
-                                                    loop0.vert,
-                                                    loop1.vert,
-                                                    coords=[center])
-        new_loop = new_loop.link_loop_next
-        center_vert = new_loop.vert
-        new_face.select = True
-        num_triangulated_faces += 2
-
-        # Split new_face into triangles
-        while len(new_face.verts) > 3:
-            next_vert = new_loop.link_loop_next.link_loop_next.vert
-            new_face, new_loop = bmesh.utils.face_split(new_face,
-                                                        center_vert,
-                                                        next_vert,
-                                                        use_exist=False)
+            # Split first face and make center vertex
+            loop0 = face.loops[0]
+            loop1 = loop0.link_loop_next
+            new_face, new_loop = bmesh.utils.face_split(face,
+                                                        loop0.vert,
+                                                        loop1.vert,
+                                                        coords=[center])
+            new_loop = new_loop.link_loop_next
+            center_vert = new_loop.vert
             new_face.select = True
-            num_triangulated_faces += 1
+            num_triangulated_faces += 2
 
-    # Recalculate normals
-    bm.normal_update()
+            # Split new_face into triangles
+            while len(new_face.verts) > 3:
+                next_vert = new_loop.link_loop_next.link_loop_next.vert
+                new_face, new_loop = bmesh.utils.face_split(new_face,
+                                                            center_vert,
+                                                            next_vert,
+                                                            use_exist=False)
+                new_face.select = True
+                num_triangulated_faces += 1
 
-    # Update the mesh data
-    bm.to_mesh(obj.data)
-    bm.free()
+        # Recalculate normals
+        bm.normal_update()
 
-    del modeChanger
+        # Update the mesh data
+        bm.to_mesh(obj.data)
+        bm.free()
 
     return num_triangulated_faces
 
