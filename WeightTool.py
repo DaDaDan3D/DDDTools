@@ -68,27 +68,24 @@ def moveWeight(mesh, boneFrom, boneTo):
 
     """
 
-    #print('MoveWeight() mesh:{0} from:{1} to:{2}'.format(mesh.name, boneFrom.name, boneTo.name))
-
     # Select mesh and switch to weight-paint-mode
     with iu.mode_context(mesh.obj, 'WEIGHT_PAINT'):
         # Move firstBone's weight to parent
         vgFrom = mesh.obj.vertex_groups.get(boneFrom.name)
-        vgTo = mesh.obj.vertex_groups.get(boneTo.name)
-        #print(vgFrom)
-        #print(vgTo)
+        if not vgFrom: return
 
-        if vgFrom and vgTo:
-            for vtx in mesh.obj.data.vertices:
-                #print(vtx.index)
-                try:
-                    weight = vgFrom.weight(vtx.index)
-                    #print('weight:', weight)
+        vgTo = mesh.obj.vertex_groups.get(boneTo.name)
+        if not vgTo: vgTo = mesh.obj.vertex_groups.new(name=boneTo.name)
+
+        indices = []
+        for vtx in mesh.obj.data.vertices:
+            try:
+                weight = vgFrom.weight(vtx.index)
+                if weight != 0:
                     vgTo.add([vtx.index], weight, type='ADD')
-                    #print('added')
-                    vgFrom.remove([vtx.index])
-                    #print('removed')
-                except: pass
+                    indices.append(vtx.index)
+            except: pass
+        vgFrom.remove(indices)
 
 ################
 def getSelectedObjs():
