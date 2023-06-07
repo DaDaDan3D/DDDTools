@@ -291,15 +291,14 @@ class DDDET_OT_addApproximateSphere(Operator):
     def execute(self, context):
         if self.sphere:
             mesh = iu.ObjectWrapper(bpy.context.active_object)
-            modeChanger = iu.ModeChanger(mesh.obj, 'OBJECT')
-            bpy.ops.mesh.primitive_uv_sphere_add(enter_editmode=False,
-                                                 align='WORLD',
-                                                 segments=self.segments,
-                                                 ring_count=self.ring_count,
-                                                 radius=self.sphere[0],
-                                                 location=self.sphere[1],
-                                                 scale=(1, 1, 1))
-            del modeChanger
+            with iu.mode_context(mesh.obj, 'OBJECT'):
+                bpy.ops.mesh.primitive_uv_sphere_add(enter_editmode=False,
+                                                     align='WORLD',
+                                                     segments=self.segments,
+                                                     ring_count=self.ring_count,
+                                                     radius=self.sphere[0],
+                                                     location=self.sphere[1],
+                                                     scale=(1, 1, 1))
             bpy.context.view_layer.objects.active = mesh.obj
             return {'FINISHED'}
         else:

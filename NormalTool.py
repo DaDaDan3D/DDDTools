@@ -18,14 +18,11 @@ def setCustomNormals(mesh, tf):
        mesh.obj.data.has_custom_normals == tf:
         return
 
-    modeChanger = iu.ModeChanger(mesh.obj, 'OBJECT')
-    bpy.ops.object.select_all(action='DESELECT')
-    mesh.select_set(True)
-    bpy.context.view_layer.objects.active = mesh.obj
-    if tf:
-        bpy.ops.mesh.customdata_custom_splitnormals_add()
-    else:
-        bpy.ops.mesh.customdata_custom_splitnormals_clear()
-    del modeChanger
-
-
+    with iu.mode_context(mesh.obj, 'OBJECT'):
+        bpy.ops.object.select_all(action='DESELECT')
+        mesh.select_set(True)
+        bpy.context.view_layer.objects.active = mesh.obj
+        if tf:
+            bpy.ops.mesh.customdata_custom_splitnormals_add()
+        else:
+            bpy.ops.mesh.customdata_custom_splitnormals_clear()
