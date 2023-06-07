@@ -7,6 +7,7 @@ from mathutils import (
     Vector,
     Matrix,
 )
+import traceback
 import numpy as np
 import math
 from dataclasses import dataclass
@@ -112,8 +113,13 @@ def applyArmatureToRestPose(arma):
                     if mod.type == 'ARMATURE':
                         nameSave = mod.name
                         mod.name = str(uuid.uuid4())
-                        bpy.ops.object.modifier_apply_as_shapekey(keep_modifier=True, modifier=mod.name)
-                        iu.blendShapekeyToBasis(co, mod.name, blend=1.0, remove_shapekey=True)
+                        try:
+                            bpy.ops.object.modifier_apply_as_shapekey(keep_modifier=True, modifier=mod.name)
+                            iu.blendShapekeyToBasis(co, mod.name, blend=1.0, remove_shapekey=True)
+                        except RuntimeError as e:
+                            print(f'******** Error has occured. object:{co.name} mod:{nameSave} ********')
+                            traceback.print_exc()
+
                         mod.name = nameSave
                         break
             
