@@ -1,6 +1,7 @@
 # -*- encoding:utf-8 -*-
 
 import bpy
+from . import internalUtils as iu
 
 ################
 def selectAllObjectsUsingTexture(textureName):
@@ -207,27 +208,28 @@ def sort_material_slots(obj, material_order):
         return
 
     # Sort material slots according to the material_order list
-    sorted_slots = []
-    for material_name in material_order:
-        if obj.material_slots.find(material_name) >= 0:
-            sorted_slots.append(material_name)
+    with iu.mode_context(obj, 'OBJECT'):
+        sorted_slots = []
+        for material_name in material_order:
+            if obj.material_slots.find(material_name) >= 0:
+                sorted_slots.append(material_name)
 
-    # Find and sort the remaining material slots not in material_order
-    remaining_slots = sorted([slot.material.name for slot in obj.material_slots if slot.material.name not in sorted_slots])
+        # Find and sort the remaining material slots not in material_order
+        remaining_slots = sorted([slot.material.name for slot in obj.material_slots if slot.material.name not in sorted_slots])
 
-    # Combine sorted lists
-    sorted_slots.extend(remaining_slots)
-    #print(sorted_slots)
+        # Combine sorted lists
+        sorted_slots.extend(remaining_slots)
+        #print(sorted_slots)
 
-    # Reorder the material slots using bpy.ops.object.material_slot_move()
-    for idx, material_name in enumerate(sorted_slots):
-        obj.active_material_index = obj.material_slots.find(material_name)
-        while obj.active_material_index < idx:
-            bpy.ops.object.material_slot_move(direction='DOWN')
-            #print(f'down {obj.active_material_index}')
-        while obj.active_material_index > idx:
-            bpy.ops.object.material_slot_move(direction='UP')
-            #print(f'up {obj.active_material_index}')
+        # Reorder the material slots using bpy.ops.object.material_slot_move()
+        for idx, material_name in enumerate(sorted_slots):
+            obj.active_material_index = obj.material_slots.find(material_name)
+            assert obj.active_material_index >= 0
+            for _ in range(idx - obj.active_material_index):
+                bpy.ops.object.material_slot_move(direction='DOWN')
+            for _ in range(obj.active_material_index - idx):
+                bpy.ops.object.material_slot_move(direction='UP')
+            assert obj.active_material_index == idx
 
 ################
 def collectNodeSocketsFromMaterial(material, func):

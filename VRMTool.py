@@ -185,20 +185,19 @@ def addCollider(meshObj,
         return {'CANCELLED'}, 'Please select Armature and Mesh'
     #print('mesh:', mesh.name, 'arma:', arma.name)
 
-    modeChanger = iu.ModeChanger(arma.obj, 'POSE')
-    selected_bones = bt.get_selected_bone_names()
-    if not selected_bones:
-        return {'CANCELLED'}, 'Please select a bone'
+    with iu.mode_context(arma.obj, 'POSE'):
+        selected_bones = bt.get_selected_bone_names()
+        if not selected_bones:
+            return {'CANCELLED'}, 'Please select a bone'
 
-    for bone in selected_bones:
-        addColliderToBone(mesh.obj, arma.obj, bone,
-                          t_from=t_from,
-                          t_to=t_to,
-                          t_step=t_step,
-                          numberOfRays=numberOfRays,
-                          radius=radius,
-                          insideToOutside=insideToOutside)
-    del modeChanger
+        for bone in selected_bones:
+            addColliderToBone(mesh.obj, arma.obj, bone,
+                              t_from=t_from,
+                              t_to=t_to,
+                              t_step=t_step,
+                              numberOfRays=numberOfRays,
+                              radius=radius,
+                              insideToOutside=insideToOutside)
 
     return{'FINISHED'}
     
@@ -223,44 +222,41 @@ def duplicateColliderAsMirror(emptyObj):
         mirrorBoneName = mo.group(1) + lr
 
     # Change to EDIT-mode to reset pose
-    modeChanger = iu.ModeChanger(emptyObj.obj.parent, 'EDIT')
+    with iu.mode_context(emptyObj.obj.parent, 'EDIT'):
+        empty_org = emptyObj.obj
+        parent = empty_org.parent
 
-    empty_org = emptyObj.obj
-    parent = empty_org.parent
+        # Get a mirror bone
+        mirrorBone = parent.pose.bones.get(mirrorBoneName)
+        if not mirrorBone:
+            raise ValueError(f'{boneName} does not have a mirror bone.')
 
-    # Get a mirror bone
-    mirrorBone = parent.pose.bones.get(mirrorBoneName)
-    if not mirrorBone:
-        raise ValueError(f'{boneName} does not have a mirror bone.')
+        # Create an empty object
+        newName = f'Collider_{mirrorBoneName}'
+        empty_new = bpy.data.objects.new(newName, None)
 
-    # Create an empty object
-    newName = f'Collider_{mirrorBoneName}'
-    empty_new = bpy.data.objects.new(newName, None)
+        # Calc mirrored location
+        location = parent.matrix_world.inverted() @ empty_org.matrix_world.translation
+        location.x *= -1
+        matrix_world = Matrix.Translation(parent.matrix_world @ location)
 
-    # Calc mirrored location
-    location = parent.matrix_world.inverted() @ empty_org.matrix_world.translation
-    location.x *= -1
-    matrix_world = Matrix.Translation(parent.matrix_world @ location)
+        # Set parameters
+        iu.setupObject(empty_new,
+                       parent,
+                       'BONE',
+                       mirrorBoneName,
+                       matrix_world)
 
-    # Set parameters
-    iu.setupObject(empty_new,
-                   parent,
-                   'BONE',
-                   mirrorBoneName,
-                   matrix_world)
+        pbone = parent.pose.bones[boneName]
+        empty_new.empty_display_type = 'SPHERE'
+        empty_new.empty_display_size = empty_org.empty_display_size * empty_org.matrix_world.median_scale
 
-    pbone = parent.pose.bones[boneName]
-    empty_new.empty_display_type = 'SPHERE'
-    empty_new.empty_display_size = empty_org.empty_display_size * empty_org.matrix_world.median_scale
+        # Link to scene
+        collection = iu.findCollectionIn(empty_org)
+        collection.objects.link(empty_new)
 
-    # Link to scene
-    collection = iu.findCollectionIn(empty_org)
-    collection.objects.link(empty_new)
-
-    empty_org.select_set(True)
-    empty_new.select_set(True)
-
-    del modeChanger
+        empty_org.select_set(True)
+        empty_new.select_set(True)
 
 ################
 def setEmptyAsCollider(emptyObj, armaObj, boneName, rename=True, symmetrize=False):
@@ -469,15 +465,13 @@ def mergeMeshes(arma, bs_dic, triangulate=True, removeMatDic=None):
     bpy.context.scene.cursor.location = cursor_location_save
 
     # clear pose
-    bpy.context.view_layer.objects.active = arma.obj
-    modeChanger = iu.ModeChanger(arma.obj, 'POSE')
-    for bone in arma.obj.data.bones:
-        bone.hide = False
-        bone.select = True
-    # for stretch bones, call twice
-    bpy.ops.pose.transforms_clear()
-    bpy.ops.pose.transforms_clear()
-    del modeChanger
+    with iu.mode_context(arma.obj, 'POSE'):
+        for bone in arma.obj.data.bones:
+            bone.hide = False
+            bone.select = True
+        # for stretch bones, call twice
+        bpy.ops.pose.transforms_clear()
+        bpy.ops.pose.transforms_clear()
 
     result = dict()
 
@@ -547,12 +541,10 @@ def mergeMeshes(arma, bs_dic, triangulate=True, removeMatDic=None):
             
             # Be sure to reset pose
             anim.action=None
-            bpy.context.view_layer.objects.active = arma.obj
-            modeChanger = iu.ModeChanger(arma.obj, 'POSE')
-            # for stretch bones, call twice
-            bpy.ops.pose.transforms_clear()
-            bpy.ops.pose.transforms_clear()
-            del modeChanger
+            with iu.mode_context(arma.obj, 'POSE'):
+                # for stretch bones, call twice
+                bpy.ops.pose.transforms_clear()
+                bpy.ops.pose.transforms_clear()
 
     return result
 
@@ -565,13 +557,11 @@ def deleteBones(arma, boneGroupName):
     #print('---------------- deleteBones')
 
     # listup all bones to be deleted
-    bpy.context.view_layer.objects.active = arma.obj
-    modeChanger = iu.ModeChanger(arma.obj, 'POSE')
-    bones = []
-    for bone in arma.obj.pose.bones:
-        if bone.bone_group and bone.bone_group.name == boneGroupName:
-            bones.append(bone.name)
-    del modeChanger
+    with iu.mode_context(arma.obj, 'POSE'):
+        bones = []
+        for bone in arma.obj.pose.bones:
+            if bone.bone_group and bone.bone_group.name == boneGroupName:
+                bones.append(bone.name)
 
     wt.dissolveWeightedBones(arma, bones)
 
@@ -699,9 +689,8 @@ def prepareToExportVRM(skeleton='skeleton',
 
         if removeUnusedMaterialSlots:
             print(f'removeUnusedMaterialSlots obj:{obj.name}')
-            modeChanger = iu.ModeChanger(obj.obj, 'OBJECT')
-            bpy.ops.object.material_slot_remove_unused()
-            del modeChanger
+            with iu.mode_context(obj.obj, 'OBJECT'):
+                bpy.ops.object.material_slot_remove_unused()
 
         if materialOrderList:
             print(f'sort_material_slots obj:{obj.name}')
