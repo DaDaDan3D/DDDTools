@@ -93,51 +93,6 @@ class EditBoneWrapper:
         return isinstance(self._name, str) and self.obj is not None
 
 ################################################################
-class ModeChanger:
-    """
-    Changes mode of viewport and restores original mode when destructed.
-
-    """
-
-    _obj = None
-    _mode_org = None
-
-    def __init__(self, obj, mode):
-        """
-        Constructor
-            Activate object and change mode.
-
-        Parameters
-        ----------------
-        obj : object
-            main object to operate
-
-        mode : string
-            mode to change
-
-        """
-
-        self._obj = ObjectWrapper(obj)
-        self._mode_org = obj.mode
-        bpy.context.view_layer.objects.active = obj
-        bpy.ops.object.mode_set(mode=mode)
-        #print('ModeChanger: obj:({0}) mode:{1} -> {2}'.format(obj.name, self._mode_org, mode))
-
-    def __del__(self):
-        #print('ModeChanger: obj:({0}) restore mode {1}'.format(self._obj.name, self._mode_org))
-        if self._obj and self._mode_org:
-            bpy.context.view_layer.objects.active = self._obj.obj
-            bpy.ops.object.mode_set(mode=self._mode_org)
-            self._mode_org = None
-            self._obj = None
-
-    def __repr__(self):
-        return '<ModeChanger _mode_org:{0}>'.format(self._mode_org)
-
-    def __bool__(self):
-        return isinstance(self._mode_org, str) and self._obj is not None
-
-################################################################
 @contextmanager
 def mode_context(obj, mode):
     safe_obj = ObjectWrapper(obj)
