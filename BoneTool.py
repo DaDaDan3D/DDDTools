@@ -663,3 +663,13 @@ def changeBoneLengthDirection(armature, length, local_direction):
         for bone in selected_bones:
             bone.tail = bone.head + direction
 
+################
+def is_bone_visible(bone, armature):
+    if bone.hide or bone.hide_select:
+        return False
+
+    for layer_visible, layer_belongs in zip(armature.layers, bone.layers):
+        if layer_visible and layer_belongs:
+            return True    
+
+    return False

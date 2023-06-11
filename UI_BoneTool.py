@@ -3,9 +3,16 @@
 import bpy
 from bpy.props import PointerProperty, CollectionProperty, StringProperty, EnumProperty, BoolProperty, IntProperty, FloatProperty, FloatVectorProperty
 from bpy.types import Panel, Operator, PropertyGroup
+from bpy_extras import view3d_utils
 import math
+from mathutils import (
+    Vector,
+    Matrix,
+)
+import numpy as np
 
 from . import internalUtils as iu
+from . import mathUtils as mu
 from . import UIUtils as ui
 from . import BoneTool as bt
 
@@ -195,6 +202,26 @@ class DDDBT_changeBoneLengthDirection_propertyGroup(PropertyGroup):
         self.direction = src.direction
 
 ################
+class DDDBT_poseProportionalMove_propertyGroup(PropertyGroup):
+    falloff_type: mu.get_falloff_enum()
+    
+    influence_radius: FloatProperty(
+        name=_('Influence Radius'),
+        description=_('Specify the range of influence of the proportional move.'),
+        min=1e-9,
+        default=1.0,
+    )
+
+    def draw(self, layout):
+        col = layout.column(align=False)
+        col.prop(self, 'falloff_type')
+        col.prop(self, 'influence_radius')
+    
+    def copy_from(self, src):
+        self.falloff_type = src.falloff_type
+        self.influence_radius = src.influence_radius
+
+################
 class DDDBT_propertyGroup(PropertyGroup):
     display_createArmatureFromSelectedEdges: BoolProperty(default=False)
     objNameToBasename: BoolProperty(
@@ -223,6 +250,10 @@ class DDDBT_propertyGroup(PropertyGroup):
     display_changeBoneLengthDirection: BoolProperty(default=False)
     changeBoneLengthDirectionProp: PointerProperty(
         type=DDDBT_changeBoneLengthDirection_propertyGroup)
+
+    display_poseProportionalMove: BoolProperty(default=False)
+    poseProportionalMoveProp: PointerProperty(
+        type=DDDBT_poseProportionalMove_propertyGroup)
 
 ################
 class DDDBT_OT_renameChildBonesWithNumber(Operator):
@@ -518,6 +549,394 @@ class DDDBT_OT_changeBoneLengthDirection(Operator):
         self.m_prop.draw(self.layout)
 
 ################
+class DDDBT_OT_poseProportionalMove(Operator):
+    bl_idname = 'dddbt.pose_proportional_move'
+    bl_label = _('Pose Proportional Move')
+    bl_description = _('Proportionally move the pose bone.')
+    bl_options = {'REGISTER', 'UNDO', 'GRAB_CURSOR', 'BLOCKING'}
+
+    m_prop: PointerProperty(type=DDDBT_poseProportionalMove_propertyGroup)
+
+    move_vector: bpy.props.FloatVectorProperty(
+        name=_('Move Vector'),
+        description=_('Specifies the amount (in meters) by which the bone is to be moved.'),
+        size=3,
+        default=[0, 0, 0],
+        precision=2,
+        step=1.0,
+        unit='LENGTH',
+    )
+
+    limit_type: EnumProperty(
+        name=_('Limit Type'),
+        description=_('Specify axes or planes to restrict movement.'),
+        items=[
+            ('NONE', 'None', 'No limitation'),
+            ('GLOBAL_X', 'Global X', 'Global X axis'),
+            ('GLOBAL_Y', 'Global Y', 'Global Y axis'),
+            ('GLOBAL_Z', 'Global Z', 'Global Z axis'),
+            ('LOCAL_X', 'Local X', 'Local X axis'),
+            ('LOCAL_Y', 'Local Y', 'Local Y axis'),
+            ('LOCAL_Z', 'Local Z', 'Local Z axis'),
+            ('GLOBAL_YZ', 'Global YZ', 'Global YZ plane'),
+            ('GLOBAL_ZX', 'Global ZX', 'Global ZX plane'),
+            ('GLOBAL_XY', 'Global XY', 'Global XY plane'),
+            ('LOCAL_YZ', 'Local YZ', 'Local YZ plane'),
+            ('LOCAL_ZX', 'Local ZX', 'Local ZX plane'),
+            ('LOCAL_XY', 'Local XY', 'Local XY plane'),
+        ],
+        default='NONE',
+    )
+
+    ################
+    def get_limit_vector(self, context):
+        if self.limit_type in {'GLOBAL_X', 'GLOBAL_YZ'}:
+            return Vector((1, 0, 0))
+        elif self.limit_type in {'GLOBAL_Y', 'GLOBAL_ZX'}:
+            return Vector((0, 1, 0))
+        elif self.limit_type in {'GLOBAL_Z', 'GLOBAL_XY'}:
+            return Vector((0, 0, 1))
+        elif self.limit_type in {'LOCAL_X', 'LOCAL_YZ'}:
+            mtx = np.array(context.active_object.matrix_world)
+            return Vector(mtx[:3, 0])
+        elif self.limit_type in {'LOCAL_Y', 'LOCAL_ZX'}:
+            mtx = np.array(context.active_object.matrix_world)
+            return Vector(mtx[:3, 1])
+        elif self.limit_type in {'LOCAL_Z', 'LOCAL_XY'}:
+            mtx = np.array(context.active_object.matrix_world)
+            return Vector(mtx[:3, 2])
+        else:
+            raise RuntimeError()
+
+    ################
+    def get_center_location(self, context, coord):
+        # Get the 3D location that corresponds to the new mouse position
+        if self.limit_type == 'NONE':
+            return view3d_utils.region_2d_to_location_3d(
+                context.region, context.region_data,
+                coord, self.center_location,)
+
+        elif self.limit_type in {'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
+                                 'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+            vec = self.get_limit_vector(context)
+            return iu.calculate_mouse_ray_plane_intersection(
+                context, coord, self.center_location, vec)
+
+        elif self.limit_type in {'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
+                                 'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z'}:
+            vec = self.get_limit_vector(context)
+            return iu.calculate_mouse_ray_line_intersection(
+                context, coord, self.center_location, vec)
+
+        else:
+            raise RuntimeError()
+
+    ################
+    def switch_limit_type(self, axis, is_plane):
+        if axis == 'X':
+            if is_plane:
+                if self.limit_type == 'GLOBAL_YZ':
+                    self.limit_type = 'LOCAL_YZ'
+                elif self.limit_type == 'LOCAL_YZ':
+                    self.limit_type = 'NONE'
+                else:
+                    self.limit_type = 'GLOBAL_YZ'
+            else:
+                if self.limit_type == 'GLOBAL_X':
+                    self.limit_type = 'LOCAL_X'
+                elif self.limit_type == 'LOCAL_X':
+                    self.limit_type = 'NONE'
+                else:
+                    self.limit_type = 'GLOBAL_X'
+        elif axis == 'Y':
+            if is_plane:
+                if self.limit_type == 'GLOBAL_ZX':
+                    self.limit_type = 'LOCAL_ZX'
+                elif self.limit_type == 'LOCAL_ZX':
+                    self.limit_type = 'NONE'
+                else:
+                    self.limit_type = 'GLOBAL_ZX'
+            else:
+                if self.limit_type == 'GLOBAL_Y':
+                    self.limit_type = 'LOCAL_Y'
+                elif self.limit_type == 'LOCAL_Y':
+                    self.limit_type = 'NONE'
+                else:
+                    self.limit_type = 'GLOBAL_Y'
+        elif axis == 'Z':
+            if is_plane:
+                if self.limit_type == 'GLOBAL_XY':
+                    self.limit_type = 'LOCAL_XY'
+                elif self.limit_type == 'LOCAL_XY':
+                    self.limit_type = 'NONE'
+                else:
+                    self.limit_type = 'GLOBAL_XY'
+            else:
+                if self.limit_type == 'GLOBAL_Z':
+                    self.limit_type = 'LOCAL_Z'
+                elif self.limit_type == 'LOCAL_Z':
+                    self.limit_type = 'NONE'
+                else:
+                    self.limit_type = 'GLOBAL_Z'
+        else:
+            raise RuntimeError(f'Illegal parameter. axis:{axis} is_plane:{is_plane}')
+
+    ################
+    @staticmethod
+    def draw_callback_px(self, context):
+        with iu.BlenderGpuState(blend='ALPHA', line_width=2.0):
+            iu.draw_circle_2d(context,
+                              self.center_location,
+                              self.m_prop.influence_radius,
+                              (1.0, 1.0, 1.0, 0.5))
+            if self.limit_type in {'GLOBAL_X', 'GLOBAL_ZX', 'GLOBAL_XY'}:
+                iu.draw_line_2d(context,
+                                self.center_location,
+                                Vector((1, 0, 0)),
+                                (1.0, 0.0, 0.0, 0.5))
+            if self.limit_type in {'GLOBAL_Y', 'GLOBAL_XY', 'GLOBAL_YZ'}:
+                iu.draw_line_2d(context,
+                                self.center_location,
+                                Vector((0, 1, 0)),
+                                (0.0, 1.0, 0.0, 0.5))
+            if self.limit_type in {'GLOBAL_Z', 'GLOBAL_YZ', 'GLOBAL_ZX'}:
+                iu.draw_line_2d(context,
+                                self.center_location,
+                                Vector((0, 0, 1)),
+                                (0.0, 0.0, 1.0, 0.5))
+
+            mtx = np.array(context.active_object.matrix_world)
+            if self.limit_type in {'LOCAL_X', 'LOCAL_ZX', 'LOCAL_XY'}:
+                iu.draw_line_2d(context,
+                                self.center_location,
+                                Vector(mtx[:3, 0]),
+                                (1.0, 0.0, 0.0, 0.5))
+            if self.limit_type in {'LOCAL_Y', 'LOCAL_XY', 'LOCAL_YZ'}:
+                iu.draw_line_2d(context,
+                                self.center_location,
+                                Vector(mtx[:3, 1]),
+                                (0.0, 1.0, 0.0, 0.5))
+            if self.limit_type in {'LOCAL_Z', 'LOCAL_YZ', 'LOCAL_ZX'}:
+                iu.draw_line_2d(context,
+                                self.center_location,
+                                Vector(mtx[:3, 2]),
+                                (0.0, 0.0, 1.0, 0.5))
+
+        # Set the header text
+        context.area.header_text_set(
+            f'Proportional Size({self.m_prop.falloff_type}): {self.m_prop.influence_radius:.2f}m {self.limit_type}')
+
+    ################
+    @staticmethod
+    def status_text_fn(self, context):
+        row = self.layout.row(align=True)
+
+        row.label(text='Confirm', icon='MOUSE_LMB')
+        row.label(text='Cancel', icon='MOUSE_RMB')
+
+        row.label(text='X Axis', icon='EVENT_X')
+        row.label(text='Y Axis', icon='EVENT_Y')
+        row.label(text='Z Axis', icon='EVENT_Z')
+
+        row.label(icon='EVENT_SHIFT')
+        row.label(text='X Plane', icon='EVENT_X')
+
+        row.label(icon='EVENT_SHIFT')
+        row.label(text='Y Plane', icon='EVENT_Y')
+
+        row.label(icon='EVENT_SHIFT')
+        row.label(text='Z Plane', icon='EVENT_Z')
+
+        row.label(text='Precision Mode', icon='EVENT_SHIFT')
+
+    ################
+    def reset_mouse_position(self, context):
+        self.mouse_xy = view3d_utils.location_3d_to_region_2d(
+            context.region, context.space_data.region_3d, self.center_location)
+        self.prev_mouse = None
+        self.prev_location = None
+        self.move_vector = Vector()
+
+    ################
+    def invoke(self, context, event):
+        if context.area.type != 'VIEW_3D':
+            self.report({'WARNING'}, 'View3D not found, cannot run operator')
+            return {'CANCELLED'}
+
+        armature = context.active_object
+        if not armature or armature.type != 'ARMATURE':
+            self.report({'WARNING'}, 'Armature is not active.')
+            return {'CANCELLED'}
+
+        # Calculate the average location of selected bones
+        selected_bones = [bone for bone in armature.pose.bones if bone.bone.select]
+        if not selected_bones:
+            self.report({'WARNING'}, 'No bones selected')
+            return {'CANCELLED'}
+
+
+        # Start a new Undo step
+        bpy.ops.ed.undo_push(message='Proportional Pose Editing')
+        
+        # Setup
+        prop = context.scene.dddtools_bt_prop
+        self.m_prop.copy_from(prop.poseProportionalMoveProp)
+        self.limit_type = 'NONE'
+        self.shift_pressed = False
+
+        self.center_location = sum((bone.head for bone in selected_bones), Vector()) / len(selected_bones)
+        self.center_location = armature.matrix_world @ self.center_location
+
+        # Reset locations
+        self.reset_mouse_position(context)
+
+        # Set mouse cursor
+        context.window.cursor_modal_set('CROSS')
+
+        # Save distances and location for each bone
+        self.bone_to_distance = dict()
+        self.bone_to_location = dict()
+        for bone in armature.pose.bones:
+            pos = armature.matrix_world @ bone.head
+            distance = (pos - self.center_location).length
+            if bone in selected_bones:
+                self.bone_to_distance[bone.name] = 0
+            else:
+                self.bone_to_distance[bone.name] = distance
+            self.bone_to_location[bone.name] = bone.location.copy()
+
+        # Register the drawing callback
+        args = (self, context)
+        self._handle = bpy.types.SpaceView3D.draw_handler_add(
+            self.draw_callback_px, args, 'WINDOW', 'POST_PIXEL'
+        )
+
+        self.prev_show_menus = context.area.show_menus
+
+        context.workspace.status_text_set(self.status_text_fn)
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    ################
+    @classmethod
+    def poll(self, context):
+        return bt.get_selected_bone_names() and bpy.context.mode == 'POSE'
+
+    ################
+    def execute(self, context):
+        prop = context.scene.dddtools_bt_prop
+        prop.poseProportionalMoveProp.copy_from(self.m_prop)
+
+        armature = context.active_object
+        move_vector = Vector(self.move_vector)
+
+        # Set transformation_function
+        radius = max(self.m_prop.influence_radius, 1e-9)
+        falloff = mu.falloff_funcs[self.m_prop.falloff_type]
+
+        # Apply proportional editing to all bones
+        for bone in armature.pose.bones:
+            if not bt.is_bone_visible(bone.bone, armature.data):
+                #print(f'skip: {bone.name}')
+                continue
+            distance = self.bone_to_distance[bone.name]
+            val = distance / radius
+            if val <= 1:
+                factor = falloff(val)
+            else:
+                factor = 0
+            original_location = self.bone_to_location[bone.name]
+            if factor < 1e-8:
+                bone.location = original_location
+            else:
+                matrix_world = armature.matrix_world @ bone.matrix
+                inv = matrix_world.to_3x3().inverted()
+                vec =  factor * (inv @ move_vector)
+                bone.location = original_location + vec
+
+        armature.pose.bones.update()
+        return {'FINISHED'}
+
+    ################
+    def finish(self, context):
+        if context.area:
+            context.area.header_text_set(None)
+            context.area.show_menus = self.prev_show_menus
+            context.area.tag_redraw()
+
+        assert self._handle
+        bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
+        self._handle = None
+        context.window.cursor_modal_restore()
+        context.workspace.status_text_set(None)
+
+    ################
+    def modal(self, context, event):
+        context.area.tag_redraw()
+
+        update = False
+        if event.type == 'MOUSEMOVE':
+            update = True
+
+        elif event.type == 'WHEELUPMOUSE':
+            self.m_prop.influence_radius *= 1.1
+            update = True
+
+        elif event.type == 'WHEELDOWNMOUSE':
+            self.m_prop.influence_radius /= 1.1
+            update = True
+
+        elif event.type in {'LEFTMOUSE'}:
+            self.finish(context)
+            return {'FINISHED'}
+
+        elif event.type in {'RIGHTMOUSE', 'ESC'}:
+            bpy.ops.ed.undo()
+            self.finish(context)
+            return {'CANCELLED'}
+
+        elif event.type in {'LEFT_SHIFT', 'RIGHT_SHIFT'}:
+            if event.value == 'PRESS':
+                self.shift_pressed = True
+            elif event.value == 'RELEASE':
+                self.shift_pressed = False
+
+        elif event.type in {'X', 'Y', 'Z'} and not event.is_repeat and event.value == 'PRESS':
+            self.switch_limit_type(event.type, self.shift_pressed)
+            self.reset_mouse_position(context)
+            update = True
+
+        if update:
+            new_mouse = Vector((event.mouse_region_x, event.mouse_region_y))
+            if self.prev_mouse:
+                self.mouse_xy += new_mouse - self.prev_mouse
+            self.prev_mouse = new_mouse
+
+            # Get the 3D location that corresponds to the new mouse position
+            new_location = self.get_center_location(context, self.mouse_xy)
+            if not new_location:
+                print('Cannot calculate mouse location.')
+                return {'RUNNING_MODAL'}
+
+            if not self.prev_location:
+                self.prev_location = new_location
+
+            # Calculate the movement vector and apply it to the bone
+            vec = new_location - self.prev_location
+            if self.shift_pressed: vec *= 0.1
+            self.move_vector = Vector(self.move_vector) + vec
+            self.prev_location = new_location
+
+            self.execute(context)
+
+        return {'RUNNING_MODAL'}
+
+    def draw(self, context):
+        col = self.layout.column(align=False)
+        self.m_prop.draw(col)
+        col.prop(self, 'move_vector')
+
+################
 class DDDBT_PT_BoneTool(Panel):
     bl_idname = 'BT_PT_BoneTool'
     bl_label = 'BoneTool'
@@ -568,12 +987,19 @@ class DDDBT_PT_BoneTool(Panel):
             box = col.box()
             prop.changeBoneLengthDirectionProp.draw(box)
 
+        display, split = ui.splitSwitch(col, prop, 'display_poseProportionalMove')
+        split.operator(DDDBT_OT_poseProportionalMove.bl_idname)
+        if display:
+            box = col.box()
+            prop.poseProportionalMoveProp.draw(box)
+
 ################################################################
 classes = (
     DDDBT_createEncasedSkip_propertyGroup,
     DDDBT_buildHandleFromVertices_propertyGroup,
     DDDBT_buildHandleFromBones_propertyGroup,
     DDDBT_changeBoneLengthDirection_propertyGroup,
+    DDDBT_poseProportionalMove_propertyGroup,
     DDDBT_propertyGroup,
     DDDBT_OT_renameChildBonesWithNumber,
     DDDBT_OT_resetStretchTo,
@@ -586,6 +1012,7 @@ classes = (
     DDDBT_OT_buildHandleFromVertices,
     DDDBT_OT_buildHandleFromBones,
     DDDBT_OT_changeBoneLengthDirection,
+    DDDBT_OT_poseProportionalMove,
     DDDBT_PT_BoneTool,
 )
 

@@ -1,10 +1,13 @@
 # -*- encoding:utf-8 -*-
 
+import bpy
+import math
 from mathutils import (
     Vector,
     Matrix,
 )
 import numpy as np
+import random
 
 ################################################################
 # 点郡の球面近似
@@ -316,3 +319,54 @@ def convolve_tube(mesh, window_size, std_dev):
 
     return smooth_mesh
 
+################
+def falloff_smooth(val):
+    return 1 - 3 * val**2 + 2 * val**3
+
+def falloff_sphere(val):
+    return math.sqrt(1 - val**2)
+
+def falloff_root(val):
+    return math.sqrt(1 - val)
+
+def falloff_inverse_square(val):
+    return 1 - val**2
+
+def falloff_sharp(val):
+    return (1 - val)**2
+
+def falloff_linear(val):
+    return 1 - val
+
+def falloff_constant(val):
+    return 1
+
+def falloff_random(val):
+    return random.random()
+
+falloff_funcs = {
+    'SMOOTH'            : falloff_smooth,
+    'SPHERE'            : falloff_sphere,
+    'ROOT'              : falloff_root,
+    'INVERSE_SQUARE'    : falloff_inverse_square,
+    'SHARP'             : falloff_sharp,
+    'LINEAR'            : falloff_linear,
+    'CONSTANT'          : falloff_constant,
+    'RANDOM'            : falloff_random,
+}
+
+def get_falloff_enum():
+    return bpy.props.EnumProperty(
+        name='Falloff Type',
+        items=[
+            ('SMOOTH', 'Smooth', 'Smooth falloff', 'SMOOTHCURVE', 0),
+            ('SPHERE', 'Sphere', 'Spherical falloff', 'SPHERECURVE', 1),
+            ('ROOT', 'Root', 'Root falloff', 'ROOTCURVE', 2),
+            ('INVERSE_SQUARE', 'Inverse Square', 'Inverse Square falloff', 'INVERSESQUARECURVE', 3),
+            ('SHARP', 'Sharp', 'Sharp falloff', 'SHARPCURVE', 4),
+            ('LINEAR', 'Linear', 'Linear falloff', 'LINCURVE', 5),
+            ('CONSTANT', 'Constant', 'Constant falloff', 'NOCURVE', 6),
+            ('RANDOM', 'Random', 'Random falloff', 'RNDCURVE', 7),
+        ],
+        default='SMOOTH',
+    )

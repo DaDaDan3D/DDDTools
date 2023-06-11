@@ -2,6 +2,9 @@
 
 import bpy
 import bmesh
+import gpu
+from bpy_extras import view3d_utils
+from gpu_extras.batch import batch_for_shader
 import mathutils
 from mathutils import (
     Vector,
@@ -729,3 +732,131 @@ def format_list_as_string(lst, tab=4, indent_level=0):
 ################
 def findfirst_selected_object(type):
     return next((obj for obj in bpy.context.selected_objects if obj.type == type), None)
+
+################
+class BlenderGpuState:
+    _state_names = {
+        'blend': {'multi_args': False},
+        'depth_mask': {'multi_args': False},
+        'depth_test': {'multi_args': False},
+        'line_width': {'multi_args': False},
+        'scissor': {'multi_args': True},
+        'viewport': {'multi_args': True},
+    }
+
+    def __init__(self, **kwargs):
+        self._original_state = {}
+        self._new_state = kwargs
+
+    def _set_gpu_state(self, state_name, state):
+        set_func = getattr(gpu.state, f'{state_name}_set')
+        assert set_func
+        #print(state_name, self._state_names[state_name]['multi_args'])
+        if self._state_names[state_name]['multi_args']:
+            set_func(*state)
+        else:
+            set_func(state)
+
+    def __enter__(self):
+        for state_name in self._state_names.keys():
+            # Save the current GPU state
+            self._original_state[state_name] = getattr(gpu.state, f'{state_name}_get')()
+
+        for state_name, state in self._new_state.items():
+            # If a new state is specified, set it
+            self._set_gpu_state(state_name, state)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # Restore the GPU state when leaving the context
+        for state_name in self._state_names.keys():
+            self._set_gpu_state(state_name, self._original_state[state_name])
+
+################
+def draw_circle_2d(context, center, radius, color):
+    # Compute the right direction vector
+    view_matrix = context.space_data.region_3d.view_matrix
+    right_vector = Vector((view_matrix[0][0], view_matrix[0][1], view_matrix[0][2]))
+
+    # Compute 2D locations
+    center_location_2D = view3d_utils.location_3d_to_region_2d(
+        context.region, context.space_data.region_3d, center)
+    right_location_2D = view3d_utils.location_3d_to_region_2d(
+        context.region, context.space_data.region_3d, center + right_vector)
+
+    # Compute the radius in 2D
+    radius_2D = abs(right_location_2D.x - center_location_2D.x) * radius
+
+    # Define circle vertices in 2D
+    angles = np.linspace(0, 2*np.pi, 60)
+    circle_verts_2D = np.stack([
+        radius_2D * np.cos(angles) + center_location_2D.x,
+        radius_2D * np.sin(angles) + center_location_2D.y], axis=-1)
+
+    # Define the shader
+    shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
+    shader.bind()
+    shader.uniform_float('color', color)
+
+    # Create batch and draw the circle
+    cv2 = [Vector(v) for v in circle_verts_2D]
+    batch = batch_for_shader(shader, 'LINE_LOOP', {'pos': cv2})
+    batch.draw(shader)
+    
+################
+def draw_line_2d(context, point, direction, color):
+    # Define the shader
+    shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
+    shader.bind()
+    shader.uniform_float('color', color)
+
+    # Compute 2D locations
+    point1 = view3d_utils.location_3d_to_region_2d(
+        context.region, context.space_data.region_3d, point - direction)
+    point2 = view3d_utils.location_3d_to_region_2d(
+        context.region, context.space_data.region_3d, point + direction)
+
+    # Compute edge
+    dir = point2 - point1
+    dir.normalize()
+    size = max(context.region.width, context.region.height)
+    points = np.linspace(point1 - dir * size, point1 + dir * size, 10)
+    coords = [Vector(v) for v in points]
+    batch = batch_for_shader(shader, 'LINE_LOOP', {'pos': coords})
+    batch.draw(shader)
+    
+################
+def calculate_mouse_ray_plane_intersection(context,
+                                           coord,
+                                           point,
+                                           normal_vector):
+    # マウスカーソルの位置からビューポートへの3Dレイを取得します
+    ray_origin = view3d_utils.region_2d_to_origin_3d(
+        context.region, context.region_data, coord)
+    ray_direction = view3d_utils.region_2d_to_vector_3d(
+        context.region, context.region_data, coord)
+
+    # レイと平面との交点を計算します
+    intersection = mathutils.geometry.intersect_line_plane(
+        ray_origin, ray_origin + ray_direction,
+        point, normal_vector)
+
+    return intersection
+
+################
+def calculate_mouse_ray_line_intersection(context,
+                                          coord,
+                                          point,
+                                          direction):
+    # マウスカーソルの位置からビューポートへの3Dレイを取得します
+    ray_origin = view3d_utils.region_2d_to_origin_3d(
+        context.region, context.region_data, coord)
+    ray_direction = view3d_utils.region_2d_to_vector_3d(
+        context.region, context.region_data, coord)
+
+    # レイと直線の交点を求めます
+    intersection, _ = mathutils.geometry.intersect_line_line(
+        point, point + direction,
+        ray_origin, ray_origin + ray_direction)
+
+    return intersection
