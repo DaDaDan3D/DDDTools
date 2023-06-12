@@ -550,7 +550,7 @@ class DDDBT_OT_changeBoneLengthDirection(Operator):
 
 ################
 class DDDBT_OT_poseProportionalMove(Operator):
-    bl_idname = 'dddbt.pose_proportional_move'
+    bl_idname = 'pose.dddbt_pose_proportional_move'
     bl_label = _('Pose Proportional Move')
     bl_description = _('Proportionally move the pose bone.')
     bl_options = {'REGISTER', 'UNDO', 'GRAB_CURSOR', 'BLOCKING'}
@@ -747,6 +747,16 @@ class DDDBT_OT_poseProportionalMove(Operator):
         row.label(icon='EVENT_SHIFT')
         row.label(text='Z Plane', icon='EVENT_Z')
 
+        row.label(text='Move(original)', icon='EVENT_G')
+        row.label(text='Rotate', icon='EVENT_R')
+        row.label(text='Resize', icon='EVENT_S')
+
+        row.label(icon='EVENT_PAGEUP')
+        row.label(icon='EVENT_D')
+        row.label(icon='EVENT_PAGEDOWN')
+        row.label(icon='EVENT_A')
+        row.label(icon='MOUSE_MMB', text='Adjust Proportional Influence')
+
         row.label(text='Precision Mode', icon='EVENT_SHIFT')
 
     ################
@@ -782,7 +792,6 @@ class DDDBT_OT_poseProportionalMove(Operator):
         prop = context.scene.dddtools_bt_prop
         self.m_prop.copy_from(prop.poseProportionalMoveProp)
         self.limit_type = 'NONE'
-        self.shift_pressed = False
 
         self.center_location = sum((bone.head for bone in selected_bones), Vector()) / len(selected_bones)
         self.center_location = armature.matrix_world @ self.center_location
@@ -793,17 +802,17 @@ class DDDBT_OT_poseProportionalMove(Operator):
         # Set mouse cursor
         context.window.cursor_modal_set('CROSS')
 
-        # Save distances and location for each bone
+        # Compute world location of pose-bones
+        bone_locations = np.array([np.array(armature.matrix_world @ b.head) for b in armature.pose.bones])
+        selected_locations = np.array([l for l, b in zip(bone_locations, armature.pose.bones) if b in selected_bones])
+
+        # Save distances and translation for each bone
         self.bone_to_distance = dict()
-        self.bone_to_location = dict()
-        for bone in armature.pose.bones:
-            pos = armature.matrix_world @ bone.head
-            distance = (pos - self.center_location).length
-            if bone in selected_bones:
-                self.bone_to_distance[bone.name] = 0
-            else:
-                self.bone_to_distance[bone.name] = distance
-            self.bone_to_location[bone.name] = bone.location.copy()
+        self.bone_to_translation = dict()
+        for loc, bone in zip(bone_locations, armature.pose.bones):
+            distances = np.linalg.norm(selected_locations - loc, axis=1)
+            self.bone_to_distance[bone.name] = distances.min()
+            self.bone_to_translation[bone.name] = bone.matrix.translation.copy()
 
         # Register the drawing callback
         args = (self, context)
@@ -845,17 +854,22 @@ class DDDBT_OT_poseProportionalMove(Operator):
                 factor = falloff(val)
             else:
                 factor = 0
-            original_location = self.bone_to_location[bone.name]
+            original_translation = self.bone_to_translation[bone.name]
             if factor < 1e-8:
-                bone.location = original_location
+                bone.matrix.translation = original_translation.copy()
             else:
-                matrix_world = armature.matrix_world @ bone.matrix
-                inv = matrix_world.to_3x3().inverted()
-                vec =  factor * (inv @ move_vector)
-                bone.location = original_location + vec
+                inv = armature.matrix_world.to_3x3().inverted()
+                vec =  Vector(factor * (inv @ move_vector))
+                bone.matrix.translation = original_translation + vec
 
         armature.pose.bones.update()
         return {'FINISHED'}
+
+    ################
+    def cancel(self, context):
+        bpy.ops.ed.undo()
+        self.finish(context)
+        return {'CANCELLED'}
 
     ################
     def finish(self, context):
@@ -873,36 +887,43 @@ class DDDBT_OT_poseProportionalMove(Operator):
     ################
     def modal(self, context, event):
         context.area.tag_redraw()
-
+        pressed = not event.is_repeat and event.value == 'PRESS'
         update = False
         if event.type == 'MOUSEMOVE':
             update = True
 
-        elif event.type == 'WHEELUPMOUSE':
+        elif event.type in {'WHEELUPMOUSE', 'PAGE_UP', 'D'} and pressed:
             self.m_prop.influence_radius *= 1.1
             update = True
 
-        elif event.type == 'WHEELDOWNMOUSE':
+        elif event.type in {'WHEELDOWNMOUSE', 'PAGE_DOWN', 'A'} and pressed:
             self.m_prop.influence_radius /= 1.1
             update = True
 
-        elif event.type in {'LEFTMOUSE'}:
+        elif event.type in {'LEFTMOUSE', 'SPACE', 'RET'}:
             self.finish(context)
             return {'FINISHED'}
 
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
-            bpy.ops.ed.undo()
-            self.finish(context)
+            return self.cancel(context)
+
+        elif event.type == 'G' and pressed:
+            self.cancel(context)
+            bpy.ops.transform.translate('INVOKE_DEFAULT')
             return {'CANCELLED'}
 
-        elif event.type in {'LEFT_SHIFT', 'RIGHT_SHIFT'}:
-            if event.value == 'PRESS':
-                self.shift_pressed = True
-            elif event.value == 'RELEASE':
-                self.shift_pressed = False
+        elif event.type == 'R' and pressed:
+            self.cancel(context)
+            bpy.ops.transform.rotate('INVOKE_DEFAULT')
+            return {'CANCELLED'}
 
-        elif event.type in {'X', 'Y', 'Z'} and not event.is_repeat and event.value == 'PRESS':
-            self.switch_limit_type(event.type, self.shift_pressed)
+        elif event.type == 'S' and pressed:
+            self.cancel(context)
+            bpy.ops.transform.resize('INVOKE_DEFAULT')
+            return {'CANCELLED'}
+
+        elif event.type in {'X', 'Y', 'Z'} and pressed:
+            self.switch_limit_type(event.type, event.shift)
             self.reset_mouse_position(context)
             update = True
 
@@ -923,7 +944,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
             # Calculate the movement vector and apply it to the bone
             vec = new_location - self.prev_location
-            if self.shift_pressed: vec *= 0.1
+            if event.shift: vec *= 0.1
             self.move_vector = Vector(self.move_vector) + vec
             self.prev_location = new_location
 
@@ -993,6 +1014,11 @@ class DDDBT_PT_BoneTool(Panel):
             box = col.box()
             prop.poseProportionalMoveProp.draw(box)
 
+################
+def draw_pose_menu(self, context):
+    self.layout.operator_context = 'INVOKE_DEFAULT'
+    self.layout.operator(DDDBT_OT_poseProportionalMove.bl_idname)
+
 ################################################################
 classes = (
     DDDBT_createEncasedSkip_propertyGroup,
@@ -1020,8 +1046,10 @@ def registerClass():
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.Scene.dddtools_bt_prop = PointerProperty(type=DDDBT_propertyGroup)
+    bpy.types.VIEW3D_MT_pose_context_menu.append(draw_pose_menu)
 
 def unregisterClass():
+    bpy.types.VIEW3D_MT_pose_context_menu.remove(draw_pose_menu)
     del bpy.types.Scene.dddtools_bt_prop
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
