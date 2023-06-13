@@ -2,7 +2,7 @@
 
 import bpy
 from bpy.props import PointerProperty, CollectionProperty, StringProperty, EnumProperty, BoolProperty, IntProperty, FloatProperty, FloatVectorProperty
-from bpy.types import Panel, Operator, PropertyGroup
+from bpy.types import Menu, Panel, Operator, PropertyGroup
 from bpy_extras import view3d_utils
 import math
 from mathutils import (
@@ -10,6 +10,7 @@ from mathutils import (
     Matrix,
 )
 import numpy as np
+import random
 
 from . import internalUtils as iu
 from . import mathUtils as mu
@@ -757,6 +758,9 @@ class DDDBT_OT_poseProportionalMove(Operator):
         row.label(icon='EVENT_A')
         row.label(icon='MOUSE_MMB', text='Adjust Proportional Influence')
 
+        row.label(icon='EVENT_SHIFT')
+        row.label(text='Falloff type', icon='EVENT_O')
+
         row.label(text='Precision Mode', icon='EVENT_SHIFT')
 
     ################
@@ -842,6 +846,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
         # Set transformation_function
         radius = max(self.m_prop.influence_radius, 1e-9)
         falloff = mu.falloff_funcs[self.m_prop.falloff_type]
+        rng = random.Random(0)
 
         # Apply proportional editing to all bones
         for bone in armature.pose.bones:
@@ -851,7 +856,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
             distance = self.bone_to_distance[bone.name]
             val = distance / radius
             if val <= 1:
-                factor = falloff(val)
+                factor = falloff(val, rng.random)
             else:
                 factor = 0
             original_translation = self.bone_to_translation[bone.name]
@@ -886,6 +891,12 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
     ################
     def modal(self, context, event):
+        prop = context.scene.dddtools_bt_prop
+        falloff_type = prop.poseProportionalMoveProp.falloff_type
+        if self.m_prop.falloff_type != falloff_type:
+            self.m_prop.falloff_type = falloff_type
+            update = True
+
         context.area.tag_redraw()
         pressed = not event.is_repeat and event.value == 'PRESS'
         update = False
@@ -906,6 +917,10 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             return self.cancel(context)
+
+        elif event.type == 'O' and event.shift and pressed:
+            bpy.ops.wm.call_menu_pie(name='DDDBT_MT_Falloff')
+            return {'RUNNING_MODAL'}
 
         elif event.type == 'G' and pressed:
             self.cancel(context)
@@ -956,6 +971,35 @@ class DDDBT_OT_poseProportionalMove(Operator):
         col = self.layout.column(align=False)
         self.m_prop.draw(col)
         col.prop(self, 'move_vector')
+
+################
+# パイメニューの項目を選択するためのオペレーター
+class DDDBT_OT_Falloff(Operator):
+    bl_idname = "scene.dddbt_select_falloff"
+    bl_label = "Select Falloff"
+    bl_options = {'INTERNAL'}
+    falloff_type: bpy.props.StringProperty()
+
+    def execute(self, context):
+        prop = context.scene.dddtools_bt_prop
+        prop.poseProportionalMoveProp.falloff_type = self.falloff_type
+        print(f'falloff: {self.falloff_type}')
+        return {'FINISHED'}
+
+################
+class DDDBT_MT_Falloff(Menu):
+    bl_label = "Select Falloff Type"
+
+    def draw(self, context):
+        layout = self.layout
+        pie = layout.menu_pie()
+
+        falloff_items = mu.get_falloff_enum().keywords['items']
+        for falloff_item in falloff_items:
+            op = pie.operator(DDDBT_OT_Falloff.bl_idname,
+                              text=falloff_item[1],
+                              icon=falloff_item[3])
+            op.falloff_type = falloff_item[0]
 
 ################
 class DDDBT_PT_BoneTool(Panel):
@@ -1039,6 +1083,8 @@ classes = (
     DDDBT_OT_buildHandleFromBones,
     DDDBT_OT_changeBoneLengthDirection,
     DDDBT_OT_poseProportionalMove,
+    DDDBT_OT_Falloff,
+    DDDBT_MT_Falloff,
     DDDBT_PT_BoneTool,
 )
 

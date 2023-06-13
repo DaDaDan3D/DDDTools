@@ -7,7 +7,6 @@ from mathutils import (
     Matrix,
 )
 import numpy as np
-import random
 
 ################################################################
 # 点郡の球面近似
@@ -320,29 +319,29 @@ def convolve_tube(mesh, window_size, std_dev):
     return smooth_mesh
 
 ################
-def falloff_smooth(val):
+def falloff_smooth(val, _):
     return 1 - 3 * val**2 + 2 * val**3
 
-def falloff_sphere(val):
+def falloff_sphere(val, _):
     return math.sqrt(1 - val**2)
 
-def falloff_root(val):
+def falloff_root(val, _):
     return math.sqrt(1 - val)
 
-def falloff_inverse_square(val):
+def falloff_inverse_square(val, _):
     return 1 - val**2
 
-def falloff_sharp(val):
+def falloff_sharp(val, _):
     return (1 - val)**2
 
-def falloff_linear(val):
+def falloff_linear(val, _):
     return 1 - val
 
-def falloff_constant(val):
+def falloff_constant(val, _):
     return 1
 
-def falloff_random(val):
-    return random.random()
+def falloff_random(val, rng):
+    return (1 - val) * (1 - (2 * rng() - 1) * val)
 
 falloff_funcs = {
     'SMOOTH'            : falloff_smooth,
