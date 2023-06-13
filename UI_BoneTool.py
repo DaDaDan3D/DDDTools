@@ -590,6 +590,32 @@ class DDDBT_OT_poseProportionalMove(Operator):
     )
 
     ################
+    def __init__(self):
+        # 選択ボーンの中心位置。移動方向決定のために参照する
+        self.center_location = None
+
+        # ボーン名 → 選択ボーンとの最短距離 の辞書
+        self.bone_to_distance = None
+
+        # ボーン名 → bone.matrix.translation の辞書
+        self.bone_to_translation = None
+
+        # 描画ハンドル
+        self._handle = None
+
+        # context.area.show_menus の保存
+        self.prev_show_menus = None
+
+        # center_location のあるべき位置をマウス座標に変換したもの
+        self.mouse_xy = None
+
+        # event.mouse_region_x|y の保存
+        self.prev_mouse = None
+
+        # center_location のあるべき位置の保存
+        self.prev_location = None
+
+    ################
     def get_limit_vector(self, context):
         if self.limit_type in {'GLOBAL_X', 'GLOBAL_YZ'}:
             return Vector((1, 0, 0))
