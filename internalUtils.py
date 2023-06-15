@@ -860,3 +860,144 @@ def calculate_mouse_ray_line_intersection(context,
         ray_origin, ray_origin + ray_direction)
 
     return intersection
+
+################
+def calculate_mouse_move_unit(context, location):
+    """
+    Calculates how far an object at world coordinate location will move in relation to a mouse movement of 1.
+
+    Parameters:
+    -----------
+    context : bpy.types.context
+        The context in which the mouse is placed.
+
+    location : Vector
+        World coordinates for calculating mouse movement.
+
+    Returns:
+    --------
+    float
+        Distance traveled relative to mouse movement 1.
+
+    """
+    region_xy = view3d_utils.location_3d_to_region_2d(
+        context.region, context.region_data, location)
+    new_xy = region_xy + Vector((1, 0))
+    new_location = view3d_utils.region_2d_to_location_3d(
+        context.region, context.region_data, new_xy, location)
+    return (new_location - location).length
+
+################
+class NumberInput():
+    """Class supporting numerical input.
+It supports simple four arithmetic operations, parentheses, and cursor movement.
+  0123456789.     : Numeric input
+  +/*             : Operator input
+  -               : Reverse whole positive/negative
+  ()              : Parentheses input
+  LEFT_ARROW      : Move cursor to left
+  RIGHT_ARROW     : Move cursor to right
+  UP_ARROW, HOME  : Move cursor to top
+  DOWN_ARROW, END : Move cursor to end
+  DEL             : Delete a character behind the cursor
+  BACKSPACE       : Erase a character before the cursor
+"""
+
+    def __init__(self):
+        self.negative = False
+        self.expression = ''
+        self.cursor = 0
+
+    def set_expression(self, exp):
+        self.negative = False
+        self.expression = str(exp)
+        self.cursor = len(self.expression)
+
+    def get_value(self):
+        value = eval(self.expression)
+        if self.negative: value = -value
+        return value
+
+    def is_processing(self):
+        return self.expression != ''
+
+    def get_display(self):
+        s = f'{self.expression[:self.cursor]}|{self.expression[self.cursor:]}'
+        if self.negative:
+            return f'-({s})'
+        else:
+            return s
+
+    def process_event(self, event):
+        if event.value != 'PRESS':
+            return False
+
+        # Since the placement changes for English keyboards and other keyboards,
+        # we match all possible types and check them in ascii.
+        if event.type in {
+                'NUMPAD_0', 'NUMPAD_1', 'NUMPAD_2', 'NUMPAD_3', 'NUMPAD_4', 
+                'NUMPAD_5', 'NUMPAD_6', 'NUMPAD_7', 'NUMPAD_8', 'NUMPAD_9', 
+                'ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 
+                'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE',
+                'NUMPAD_PERIOD',
+                'NUMPAD_SLASH',
+                'NUMPAD_ASTERIX',
+                'NUMPAD_MINUS',
+                'NUMPAD_PLUS',
+                'SEMI_COLON',
+                'PERIOD',
+                'COMMA',
+                'QUOTE',
+                'ACCENT_GRAVE',
+                'MINUS',
+                'PLUS',
+                'SLASH',
+                'BACK_SLASH',
+                'EQUAL',
+                'LEFT_BRACKET',
+                'RIGHT_BRACKET'} and \
+                event.ascii in '0123456789.+*/()':
+            char = event.ascii
+            self.expression = f'{self.expression[:self.cursor]}{char}{self.expression[self.cursor:]}'
+            self.cursor += len(char)
+            return True
+
+        if event.type in {'NUMPAD_MINUS', 'MINUS'}:
+            self.negative = not self.negative
+            return True
+
+        if self.expression == '':
+            return False
+
+        if event.type == 'DEL':
+            if self.cursor < len(self.expression):
+                self.expression = self.expression[:self.cursor] +\
+                    self.expression[self.cursor+1:]
+            return True
+            
+        if event.type == 'BACK_SPACE':
+            if len(self.expression) > 0 and self.cursor > 0:
+                self.expression = self.expression[:self.cursor-1] +\
+                    self.expression[self.cursor:]
+                self.cursor -= 1
+            return True
+
+        if event.type in {'HOME', 'UP_ARROW'}:
+            self.cursor = 0
+            return True
+
+        if event.type in {'END', 'DOWN_ARROW'}:
+            self.cursor = len(self.expression)
+            return True
+
+        if event.type == 'LEFT_ARROW':
+            if self.cursor > 0:
+                self.cursor -= 1
+            return True
+
+        if event.type == 'RIGHT_ARROW':
+            if self.cursor < len(self.expression):
+                self.cursor += 1
+            return True
+
+        return False
