@@ -251,8 +251,8 @@ class DDDBT_poseInflateMove_propertyGroup(PropertyGroup):
 
     def draw(self, layout):
         col = layout.column(align=False)
-        col.prop(self, 'mesh_thickness')
         col.prop(self, 'direction')
+        col.prop(self, 'mesh_thickness')
 
         col2 = col.column(align=False)
         col2.enabled = self.direction == 'POINT'
