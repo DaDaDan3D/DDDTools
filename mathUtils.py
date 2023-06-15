@@ -369,3 +369,31 @@ def get_falloff_enum():
         ],
         default='SMOOTH',
     )
+
+################
+def normalize_vectors(vectors, epsilon=1e-10):
+    magnitudes = np.linalg.norm(vectors, axis=-1)
+    normalized_vectors = vectors / (magnitudes[:, np.newaxis] + epsilon)
+    return normalized_vectors
+
+################
+def append_homogeneous_coordinate(vectors):
+    """
+    Appends a homogeneous coordinate to a numpy array of vectors.
+    
+    Parameters
+    ----------
+    vectors : np.ndarray
+        A numpy array of vectors. The vectors should be the last dimension. 
+        For instance, a 3D vector array should have shape (n, 3), 
+        where n is the number of vectors.
+    
+    Returns
+    -------
+    np.ndarray
+        The original array of vectors with an additional homogeneous coordinate 
+        appended. The appended coordinate has value 1 for all vectors. 
+        For instance, if the input is a 3D vector array with shape (n, 3),
+        the output will be a 4D vector array with shape (n, 4).
+    """
+    return np.concatenate((vectors, np.ones(vectors.shape[:-1] + (1,))), axis=-1)
