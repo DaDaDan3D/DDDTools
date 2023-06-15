@@ -812,8 +812,10 @@ class PoseInflateMover():
 
         world_to_mesh = np.array(mesh.matrix_world.inverted()).T
 
+        org_locations = self.org_locations_homo[:, :3]
+
         # Compute target location
-        target_locations = self.org_locations_homo[:, :3] + bone_directions * distance
+        target_locations = org_locations + bone_directions * distance
         l_target_locations = np.dot(
             mu.append_homogeneous_coordinate(target_locations),
             world_to_mesh[:, :3])
@@ -827,7 +829,7 @@ class PoseInflateMover():
         l_directions /= (l_directions_norm + 1e-10)[:, np.newaxis]
 
         inv = np.array(mesh.matrix_world.inverted()).T
-        l_bone_directions = np.dot(bone_directions, inv[:3, :3])
+        l_orgs_to_bones = np.dot(target_locations - org_locations, inv[:3, :3])
 
         # Compute mesh-local to arma-local matrix(4x3)
         mesh_to_arma = arma.matrix_world.inverted() @ mesh.matrix_world
@@ -847,8 +849,8 @@ class PoseInflateMover():
         normals = np.array([np.array(n[:]) for n in hits['normal']])
         dists = np.linalg.norm(locations - l_cur_locations, axis=-1)
         dists = np.minimum(dists - mesh_thickness, l_directions_norm)
-        dot_products = np.sum(l_bone_directions * normals, axis=-1)
-        hits_on_surface = np.logical_and(hits['hit'], dot_products < 0)
+        dot_products = np.sum(l_orgs_to_bones * l_directions, axis=-1)
+        hits_on_surface = np.logical_and(hits['hit'], dot_products > 0)
         new_locations = l_cur_locations + l_directions * dists[:, np.newaxis]
         new_locations = np.where(hits_on_surface[:, np.newaxis],
                                  new_locations,
