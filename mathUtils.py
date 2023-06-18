@@ -397,3 +397,111 @@ def append_homogeneous_coordinate(vectors):
         the output will be a 4D vector array with shape (n, 4).
     """
     return np.concatenate((vectors, np.ones(vectors.shape[:-1] + (1,))), axis=-1)
+
+################
+class ViewData():
+    """
+    SpaceView3D からカメラの情報を保存したもの
+    """
+    def __init__(self, sv3d):
+        rv3d = sv3d.region_3d
+        self.is_perspective = rv3d.is_perspective
+        self.view_matrix = rv3d.view_matrix.copy()
+        self.clip_end = sv3d.clip_end
+
+    def compute_local_ray_origins(self, locations_homo, mesh):
+        """
+        カメラから locations へ向かうレイの、mesh ローカルな基点を計算する
+        """
+        if self.is_perspective:
+            camera_pos = self.view_matrix.inverted().translation
+            l_camera_pos = np.array(mesh.matrix_world.inverted() @ camera_pos)
+            l_ray_origins = np.tile(l_camera_pos, (locations_homo.shape[0], 1))
+        else:
+            mtx = np.array(self.view_matrix).T
+            l_locations_homo = locations_homo @ mtx
+            l_locations_homo[:, 2] = self.clip_end * 0.5
+            mtx = np.array((self.view_matrix @ mesh.matrix_world).inverted()).T
+            l_ray_origins = (l_locations_homo @ mtx)[:, :3]
+        return l_ray_origins
+
+################
+def project_onto_mesh(locations,
+                      mesh,
+                      view_data,
+                      which_to_use=True,
+                      mesh_thickness=0,
+                      backface_culling=False,
+                      epsilon=1e-10):
+    """
+    カメラから locations のレイを飛ばし、メッシュ上の当たり位置を計算する。
+
+    Parameters:
+    -----------
+    locations : np.ndarray
+      調べる点のワールド座標
+    mesh : bpy.types.Object
+      当たり判定を調べるメッシュオブジェクト
+    view_data : ViewData
+      3D ビューポートの情報
+    which_to_use : np.ndarray
+      どの点について調べるかの bool の配列
+    mesh_thickness : float
+      メッシュの厚み
+    backface_culling : bool
+      裏面を無視するかどうか
+    epsilon : float
+      ゼロ除算を回避するための、十分に小さい数
+
+    Returns:
+    --------
+    np.ndarray, np.ndarray
+      当たったかどうかの bool の配列と、新しい位置
+    """
+
+    if locations.size == 0 or not np.any(which_to_use):
+        # Do nothing
+        return False, locations
+
+    # Compute mesh-local locations
+    locations_homo = append_homogeneous_coordinate(locations)
+    world_to_mesh = np.array(mesh.matrix_world.inverted()).T
+    l_locations = (locations_homo @ world_to_mesh)[:, :3]
+
+    # Compute mesh-local ray-origin
+    l_ray_origins = view_data.compute_local_ray_origins(locations_homo, mesh)
+
+    # Compute directions
+    l_directions = l_locations - l_ray_origins
+    l_directions_norm = np.linalg.norm(l_directions, axis=-1)
+    l_directions /= (l_directions_norm + epsilon)[:, np.newaxis]
+
+    dt = np.dtype([('hit', bool),
+                   ('location', object),
+                   ('normal', object),
+                   ('index', int)])
+    zero = Vector()
+    hits = np.array([
+        mesh.ray_cast(orig, dir) if use else (False, zero, zero, -1)
+        for orig, dir, use in zip(l_ray_origins, l_directions, which_to_use)], dtype=dt)
+
+    # Compute hit locations
+    l_hit_locations = np.array([np.array(l[:]) for l in hits['location']])
+    dists = np.linalg.norm(l_hit_locations - l_ray_origins, axis=-1)
+    dists = np.maximum(0, dists - mesh_thickness)
+    l_new_locations = l_ray_origins + l_directions * dists[:, np.newaxis]
+    l_new_locations_homo = append_homogeneous_coordinate(l_new_locations)
+    mesh_to_world = np.array(mesh.matrix_world).T
+    new_locations = (l_new_locations_homo @ mesh_to_world)[:, :3]
+
+    # Compute if rays are hit on surface
+    hits_on_surface = hits['hit']
+    if backface_culling:
+        l_hit_normals = np.array([np.array(n[:]) for n in hits['normal']])
+        dot_products = np.sum(l_hit_normals * l_directions, axis=-1)
+        hits_on_surface = np.logical_and(hits_on_surface, dot_products < 0)
+
+    # Decide new locations
+    new_locations = np.where(hits_on_surface[:, np.newaxis],
+                             new_locations, locations)
+    return hits_on_surface, new_locations

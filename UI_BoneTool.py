@@ -215,14 +215,36 @@ class DDDBT_poseProportionalMove_propertyGroup(PropertyGroup):
         default=1.0,
     )
 
-    def draw(self, layout):
+    mesh_thickness: FloatProperty(
+        name=_('Mesh Thickness'),
+        description=_('Specifies the thickness of the mesh.'),
+        subtype='DISTANCE',
+        min=0,
+        default=0.01,
+        precision=2,
+        step=1,
+        unit='LENGTH',
+    )
+
+    backface_culling: BoolProperty(
+        name=_('Backface Culling'),
+        description=_('Execute back facing geometry from snapping.'),
+        default=False,
+    )
+
+    def draw(self, layout, has_mesh):
         col = layout.column(align=False)
         col.prop(self, 'falloff_type')
         col.prop(self, 'influence_radius')
+        box = col.box()
+        box.enabled = has_mesh
+        box.prop(self, 'mesh_thickness')
+        box.prop(self, 'backface_culling')
     
     def copy_from(self, src):
         self.falloff_type = src.falloff_type
         self.influence_radius = src.influence_radius
+        self.mesh_thickness = src.mesh_thickness
 
 ################
 class DDDBT_poseInflateMove_propertyGroup(PropertyGroup):
@@ -636,14 +658,20 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
     ################
     def __init__(self):
-        # 選択ボーンの中心位置。移動方向決定のために参照する
+        # カメラ情報
+        self.view_data = None
+
+        # 選択ボーンの中心位置(ワールド座標)。移動方向決定のために参照する
         self.center_location = None
 
-        # ボーン名 → 選択ボーンとの最短距離 の辞書
-        self.bone_to_distance = None
+        # ボーンと選択ボーンとの最短距離(ワールド座標)
+        self.bone_distances = None
 
-        # ボーン名 → bone.matrix.translation の辞書
-        self.bone_to_translation = None
+        # bone.matrix.translation の保存
+        self.bone_translations = None
+
+        # ボーンの現在のワールド座標
+        self.bone_locations = None
 
         # 描画ハンドル
         self._handle = None
@@ -653,9 +681,6 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
         # center_location のあるべき位置をマウス座標に変換したもの
         self.mouse_xy = None
-
-        # event.mouse_region_x|y の保存
-        self.prev_mouse = None
 
         # center_location のあるべき位置の保存
         self.prev_location = None
@@ -855,12 +880,12 @@ class DDDBT_OT_poseProportionalMove(Operator):
             self.report({'WARNING'}, 'Armature is not active.')
             return {'CANCELLED'}
 
-        # Calculate the average location of selected bones
-        selected_bones = [bone for bone in armature.pose.bones if bone.bone.select]
-        if not selected_bones:
+        # Get if bone is selected
+        is_selected_bones = np.array([b.bone.select
+                                      for b in armature.pose.bones], dtype=bool)
+        if not np.any(is_selected_bones):
             self.report({'WARNING'}, 'No bones selected')
             return {'CANCELLED'}
-
 
         # Start a new Undo step
         bpy.ops.ed.undo_push(message='Proportional Pose Editing')
@@ -869,27 +894,34 @@ class DDDBT_OT_poseProportionalMove(Operator):
         prop = context.scene.dddtools_bt_prop
         self.m_prop.copy_from(prop.poseProportionalMoveProp)
         self.limit_type = 'NONE'
-
-        self.center_location = sum((bone.head for bone in selected_bones), Vector()) / len(selected_bones)
-        self.center_location = armature.matrix_world @ self.center_location
-
-        # Reset locations
-        self.reset_mouse_position(context)
+        self.view_data = mu.ViewData(context.space_data)
 
         # Set mouse cursor
         context.window.cursor_modal_set('CROSS')
 
-        # Compute world location of pose-bones
-        bone_locations = np.array([np.array(armature.matrix_world @ b.head) for b in armature.pose.bones])
-        selected_locations = np.array([l for l, b in zip(bone_locations, armature.pose.bones) if b in selected_bones])
+        # Save translations
+        self.bone_translations = np.array([
+            np.array(bone.matrix.translation)
+            for bone in armature.pose.bones
+        ])
 
-        # Save distances and translation for each bone
-        self.bone_to_distance = dict()
-        self.bone_to_translation = dict()
-        for loc, bone in zip(bone_locations, armature.pose.bones):
-            distances = np.linalg.norm(selected_locations - loc, axis=1)
-            self.bone_to_distance[bone.name] = distances.min()
-            self.bone_to_translation[bone.name] = bone.matrix.translation.copy()
+        # Compute current locations in world coordinate
+        bone_translations_homo = \
+            mu.append_homogeneous_coordinate(self.bone_translations)
+        self.bone_locations = \
+            np.dot(bone_translations_homo,
+                   np.array(armature.matrix_world).T)[:, :3]
+
+        # Compute center
+        selected_locations = self.bone_locations[is_selected_bones]
+        self.center_location = np.mean(selected_locations, axis=0)
+
+        # Save distances for each bone
+        diff_grid = self.bone_locations[:, np.newaxis] - selected_locations
+        self.bone_distances = np.min(np.linalg.norm(diff_grid, axis=2), axis=1)
+
+        # Reset locations
+        self.reset_mouse_position(context)
 
         # Register the drawing callback
         args = (self, context)
@@ -916,29 +948,54 @@ class DDDBT_OT_poseProportionalMove(Operator):
         armature = context.active_object
         move_vector = Vector(self.move_vector)
 
+        epsilon = 1e-9
+
+        if not self.view_data:
+            self.view_data = mu.ViewData(context.space_data)
+
         # Set transformation_function
-        radius = max(self.m_prop.influence_radius, 1e-9)
+        radius = max(self.m_prop.influence_radius, epsilon)
         falloff = mu.falloff_funcs[self.m_prop.falloff_type]
         rng = random.Random(0)
 
-        # Apply proportional editing to all bones
-        for bone in armature.pose.bones:
-            if not bt.is_bone_visible(bone.bone, armature.data):
-                #print(f'skip: {bone.name}')
-                continue
-            distance = self.bone_to_distance[bone.name]
-            val = distance / radius
-            if val <= 1:
-                factor = falloff(val, rng.random)
-            else:
-                factor = 0
-            original_translation = self.bone_to_translation[bone.name]
-            if factor < 1e-8:
-                bone.matrix.translation = original_translation.copy()
-            else:
-                inv = armature.matrix_world.to_3x3().inverted()
-                vec =  Vector(factor * (inv @ move_vector))
-                bone.matrix.translation = original_translation + vec
+        # Compute bone locations
+        factors = np.array([0 if val > 1 else falloff(val, rng.random)
+                            for val in self.bone_distances / radius])
+        move_vectors = self.move_vector * factors[:, np.newaxis]
+        locations = self.bone_locations + move_vectors
+
+        # Which bone to move?
+        visible_bones = np.array([bt.is_bone_visible(b.bone, armature.data)
+                                  for b in armature.pose.bones], dtype=bool)
+        which_to_move = np.logical_and(visible_bones, factors > epsilon)
+
+        # If mesh is selected, snap onto its surface
+        mesh = iu.findfirst_selected_object('MESH')
+        if mesh:
+            hits, new_locations = mu.project_onto_mesh(
+                locations,
+                mesh,
+                self.view_data,
+                which_to_use=which_to_move,
+                mesh_thickness=self.m_prop.mesh_thickness,
+                backface_culling=self.m_prop.backface_culling,
+                epsilon=epsilon)
+            if np.any(hits):
+                locations = new_locations
+
+        # Compute local translations
+        locations_homo = mu.append_homogeneous_coordinate(locations)
+        translations = \
+            np.dot(locations_homo,
+                   np.array(armature.matrix_world.inverted()).T)[:, :3]
+
+        translations = np.where(which_to_move[:, np.newaxis],
+                                translations,
+                                self.bone_translations)
+
+        # Set translation
+        for bone, translation in zip(armature.pose.bones, translations):
+            bone.matrix.translation = translation
 
         armature.pose.bones.update()
         return {'FINISHED'}
@@ -1021,10 +1078,8 @@ class DDDBT_OT_poseProportionalMove(Operator):
             update = True
 
         if update:
-            new_mouse = Vector((event.mouse_region_x, event.mouse_region_y))
-            if self.prev_mouse:
-                self.mouse_xy += new_mouse - self.prev_mouse
-            self.prev_mouse = new_mouse
+            self.mouse_xy += Vector((event.mouse_x - event.mouse_prev_x,
+                                     event.mouse_y - event.mouse_prev_y))
 
             # Get the 3D location that corresponds to the new mouse position
             new_location = self.get_center_location(context, self.mouse_xy)
@@ -1046,8 +1101,9 @@ class DDDBT_OT_poseProportionalMove(Operator):
         return {'RUNNING_MODAL'}
 
     def draw(self, context):
+        mesh = iu.findfirst_selected_object('MESH')
         col = self.layout.column(align=False)
-        self.m_prop.draw(col)
+        self.m_prop.draw(col, mesh is not None)
         col.prop(self, 'move_vector')
 
 ################
@@ -1456,7 +1512,7 @@ class DDDBT_PT_BoneTool(Panel):
         split.operator(DDDBT_OT_poseProportionalMove.bl_idname)
         if display:
             box = col.box()
-            prop.poseProportionalMoveProp.draw(box)
+            prop.poseProportionalMoveProp.draw(box, True)
 
         display, split = ui.splitSwitch(col, prop, 'display_poseInflateMove')
         op = split.operator(DDDBT_OT_poseInflateMove.bl_idname)
