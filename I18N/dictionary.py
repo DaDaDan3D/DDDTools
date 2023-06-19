@@ -10,6 +10,7 @@
 translations_dict = {
     'ja_JP': {
         ('*', 'An error has occurred. See console for details.'): "エラーが発生しました。詳細はコンソールを参照してください。",
+        ('*', 'Direction Axis'): "方向タイプ",
         ('*', 'Object Name to Bone Name'): "オブジェクト名をボーン名に",
         ('*', 'The object name is automatically set as the bone name.'): "オブジェクト名を自動的にボーン名として設定します",
         ('*', 'Bone Name'): "ボーンの名前",
@@ -80,6 +81,8 @@ translations_dict = {
         ('*', 'Specify the range of influence of the proportional move.'): "プロポーショナル移動の影響範囲を指定します",
         ('Operator', 'Pose Proportional Move'): "ボーンのプロポーショナル移動",
         ('*', 'Proportionally move the pose bone.'): "ポーズボーンをプロポーショナル移動します",
+        ('*', 'Use Proportional'): "プロポーショナル移動するかどうか",
+        ('*', 'Specifies whether to move proportionally. If unchecked, no proportional movement is performed and only the selected bone is moved.'): "プロポーショナル移動するかどうかを指定します。チェックを外すとプロポーショナル移動せず、選択ボーンのみを動かします",
         ('*', 'Move Vector'): "移動量",
         ('*', 'Specifies the amount (in meters) by which the bone is to be moved.'): "ボーンを移動する量(m)を指定します",
         ('*', 'Limit Type'): "移動制限",

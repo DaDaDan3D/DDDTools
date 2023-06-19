@@ -207,6 +207,12 @@ class DDDBT_changeBoneLengthDirection_propertyGroup(PropertyGroup):
 
 ################
 class DDDBT_poseProportionalMove_propertyGroup(PropertyGroup):
+    use_proportional: BoolProperty(
+        name=_('Use Proportional'),
+        description=_('Specifies whether to move proportionally. If unchecked, no proportional movement is performed and only the selected bone is moved.'),
+        default=True,
+    )
+
     falloff_type: mu.get_falloff_enum()
     
     influence_radius: FloatProperty(
@@ -235,14 +241,19 @@ class DDDBT_poseProportionalMove_propertyGroup(PropertyGroup):
 
     def draw(self, layout, has_mesh):
         col = layout.column(align=False)
-        col.prop(self, 'falloff_type')
-        col.prop(self, 'influence_radius')
+        col.prop(self, 'use_proportional')
+        box = col.box()
+        box.enabled = self.use_proportional
+        box.prop(self, 'falloff_type')
+        box.prop(self, 'influence_radius')
+
         box = col.box()
         box.enabled = has_mesh
         box.prop(self, 'mesh_thickness')
         box.prop(self, 'backface_culling')
     
     def copy_from(self, src):
+        self.use_proportional = src.use_proportional
         self.falloff_type = src.falloff_type
         self.influence_radius = src.influence_radius
         self.mesh_thickness = src.mesh_thickness
@@ -763,7 +774,9 @@ class DDDBT_OT_poseProportionalMove(Operator):
         else:
             length = f'{move_vector.length:.4f}'
         move_vector.normalize()
-        txt = f'({move_vector.x:.4f}, {move_vector.y:.4f}, {move_vector.z:.4f}) ({length} m)   Falloff: {self.m_prop.falloff_type}   Radius: {self.m_prop.influence_radius:.4f} m   Direction: {self.direction}'
+        txt = f'({move_vector.x:.4f}, {move_vector.y:.4f}, {move_vector.z:.4f}) ({length} m)   Direction: {self.direction}'
+        if self.m_prop.use_proportional:
+            txt += f'   Falloff: {self.m_prop.falloff_type}   Radius: {self.m_prop.influence_radius:.4f} m'
 
         context.area.header_text_set(txt)
         context.area.tag_redraw()
@@ -793,7 +806,13 @@ class DDDBT_OT_poseProportionalMove(Operator):
                 locations = self.pm.orig_locations
                 directions = self.pm.directions
                 colors = np.tile(COLOR_TABLE[self.direction],
-                                 (locations.shape[0], 1)).tolist()
+                                 (locations.shape[0], 1))
+
+                which_to_move = np.logical_and(self.pm.factors > pm.EPSILON,
+                                               self.get_which_to_move(context))
+                locations = locations[which_to_move]
+                directions = directions[which_to_move]
+                colors = colors[which_to_move].tolist()
 
             if self.direction in {'GLOBAL_X', 'GLOBAL_ZX', 'GLOBAL_XY'}:
                 colors.append((1, 0, 0, 0.5))
@@ -850,21 +869,22 @@ class DDDBT_OT_poseProportionalMove(Operator):
                                                  {'pos': strip})
                         batch.draw(shader)
 
-            # Compute the right direction vector
-            view_matrix = np.array(context.region_data.view_matrix)
-            angles = np.linspace(0, 2*np.pi, 60)
-            radius = self.m_prop.influence_radius
-            circle_verts = np.stack(
-                [radius * np.cos(angles),
-                 radius * np.sin(angles),
-                 np.zeros_like(angles)], axis=-1)
-            inv = np.linalg.inv(view_matrix)
-            points = center_location + circle_verts @ inv.T[:3, :3]
-            with iu.BlenderGpuState(blend='ALPHA', line_width=1.0):
-                shader.uniform_float('color', (1, 1, 1, 0.5))
-                batch = batch_for_shader(shader, 'LINE_LOOP',
-                                         {'pos': points.tolist()})
-                batch.draw(shader)
+            # Draw influence_radius
+            if self.m_prop.use_proportional:
+                view_matrix = np.array(context.region_data.view_matrix)
+                angles = np.linspace(0, 2*np.pi, 60)
+                radius = self.m_prop.influence_radius
+                circle_verts = np.stack(
+                    [radius * np.cos(angles),
+                     radius * np.sin(angles),
+                     np.zeros_like(angles)], axis=-1)
+                inv = np.linalg.inv(view_matrix)
+                points = center_location + circle_verts @ inv.T[:3, :3]
+                with iu.BlenderGpuState(blend='ALPHA', line_width=1.0):
+                    shader.uniform_float('color', (1, 1, 1, 0.5))
+                    batch = batch_for_shader(shader, 'LINE_LOOP',
+                                             {'pos': points.tolist()})
+                    batch.draw(shader)
 
     ################
     @staticmethod
@@ -898,6 +918,8 @@ class DDDBT_OT_poseProportionalMove(Operator):
         row.label(icon='EVENT_PAGEDOWN')
         row.label(icon='EVENT_A')
         row.label(icon='MOUSE_MMB', text='Adjust Proportional Influence')
+
+        row.label(text='Switch Proportional', icon='EVENT_O')
 
         row.label(icon='EVENT_SHIFT')
         row.label(text='Falloff type', icon='EVENT_O')
@@ -960,6 +982,19 @@ class DDDBT_OT_poseProportionalMove(Operator):
             context.window.cursor_modal_set('MOVE_Y')
 
     ################
+    def get_which_to_move(self, context):
+        armature = context.active_object
+        visible_bones = np.array([bt.is_bone_visible(b.bone, armature.data)
+                                  for b in armature.pose.bones], dtype=bool)
+        if self.m_prop.use_proportional:
+           which_to_move = visible_bones
+        else:
+            selected_bones = np.array(
+                [b.bone.select for b in armature.pose.bones], dtype=bool)
+            which_to_move = np.logical_and(visible_bones, selected_bones)
+        return which_to_move
+
+    ################
     def invoke(self, context, event):
         if context.area.type != 'VIEW_3D':
             self.report({'WARNING'}, 'View3D not found, cannot run operator')
@@ -971,8 +1006,9 @@ class DDDBT_OT_poseProportionalMove(Operator):
             return {'CANCELLED'}
 
         # Get if bone is selected
-        is_selected_bones = np.array([b.bone.select
-                                      for b in armature.pose.bones], dtype=bool)
+        is_selected_bones = np.array(
+            [b.bone.select and bt.is_bone_visible(b.bone, armature.data)
+             for b in armature.pose.bones], dtype=bool)
         if not np.any(is_selected_bones):
             self.report({'WARNING'}, 'No bones selected')
             return {'CANCELLED'}
@@ -1032,12 +1068,6 @@ class DDDBT_OT_poseProportionalMove(Operator):
         self.pm.falloff_type = self.m_prop.falloff_type
         self.update_directions()
 
-        armature = context.active_object
-
-        # Which bone to move?
-        visible_bones = np.array([bt.is_bone_visible(b.bone, armature.data)
-                                  for b in armature.pose.bones], dtype=bool)
-
         move_vector = Vector(self.move_vector)
         if self.direction in {'NONE',
                               'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
@@ -1048,10 +1078,12 @@ class DDDBT_OT_poseProportionalMove(Operator):
         else:
             amount = move_vector.z
 
-        locations, which_to_move =\
-            self.pm.compute_move(amount, visible_bones)
+        # Compute locations
+        which_to_move = self.get_which_to_move(context)
+        locations, which_to_move = self.pm.compute_move(amount, which_to_move)
 
         # Compute local translations
+        armature = context.active_object
         locations_homo = mu.append_homogeneous_coordinate(locations)
         translations = \
             (locations_homo @ np.array(armature.matrix_world.inverted()).T)[:, :3]
@@ -1174,6 +1206,10 @@ class DDDBT_OT_poseProportionalMove(Operator):
                                                    event.type, event.shift)
             self.set_cursor(context)
             self.reset_movement(context)
+            update = True
+
+        elif event.type == 'O' and not event.shift and pressed:
+            self.m_prop.use_proportional = not self.m_prop.use_proportional
             update = True
 
         if update:

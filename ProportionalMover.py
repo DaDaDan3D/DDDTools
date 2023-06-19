@@ -107,7 +107,7 @@ def get_next_direction(direction, axis, is_plane):
 ################
 def get_direction_enum():
     return bpy.props.EnumProperty(
-        name=_('方向タイプ'),
+        name=_('Direction Axis'),
         description=_('Specify axes or planes to restrict movement.'),
         items=[
             ('NONE', 'None', 'No limitation'),
