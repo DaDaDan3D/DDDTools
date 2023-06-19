@@ -272,45 +272,6 @@ class DDDBT_poseProportionalMove_propertyGroup(PropertyGroup):
         self.snap_onto_mesh_prop.copy_from(src.snap_onto_mesh_prop)
 
 ################
-class DDDBT_poseInflateMove_propertyGroup(PropertyGroup):
-    mesh_thickness: FloatProperty(
-        name=_('Mesh Thickness'),
-        description=_('Specifies the thickness of the mesh.'),
-        subtype='DISTANCE',
-        min=0,
-        default=0.01,
-        precision=2,
-        step=1,
-        unit='LENGTH',
-    )
-
-    direction: bt.get_inflate_direction_enum()
-
-    point: FloatVectorProperty(
-        name=_('Point'),
-        description=_('Center Point'),
-        size=3,
-        default=[0, 0, 0],
-        precision=2,
-        step=1.0,
-        unit='NONE',
-    )
-
-    def draw(self, layout):
-        col = layout.column(align=False)
-        col.prop(self, 'direction')
-        col.prop(self, 'mesh_thickness')
-
-        col2 = col.column(align=False)
-        col2.enabled = self.direction == 'POINT'
-        col2.prop(self, 'point')
-
-    def copy_from(self, src):
-        self.mesh_thickness = src.mesh_thickness
-        self.direction = src.direction
-        self.point = src.point
-
-################
 class DDDBT_propertyGroup(PropertyGroup):
     display_createArmatureFromSelectedEdges: BoolProperty(default=False)
     objNameToBasename: BoolProperty(
@@ -343,10 +304,6 @@ class DDDBT_propertyGroup(PropertyGroup):
     display_poseProportionalMove: BoolProperty(default=False)
     poseProportionalMoveProp: PointerProperty(
         type=DDDBT_poseProportionalMove_propertyGroup)
-
-    display_poseInflateMove: BoolProperty(default=False)
-    poseInflateMoveProp: PointerProperty(
-        type=DDDBT_poseInflateMove_propertyGroup)
 
 ################
 class DDDBT_OT_renameChildBonesWithNumber(Operator):
@@ -1286,328 +1243,6 @@ class DDDBT_MT_Falloff(Menu):
             op.falloff_type = falloff_item[0]
 
 ################
-class DDDBT_OT_poseInflateMove(Operator):
-    bl_idname = 'pose.dddbt_pose_inflate_move'
-    bl_label = _('Pose Inflate Move')
-    bl_description = _('Moves the selected bones so that they expand in the direction of a specific axis. It only moves, it does not scale. If a mesh is selected, it will stop along that mesh.')
-    bl_options = {'REGISTER', 'UNDO', 'GRAB_CURSOR_Y', 'BLOCKING'}
-
-    distance: FloatProperty(
-        name=_('Distance'),
-        description=_('Specifies the distance to be moved.'),
-        subtype='DISTANCE',
-        default=0,
-        precision=2,
-        step=1,
-        unit='LENGTH',
-    )
-
-    m_prop: PointerProperty(type=DDDBT_poseInflateMove_propertyGroup)
-
-    ################
-    def __init__(self):
-        # 描画ハンドル
-        self._handle = None
-
-        # 移動ツール本体
-        self._pim = None
-
-        # context.area.show_menus の保存
-        self.prev_show_menus = None
-
-        # 数値入力
-        self.number_input = iu.NumberInput()
-
-    ################
-    @staticmethod
-    def status_text_fn(self, context):
-        row = self.layout.row(align=True)
-
-        row.label(text='Confirm', icon='MOUSE_LMB')
-        row.label(text='Cancel', icon='MOUSE_RMB')
-
-        row.label(text='X Axis', icon='EVENT_X')
-        row.label(text='Y Axis', icon='EVENT_Y')
-        row.label(text='Z Axis', icon='EVENT_Z')
-
-        row.label(text='View Camera', icon='EVENT_V')
-        row.label(text='3D Cursor', icon='EVENT_C')
-        row.label(text='Object Origin', icon='EVENT_O')
-        row.label(text='Point', icon='EVENT_P')
-
-        row.label(text='Proportional Move', icon='EVENT_F')
-
-        row.label(text='Move', icon='EVENT_G')
-        row.label(text='Rotate', icon='EVENT_R')
-        row.label(text='Resize', icon='EVENT_S')
-
-        row.label(text='Precision Mode', icon='EVENT_SHIFT')
-
-    ################
-    @staticmethod
-    def draw_callback_pv(self, context):
-        # Set the header text
-        if self.number_input.is_processing():
-            distance = self.number_input.get_display()
-        else:
-            distance = f'{self.distance:.2f}'
-        txt = f'distance: {distance}m  direction: {self.m_prop.direction}'
-        mesh = iu.findfirst_selected_object('MESH')
-        if mesh:
-            txt += f'  mesh: {mesh.name}  mesh_thickness: {self.m_prop.mesh_thickness:.2f}m'
-        context.area.header_text_set(txt)
-            
-        context.area.tag_redraw()
-
-        if self._pim and not self.number_input.is_processing():
-            arma = context.active_object
-            origin = arma.matrix_world.translation
-
-            if self.m_prop.direction in {'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
-                                         'CURSOR_3D', 'OBJECT_ORIGIN', 'POINT'}:
-                bone_names, bone_locations_homo, bone_directions =\
-                    self._pim.get_bone_data()
-
-                # locations, directions を (n, 1, 3) の形状にリシェイプ
-                locations = np.reshape(bone_locations_homo[:, :3], (-1, 1, 3))
-                directions = np.reshape(bone_directions, (-1, 1, 3))
-
-            elif self.direction in {'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z'}:
-                locations = np.array([[origin]])
-                dir = {'GLOBAL_X': (1, 0, 0),
-                       'GLOBAL_Y': (0, 1, 0),
-                       'GLOBAL_Z': (0, 0, 1)}[self.direction]
-                directions = np.array([[dir]])
-            else:
-                locations = []
-                directions = []
-                
-            if len(locations) > 0:
-                unit = iu.calculate_mouse_move_unit(context, origin)
-                weights = np.linspace(-unit * 1000, unit * 1000, 10)
-
-                # weights を (1, m, 1) の形状にリシェイプ
-                weights = np.reshape(weights, (1, -1, 1))
-
-                # locations[i] + directions[i] * weights の計算
-                points = locations + directions * weights  # (n, m, 3) の配列
-
-                with iu.BlenderGpuState(blend='ALPHA', line_width=1.0):
-                    # Define the shader
-                    shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
-                    shader.bind()
-                    color = {'GLOBAL_X': (1, 0, 0, 0.5),
-                             'GLOBAL_Y': (0, 1, 0, 0.5),
-                             'GLOBAL_Z': (0, 0, 1, 0.5),
-                             'LOCAL_X': (1, 0, 0, 0.1),
-                             'LOCAL_Y': (0, 1, 0, 0.1),
-                             'LOCAL_Z': (0, 0, 1, 0.1),
-                             'VIEW_CAMERA': (1, 1, 1, 0.1),
-                             'CURSOR_3D': (1, 1, 1, 0.1),
-                             'OBJECT_ORIGIN': (1, 1, 0, 0.1),
-                             'POINT': (0, 1, 1, 0.1)}[self.m_prop.direction]
-                    shader.uniform_float('color', color)
-
-                    for strip in points.tolist():
-                        batch = batch_for_shader(shader,
-                                                 'LINE_STRIP',
-                                                 {'pos': strip})
-                        batch.draw(shader)
-
-    ################
-    @classmethod
-    def poll(self, context):
-        return bt.get_selected_bone_names()
-    
-    ################
-    def setup_pim(self, context, armature_name):
-        try:
-            self._pim = bt.PoseInflateMover(armature_name,
-                                            self.m_prop.direction,
-                                            context=context, point=self.m_prop.point)
-        except ValueError as e:
-            traceback.print_exc()
-            self._pim = None
-            self.report({'ERROR'},
-                        iface_('An error has occurred. See console for details.'))
-
-    ################
-    def execute(self, context):
-        if not self._pim:
-            armature = context.active_object
-            self.setup_pim(context, armature.name)
-            if not self._pim: return {'CANCELLED'}
-
-        prop = context.scene.dddtools_bt_prop
-        prop.poseInflateMoveProp.copy_from(self.m_prop)
-
-        mesh = iu.findfirst_selected_object('MESH')
-        if mesh:
-            self._pim.inflate_along_mesh(mesh.name, self.distance, self.m_prop.mesh_thickness)
-        else:
-            self._pim.inflate(self.distance)
-
-        return {'FINISHED'}
-
-    ################
-    def invoke(self, context, event):
-        if context.area.type != 'VIEW_3D':
-            self.report({'WARNING'}, 'View3D not found, cannot run operator')
-            return {'CANCELLED'}
-
-        armature = context.active_object
-        if not armature or armature.type != 'ARMATURE':
-            self.report({'WARNING'}, 'Armature is not active.')
-            return {'CANCELLED'}
-
-        # Start a new Undo step
-        bpy.ops.ed.undo_push(message='Proportional Pose Editing')
-        
-        # Setup
-        prop = context.scene.dddtools_bt_prop
-        self.m_prop.copy_from(prop.poseInflateMoveProp)
-
-        # Set mouse cursor
-        context.window.cursor_modal_set('MOVE_Y')
-
-        # Initialize property
-        self.distance = 0
-        self.number_input.set_expression('')
-
-        # do first execution
-        self.execute(context)
-
-        # Register the drawing callback
-        args = (self, context)
-        self._handle = bpy.types.SpaceView3D.draw_handler_add(
-            self.draw_callback_pv, args, 'WINDOW', 'POST_VIEW'
-        )
-
-        self.prev_show_menus = context.area.show_menus
-        context.workspace.status_text_set(self.status_text_fn)
-        context.window_manager.modal_handler_add(self)
-        return {'RUNNING_MODAL'}
-        
-    ################
-    def cancel(self, context):
-        bpy.ops.ed.undo()
-        self.finish(context)
-        return {'CANCELLED'}
-
-    ################
-    def finish(self, context):
-        if context.area:
-            context.area.header_text_set(None)
-            context.area.show_menus = self.prev_show_menus
-            context.area.tag_redraw()
-
-        assert self._handle
-        bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
-        self._handle = None
-        context.window.cursor_modal_restore()
-        context.workspace.status_text_set(None)
-
-    ################
-    def modal(self, context, event):
-        context.area.tag_redraw()
-
-        pressed = not event.is_repeat and event.value == 'PRESS'
-        if self.number_input.process_event(event):
-            try:
-                self.distance = self.number_input.get_value()
-            except:
-                pass
-            self.execute(context)
-            return {'RUNNING_MODAL'}
-
-        elif pressed and event.type in {'LEFTMOUSE', 'SPACE', 'RET', 'NUMPAD_ENTER'}:
-            self.finish(context)
-            return {'FINISHED'}
-
-        elif pressed and event.type in {'RIGHTMOUSE', 'ESC', 'DEL', 'BACK_SPACE'}:
-            return self.cancel(context)
-
-        elif event.type == 'F' and pressed:
-            self.cancel(context)
-            bpy.ops.pose.dddbt_pose_proportional_move('INVOKE_DEFAULT')
-            return {'CANCELLED'}
-
-        elif event.type == 'G' and pressed:
-            self.cancel(context)
-            bpy.ops.transform.translate('INVOKE_DEFAULT')
-            return {'CANCELLED'}
-
-        elif event.type == 'R' and pressed:
-            self.cancel(context)
-            bpy.ops.transform.rotate('INVOKE_DEFAULT')
-            return {'CANCELLED'}
-
-        elif event.type == 'S' and pressed:
-            self.cancel(context)
-            bpy.ops.transform.resize('INVOKE_DEFAULT')
-            return {'CANCELLED'}
-
-        elif pressed and event.type in {'X', 'Y', 'Z', 'V', 'C', 'O', 'P'}:
-            self.switch_direction(context, event.type)
-            self.execute(context)
-            return {'RUNNING_MODAL'}
-
-        elif event.type == 'MOUSEMOVE':
-            self.number_input.set_expression('')
-
-            armature = context.active_object
-            diff = event.mouse_y - event.mouse_prev_y
-            diff *= iu.calculate_mouse_move_unit(
-                context, armature.matrix_world.translation)
-            if event.shift: diff *= 0.1
-            self.distance += diff
-            self.execute(context)
-            return {'RUNNING_MODAL'}
-
-        return {'RUNNING_MODAL'}
-        
-    ################
-    def switch_direction(self, context, key):
-        if key == 'X':
-            if self.m_prop.direction == 'GLOBAL_X':
-                new_direction = 'LOCAL_X'
-            else:
-                new_direction = 'GLOBAL_X'
-        elif key == 'Y':
-            if self.m_prop.direction == 'GLOBAL_Y':
-                new_direction = 'LOCAL_Y'
-            else:
-                new_direction = 'GLOBAL_Y'
-        elif key == 'Z':
-            if self.m_prop.direction == 'GLOBAL_Z':
-                new_direction = 'LOCAL_Z'
-            else:
-                new_direction = 'GLOBAL_Z'
-        elif key == 'V':
-            new_direction = 'VIEW_CAMERA'
-        elif key == 'C':
-            new_direction = 'CURSOR_3D'
-        elif key == 'O':
-            new_direction = 'OBJECT_ORIGIN'
-        elif key == 'P':
-            new_direction = 'POINT'
-        else:
-            raise RuntimeError(f'Illegal parameter. key:{key}')
-            
-        if self.m_prop.direction != new_direction:
-            self._pim.reset_translations()
-            self._pim.setup_direction(new_direction,
-                                      context=context, point=self.m_prop.point)
-            self.distance = 0
-            self.m_prop.direction = new_direction
-
-    ################
-    def draw(self, context):
-        col = self.layout.column(align=False)
-        col.prop(self, 'distance')
-        col.prop(self.m_prop, 'mesh_thickness')
-
-################
 class DDDBT_PT_BoneTool(Panel):
     bl_idname = 'BT_PT_BoneTool'
     bl_label = 'BoneTool'
@@ -1664,17 +1299,10 @@ class DDDBT_PT_BoneTool(Panel):
             box = col.box()
             prop.poseProportionalMoveProp.draw(context, box)
 
-        display, split = ui.splitSwitch(col, prop, 'display_poseInflateMove')
-        op = split.operator(DDDBT_OT_poseInflateMove.bl_idname)
-        if display:
-            box = col.box()
-            prop.poseInflateMoveProp.draw(box)
-
 ################
 def draw_pose_menu(self, context):
     self.layout.operator_context = 'INVOKE_DEFAULT'
     self.layout.operator(DDDBT_OT_poseProportionalMove.bl_idname)
-    self.layout.operator(DDDBT_OT_poseInflateMove.bl_idname)
 
 ################################################################
 classes = (
@@ -1683,7 +1311,6 @@ classes = (
     DDDBT_buildHandleFromBones_propertyGroup,
     DDDBT_changeBoneLengthDirection_propertyGroup,
     DDDBT_poseProportionalMove_propertyGroup,
-    DDDBT_poseInflateMove_propertyGroup,
     DDDBT_propertyGroup,
     DDDBT_OT_renameChildBonesWithNumber,
     DDDBT_OT_resetStretchTo,
@@ -1697,7 +1324,6 @@ classes = (
     DDDBT_OT_buildHandleFromBones,
     DDDBT_OT_changeBoneLengthDirection,
     DDDBT_OT_poseProportionalMove,
-    DDDBT_OT_poseInflateMove,
     DDDBT_OT_Falloff,
     DDDBT_MT_Falloff,
     DDDBT_PT_BoneTool,
