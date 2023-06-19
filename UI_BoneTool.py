@@ -747,6 +747,10 @@ class DDDBT_OT_poseProportionalMove(Operator):
         txt = f'({move_vector.x:.4f}, {move_vector.y:.4f}, {move_vector.z:.4f}) ({length} m)   Direction: {self.direction}'
         if self.m_prop.use_proportional:
             txt += f'   Falloff: {self.m_prop.falloff_type}   Radius: {self.m_prop.influence_radius:.4f} m'
+        if self.m_prop.use_block_with_mesh:
+            txt += f'   Block({self.m_prop.block_with_mesh_prop.target_mesh_name})'
+        if self.m_prop.use_snap_onto_mesh:
+            txt += f'   Snap({self.m_prop.snap_onto_mesh_prop.target_mesh_name})'
 
         context.area.header_text_set(txt)
         context.area.tag_redraw()
@@ -879,10 +883,6 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
         row.label(text='ViewCamera/Cursor/Origin', icon='EVENT_V')
 
-        row.label(text='Move', icon='EVENT_G')
-        row.label(text='Rotate', icon='EVENT_R')
-        row.label(text='Resize', icon='EVENT_S')
-
         row.label(icon='EVENT_PAGEUP')
         row.label(icon='EVENT_D')
         row.label(icon='EVENT_PAGEDOWN')
@@ -894,7 +894,17 @@ class DDDBT_OT_poseProportionalMove(Operator):
         row.label(icon='EVENT_SHIFT')
         row.label(text='Falloff type', icon='EVENT_O')
 
+        row.label(icon='EVENT_SHIFT')
+        row.label(text='Snap On/Off', icon='EVENT_S')
+
+        row.label(icon='EVENT_SHIFT')
+        row.label(text='Block On/Off', icon='EVENT_B')
+
         row.label(text='Precision Mode', icon='EVENT_SHIFT')
+
+        row.label(text='Move', icon='EVENT_G')
+        row.label(text='Rotate', icon='EVENT_R')
+        row.label(text='Resize', icon='EVENT_S')
 
     ################
     def reset_movement(self, context):
@@ -1147,17 +1157,17 @@ class DDDBT_OT_poseProportionalMove(Operator):
             bpy.ops.wm.call_menu_pie(name='DDDBT_MT_Falloff')
             return {'RUNNING_MODAL'}
 
-        elif event.type == 'G' and pressed:
+        elif event.type == 'G' and not event.shift and pressed:
             self.cancel(context)
             bpy.ops.transform.translate('INVOKE_DEFAULT')
             return {'CANCELLED'}
 
-        elif event.type == 'R' and pressed:
+        elif event.type == 'R' and not event.shift and pressed:
             self.cancel(context)
             bpy.ops.transform.rotate('INVOKE_DEFAULT')
             return {'CANCELLED'}
 
-        elif event.type == 'S' and pressed:
+        elif event.type == 'S' and not event.shift and pressed:
             self.cancel(context)
             bpy.ops.transform.resize('INVOKE_DEFAULT')
             return {'CANCELLED'}
@@ -1192,7 +1202,15 @@ class DDDBT_OT_poseProportionalMove(Operator):
             update = True
 
         elif event.type == 'O' and not event.shift and pressed:
-            self.m_prop.use_proportional = not self.m_prop.use_proportional
+            self.m_prop.use_proportional ^= True
+            update = True
+
+        elif event.type == 'S' and event.shift and pressed:
+            self.m_prop.use_snap_onto_mesh ^= True
+            update = True
+
+        elif event.type == 'B' and event.shift and pressed:
+            self.m_prop.use_block_with_mesh ^= True
             update = True
 
         if update:
