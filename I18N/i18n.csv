@@ -1,6 +1,10 @@
 context,key,ja_JP,source_file,source_line,memo
 ,An error has occurred. See console for details.,エラーが発生しました。詳細はコンソールを参照してください。,,,汎用エラーメッセージ
 ,Direction Axis,方向タイプ,ProportionalMover.py,,
+,Target Mesh,対象メッシュ,ProportionalMover.py,,
+,Specifies the mesh to be checked.,調べる対象のメッシュを指定します,ProportionalMover.py,,
+,Snap on Backface,裏面にもスナップ,ProportionalMover.py,,
+,Specifies that it will snap even if it hits the back face of the mesh.,当たったのがメッシュの裏面だった場合でも、スナップするように指定します,ProportionalMover.py,,
 ,Object Name to Bone Name,オブジェクト名をボーン名に,UI_BoneTool.py,21,
 ,The object name is automatically set as the bone name.,オブジェクト名を自動的にボーン名として設定します,UI_BoneTool.py,22,
 ,Bone Name,ボーンの名前,UI_BoneTool.py,21,
@@ -69,6 +73,10 @@ Operator,Set bone length and direction,骨の長さと向きを設定,UI_BoneToo
 ,Forces the length and direction of the selected bone.,選択した骨の長さと向きを強制的に変更します,UI_BoneTool.py,,
 ,Influence Radius,影響範囲,UI_BoneTool.py,,
 ,Specify the range of influence of the proportional move.,プロポーショナル移動の影響範囲を指定します,UI_BoneTool.py,,
+,Block with mesh,メッシュでブロックする,UI_BoneTool.py,,
+,Specifies whether to stop at the surface of the specified mesh.,指定したメッシュの表面で止まるかどうかを指定します,UI_BoneTool.py,,
+,Snap to mesh,メッシュにスナップする,UI_BoneTool.py,,
+,Specifies whether to fly rays from the camera and snap them to the surface of the specified mesh.,カメラからレイを飛ばし、指定したメッシュの表面にスナップするかどうかを指定します,UI_BoneTool.py,,
 Operator,Pose Proportional Move,ボーンのプロポーショナル移動,UI_BoneTool.py,,
 ,Proportionally move the pose bone.,ポーズボーンをプロポーショナル移動します,UI_BoneTool.py,,
 ,Use Proportional,プロポーショナル移動するかどうか,UI_BoneTool.py,,

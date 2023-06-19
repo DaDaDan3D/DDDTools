@@ -164,7 +164,7 @@ class ProportionalMoverModifier():
         # draw properties
         pass
 
-################
+################################################################
 class ProportionalMover():
     def __init__(self):
         # 元のワールド座標
@@ -369,11 +369,11 @@ class ProportionalMover():
                                  self.orig_locations)
         return new_locations, which_to_move
 
-################
+################################################################
 def get_target_mesh_name_prop():
     return StringProperty(
         name=_('Target Mesh'),
-        description=_('スナップする対象のメッシュを指定します'),
+        description=_('Specifies the mesh to be checked.'),
     )
 
 ################
@@ -392,11 +392,11 @@ def get_mesh_thickness_prop():
 ################
 def get_snap_onto_backface_prop():
     return BoolProperty(
-        name=_('裏面にもスナップする'),
-        description=_('当たったのがメッシュの裏面だった場合でも、スナップするように設定します'),
+        name=_('Snap on Backface'),
+        description=_('Specifies that it will snap even if it hits the back face of the mesh.'),
         default=True)
 
-################
+################################################################
 class DDDPM_MeshSnapModifier_pg(PropertyGroup):
     target_mesh_name: get_target_mesh_name_prop()
     mesh_thickness: get_mesh_thickness_prop()
@@ -440,9 +440,51 @@ class MeshSnapModifier(ProportionalMoverModifier):
     def draw(self, context, layout):
         m_prop.draw(context, layout)
 
+################################################################
+class DDDPM_MeshBlockModifier_pg(PropertyGroup):
+    target_mesh_name: get_target_mesh_name_prop()
+    mesh_thickness: get_mesh_thickness_prop()
+
+    def draw(self, context, layout):
+        col = layout.column(align=False)
+        col.prop_search(self, 'target_mesh_name', context.blend_data, 'objects')
+
+        box = col.box().column()
+        mesh = bpy.data.objects.get(self.target_mesh_name)
+        box.enabled = (mesh is not None and mesh.type == 'MESH')
+        box.prop(self, 'mesh_thickness')
+
+    def copy_from(self, src):
+        self.target_mesh_name = src.target_mesh_name
+        self.mesh_thickness = src.mesh_thickness
+
 ################
+class MeshBlockModifier(ProportionalMoverModifier):
+    def __init__(self, prop):
+        self.m_prop = prop
+    
+    def modify(self, pm, new_locations, which_to_move):
+        mesh = bpy.data.objects.get(self.m_prop.target_mesh_name)
+        if not mesh or mesh.type != 'MESH':
+            return new_locations, which_to_move
+
+        hits, new_locations = mu.block_with_mesh(
+            pm.orig_locations,
+            pm.prev_locations,
+            new_locations,
+            mesh,
+            which_to_move,
+            self.m_prop.mesh_thickness)
+
+        return new_locations, which_to_move
+
+    def draw(self, context, layout):
+        m_prop.draw(context, layout)
+
+################################################################
 classes = (
     DDDPM_MeshSnapModifier_pg,
+    DDDPM_MeshBlockModifier_pg,
 )
 
 def registerClass():

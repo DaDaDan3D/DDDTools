@@ -222,9 +222,16 @@ class DDDBT_poseProportionalMove_propertyGroup(PropertyGroup):
         default=1.0,
     )
 
+    use_block_with_mesh: BoolProperty(
+        name=_('Block with mesh'),
+        description=_('Specifies whether to stop at the surface of the specified mesh.'),
+        default=False)
+    display_block_with_mesh: BoolProperty(default=False)
+    block_with_mesh_prop: PointerProperty(type=pm.DDDPM_MeshBlockModifier_pg)
+
     use_snap_onto_mesh: BoolProperty(
-        name=_('メッシュにスナップする'),
-        description=_('カメラからレイを飛ばし、指定したメッシュの表面にスナップするかどうかを指定します'),
+        name=_('Snap to mesh'),
+        description=_('Specifies whether to fly rays from the camera and snap them to the surface of the specified mesh.'),
         default=False)
     display_snap_onto_mesh: BoolProperty(default=False)
     snap_onto_mesh_prop: PointerProperty(type=pm.DDDPM_MeshSnapModifier_pg)
@@ -237,6 +244,13 @@ class DDDBT_poseProportionalMove_propertyGroup(PropertyGroup):
         box.prop(self, 'falloff_type')
         box.prop(self, 'influence_radius')
 
+        display, split = ui.splitSwitch(col, self, 'display_block_with_mesh')
+        split.prop(self, 'use_block_with_mesh')
+        if display:
+            box = col.box()
+            box.enabled = self.use_block_with_mesh
+            self.block_with_mesh_prop.draw(context, box)
+    
         display, split = ui.splitSwitch(col, self, 'display_snap_onto_mesh')
         split.prop(self, 'use_snap_onto_mesh')
         if display:
@@ -246,10 +260,15 @@ class DDDBT_poseProportionalMove_propertyGroup(PropertyGroup):
     
     def copy_from(self, src):
         self.use_proportional = src.use_proportional
-        self.display_snap_onto_mesh = src.display_snap_onto_mesh
         self.falloff_type = src.falloff_type
         self.influence_radius = src.influence_radius
+
+        self.use_block_with_mesh = src.use_block_with_mesh
+        #self.display_block_with_mesh = src.display_block_with_mesh
+        self.block_with_mesh_prop.copy_from(src.block_with_mesh_prop)
+
         self.use_snap_onto_mesh = src.use_snap_onto_mesh
+        #self.display_snap_onto_mesh = src.display_snap_onto_mesh
         self.snap_onto_mesh_prop.copy_from(src.snap_onto_mesh_prop)
 
 ################
@@ -1035,6 +1054,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
         # setup ProportionalMover
         mesh = iu.findfirst_selected_object('MESH')
         if mesh:
+            self.m_prop.block_with_mesh_prop.target_mesh_name = mesh.name
             self.m_prop.snap_onto_mesh_prop.target_mesh_name = mesh.name
         self.pm.setup(context.space_data, locations, is_selected_bones)
         self.reset_movement(context)
@@ -1066,6 +1086,10 @@ class DDDBT_OT_poseProportionalMove(Operator):
         self.update_directions()
 
         self.pm.modifiers = []
+        if self.m_prop.use_block_with_mesh:
+            mod = pm.MeshBlockModifier(self.m_prop.block_with_mesh_prop)
+            self.pm.modifiers.append(mod)
+
         if self.m_prop.use_snap_onto_mesh:
             mod = pm.MeshSnapModifier(self.m_prop.snap_onto_mesh_prop)
             self.pm.modifiers.append(mod)

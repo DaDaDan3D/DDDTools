@@ -506,3 +506,82 @@ def project_onto_mesh(locations,
     new_locations = np.where(hits_on_surface[:, np.newaxis],
                              new_locations, locations)
     return hits_on_surface, new_locations
+
+################
+def block_with_mesh(orig_locations,
+                    prev_locations,
+                    next_locations,
+                    mesh,
+                    which_to_use=True,
+                    mesh_thickness=0,
+                    epsilon=1e-10):
+    """
+    元々 orig_locations の位置にあった点が prev_locations から next_locations に
+    移動する時、mesh によって移動をブロックする
+
+    Parameters:
+    -----------
+    orig_locations : np.ndarray
+      点群の元のワールド座標
+    prev_locations : np.ndarray
+      点群の移動前のワールド座標
+    next_locations : np.ndarray
+      点群の移動先のワールド座標
+    mesh : bpy.types.Object
+      当たり判定を調べるメッシュオブジェクト
+    which_to_use : np.ndarray
+      どの点について調べるかの bool の配列
+    mesh_thickness : float
+      メッシュの厚み
+    epsilon : float
+      ゼロ除算を回避するための、十分に小さい数
+
+    Returns:
+    --------
+    np.ndarray, np.ndarray
+      当たったかどうかの bool の配列と、新しい位置
+    """
+
+    if next_locations.size == 0 or not np.any(which_to_use):
+        # Do nothing
+        return False, locations
+
+    # Compute local locations
+    mtx = np.array(mesh.matrix_world.inverted()).T[:, :3]
+    l_orig_locations = append_homogeneous_coordinate(orig_locations) @ mtx
+    l_prev_locations = append_homogeneous_coordinate(prev_locations) @ mtx
+    l_next_locations = append_homogeneous_coordinate(next_locations) @ mtx
+
+    # Compute mesh-local directions
+    l_directions = l_next_locations - l_prev_locations
+    l_directions_norm = np.linalg.norm(l_directions, axis=-1)
+    l_directions /= (l_directions_norm + epsilon)[:, np.newaxis]
+
+    l_orig_to_next = l_next_locations - l_orig_locations
+
+    dt = np.dtype([('hit', bool),
+                   ('location', object),
+                   ('normal', object),
+                   ('index', int)])
+    zero = Vector()
+    hits = np.array([
+        mesh.ray_cast(loc, dir) if use else (False, zero, zero, -1)
+        for loc, dir, use in zip(l_prev_locations, l_directions, which_to_use)], dtype=dt)
+
+    # Compute hit location
+    locations = np.array([np.array(l[:]) for l in hits['location']])
+    normals = np.array([np.array(n[:]) for n in hits['normal']])
+    dists = np.linalg.norm(locations - l_prev_locations, axis=-1)
+    dists = np.minimum(dists - mesh_thickness, l_directions_norm)
+    dot_products = np.sum(l_orig_to_next * l_directions, axis=-1)
+    hits_on_surface = np.logical_and(hits['hit'], dot_products > 0)
+    l_hit_locations = l_prev_locations + l_directions * dists[:, np.newaxis]
+
+    # Compute world locations
+    mtx = np.array(mesh.matrix_world).T[:, :3]
+    hit_locations = append_homogeneous_coordinate(l_hit_locations) @ mtx
+
+    # Decide new locations
+    new_locations = np.where(hits_on_surface[:, np.newaxis],
+                             hit_locations, next_locations)
+    return hits_on_surface, new_locations
