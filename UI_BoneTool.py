@@ -949,6 +949,17 @@ class DDDBT_OT_poseProportionalMove(Operator):
             self.pm.directions = np.array(self.move_vector)[np.newaxis]
 
     ################
+    def set_cursor(self, context):
+        if self.direction in {'NONE',
+                              'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
+                              'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
+                              'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
+                              'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+            context.window.cursor_modal_set('CROSS')
+        else:
+            context.window.cursor_modal_set('MOVE_Y')
+
+    ################
     def invoke(self, context, event):
         if context.area.type != 'VIEW_3D':
             self.report({'WARNING'}, 'View3D not found, cannot run operator')
@@ -977,7 +988,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
         self.save_move_vector = None
 
         # Set mouse cursor
-        context.window.cursor_modal_set('CROSS')
+        self.set_cursor(context)
 
         # Save translations
         self.bone_translations = np.array([
@@ -1161,6 +1172,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
         elif event.type in {'X', 'Y', 'Z', 'V'} and pressed:
             self.direction = pm.get_next_direction(self.direction,
                                                    event.type, event.shift)
+            self.set_cursor(context)
             self.reset_movement(context)
             update = True
 
