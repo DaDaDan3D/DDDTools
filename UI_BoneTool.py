@@ -636,7 +636,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
         unit='LENGTH',
     )
 
-    limit_type: pm.get_direction_enum()
+    direction: pm.get_direction_enum()
 
     ################
     def __init__(self):
@@ -658,25 +658,55 @@ class DDDBT_OT_poseProportionalMove(Operator):
         # center_location のあるべき位置の保存
         self.prev_center_location = None
 
+        # 数値入力
+        self.number_input = iu.NumberInput()
+
+        # 数値入力開始時の move_vector
+        self.save_move_vector = None
+
     ################
-    def get_limit_vector(self, context):
-        if self.limit_type in {'GLOBAL_X', 'GLOBAL_YZ'}:
+    # 方向ベクトルまたは法線ベクトルを得る
+    def get_direction_vector(self, context):
+        if self.direction in {'GLOBAL_X', 'GLOBAL_YZ'}:
             return Vector((1, 0, 0))
-        elif self.limit_type in {'GLOBAL_Y', 'GLOBAL_ZX'}:
+        elif self.direction in {'GLOBAL_Y', 'GLOBAL_ZX'}:
             return Vector((0, 1, 0))
-        elif self.limit_type in {'GLOBAL_Z', 'GLOBAL_XY'}:
+        elif self.direction in {'GLOBAL_Z', 'GLOBAL_XY'}:
             return Vector((0, 0, 1))
-        elif self.limit_type in {'LOCAL_X', 'LOCAL_YZ'}:
+        elif self.direction in {'LOCAL_X', 'LOCAL_YZ'}:
             mtx = np.array(context.active_object.matrix_world)
             return Vector(mtx[:3, 0])
-        elif self.limit_type in {'LOCAL_Y', 'LOCAL_ZX'}:
+        elif self.direction in {'LOCAL_Y', 'LOCAL_ZX'}:
             mtx = np.array(context.active_object.matrix_world)
             return Vector(mtx[:3, 1])
-        elif self.limit_type in {'LOCAL_Z', 'LOCAL_XY'}:
+        elif self.direction in {'LOCAL_Z', 'LOCAL_XY'}:
             mtx = np.array(context.active_object.matrix_world)
             return Vector(mtx[:3, 2])
         else:
             raise RuntimeError()
+
+    ################
+    # 基本の単位ベクトルを得る
+    def get_direction_unit(self, context):
+        if self.direction in {'NONE',
+                              'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
+                              'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+            return Vector()
+
+        if self.direction in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z',
+                              'VIEW_CAMERA', 'CURSOR_3D', 'OBJECT_ORIGIN'}:
+            return Vector((0, 0, 1))
+
+        if self.direction == 'GLOBAL_X': return Vector((1, 0, 0))
+        if self.direction == 'GLOBAL_Y': return Vector((0, 1, 0))
+        if self.direction == 'GLOBAL_Z': return Vector((0, 0, 1))
+
+        mtx = np.array(context.active_object.matrix_world)
+        if self.direction == 'LOCAL_X': return Vector(mtx[:3, 0])
+        if self.direction == 'LOCAL_Y': return Vector(mtx[:3, 1])
+        if self.direction == 'LOCAL_Z': return Vector(mtx[:3, 2])
+
+        raise RuntimeError()
 
     ################
     def compute_mouse_move(self, context, mouse_diff):
@@ -684,25 +714,25 @@ class DDDBT_OT_poseProportionalMove(Operator):
         center_location = Vector(self.pm.center_location)
 
         # Get the 3D location that corresponds to the new mouse position
-        if self.limit_type == 'NONE':
+        if self.direction == 'NONE':
             new_location = view3d_utils.region_2d_to_location_3d(
                 context.region, context.region_data,
                 self.mouse_xy, center_location)
 
-        elif self.limit_type in {'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
-                                 'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
-            vec = self.get_limit_vector(context)
+        elif self.direction in {'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
+                                'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+            vec = self.get_direction_vector(context)
             new_location = iu.calculate_mouse_ray_plane_intersection(
                 context, self.mouse_xy, center_location, vec)
 
-        elif self.limit_type in {'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
-                                 'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z'}:
-            vec = self.get_limit_vector(context)
+        elif self.direction in {'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
+                                'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z'}:
+            vec = self.get_direction_vector(context)
             new_location = iu.calculate_mouse_ray_line_intersection(
                 context, self.mouse_xy, center_location, vec)
 
-        elif self.limit_type in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z',
-                                 'VIEW_CAMERA', 'CURSOR_3D', 'OBJECT_ORIGIN'}:
+        elif self.direction in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z',
+                                'VIEW_CAMERA', 'CURSOR_3D', 'OBJECT_ORIGIN'}:
             unit = iu.calculate_mouse_move_unit(context, center_location)
             vec = Vector((0, 0, mouse_diff.y * unit))
             if self.prev_center_location:
@@ -726,7 +756,15 @@ class DDDBT_OT_poseProportionalMove(Operator):
     ################
     @staticmethod
     def draw_callback_pv(self, context):
-        txt = f'Proportional Size({self.m_prop.falloff_type}): {self.m_prop.influence_radius:.2f}m  {self.limit_type}  move: ({self.move_vector[0]:.2f}, {self.move_vector[1]:.2f}, {self.move_vector[2]:.2f})'
+        # Set the header text
+        move_vector = Vector(self.move_vector)
+        if self.number_input.is_processing():
+            length = self.number_input.get_display()
+        else:
+            length = f'{move_vector.length:.4f}'
+        move_vector.normalize()
+        txt = f'({move_vector.x:.4f}, {move_vector.y:.4f}, {move_vector.z:.4f}) ({length} m)   Falloff: {self.m_prop.falloff_type}   Radius: {self.m_prop.influence_radius:.4f} m   Direction: {self.direction}'
+
         context.area.header_text_set(txt)
         context.area.tag_redraw()
 
@@ -734,7 +772,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
         shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
         shader.bind()
 
-        if True:
+        if not self.number_input.is_processing():
             arma = context.active_object
             center_location = self.pm.center_location
 
@@ -742,8 +780,8 @@ class DDDBT_OT_poseProportionalMove(Operator):
             locations = np.empty((0, 3))
             directions = np.empty((0, 3))
 
-            if self.limit_type in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z',
-                                   'VIEW_CAMERA', 'CURSOR_3D', 'OBJECT_ORIGIN'}:
+            if self.direction in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z',
+                                  'VIEW_CAMERA', 'CURSOR_3D', 'OBJECT_ORIGIN'}:
                 COLOR_TABLE = {
                     'LOCAL_EACH_X': (1, 0, 0, 0.1),
                     'LOCAL_EACH_Y': (0, 1, 0, 0.1),
@@ -754,37 +792,37 @@ class DDDBT_OT_poseProportionalMove(Operator):
                 }
                 locations = self.pm.orig_locations
                 directions = self.pm.directions
-                colors = np.tile(COLOR_TABLE[self.limit_type],
+                colors = np.tile(COLOR_TABLE[self.direction],
                                  (locations.shape[0], 1)).tolist()
 
-            if self.limit_type in {'GLOBAL_X', 'GLOBAL_ZX', 'GLOBAL_XY'}:
+            if self.direction in {'GLOBAL_X', 'GLOBAL_ZX', 'GLOBAL_XY'}:
                 colors.append((1, 0, 0, 0.5))
                 locations = np.append(locations, [center_location])
                 directions = np.append(directions, [np.array((1, 0, 0))])
                 
-            if self.limit_type in {'GLOBAL_Y', 'GLOBAL_XY', 'GLOBAL_YZ'}:
+            if self.direction in {'GLOBAL_Y', 'GLOBAL_XY', 'GLOBAL_YZ'}:
                 colors.append((0, 1, 0, 0.5))
                 locations = np.append(locations, [center_location])
                 directions = np.append(directions, [np.array((0, 1, 0))])
                 
-            if self.limit_type in {'GLOBAL_Z', 'GLOBAL_YZ', 'GLOBAL_ZX'}:
+            if self.direction in {'GLOBAL_Z', 'GLOBAL_YZ', 'GLOBAL_ZX'}:
                 colors.append((0, 0, 1, 0.5))
                 locations = np.append(locations, [center_location])
                 directions = np.append(directions, [np.array((0, 0, 1))])
 
             mtx = np.array(arma.matrix_world)
 
-            if self.limit_type in {'LOCAL_X', 'LOCAL_ZX', 'LOCAL_XY'}:
+            if self.direction in {'LOCAL_X', 'LOCAL_ZX', 'LOCAL_XY'}:
                 colors.append((1, 0, 0, 0.5))
                 locations = np.append(locations, [center_location])
                 directions = np.append(directions, [mtx[:3, 0]])
                 
-            if self.limit_type in {'LOCAL_Y', 'LOCAL_XY', 'LOCAL_YZ'}:
+            if self.direction in {'LOCAL_Y', 'LOCAL_XY', 'LOCAL_YZ'}:
                 colors.append((0, 1, 0, 0.5))
                 locations = np.append(locations, [center_location])
                 directions = np.append(directions, [mtx[:3, 1]])
                 
-            if self.limit_type in {'LOCAL_Z', 'LOCAL_YZ', 'LOCAL_ZX'}:
+            if self.direction in {'LOCAL_Z', 'LOCAL_YZ', 'LOCAL_ZX'}:
                 colors.append((0, 0, 1, 0.5))
                 locations = np.append(locations, [center_location])
                 directions = np.append(directions, [mtx[:3, 2]])
@@ -827,51 +865,6 @@ class DDDBT_OT_poseProportionalMove(Operator):
                 batch = batch_for_shader(shader, 'LINE_LOOP',
                                          {'pos': points.tolist()})
                 batch.draw(shader)
-
-    ################
-    # @staticmethod
-    # def draw_callback_px(self, context):
-    #     with iu.BlenderGpuState(blend='ALPHA', line_width=2.0):
-    #         iu.draw_circle_2d(context,
-    #                           self.pm.center_location,
-    #                           self.m_prop.influence_radius,
-    #                           (1.0, 1.0, 1.0, 0.5))
-    #         if self.limit_type in {'GLOBAL_X', 'GLOBAL_ZX', 'GLOBAL_XY'}:
-    #             iu.draw_line_2d(context,
-    #                             self.pm.center_location,
-    #                             Vector((1, 0, 0)),
-    #                             (1.0, 0.0, 0.0, 0.5))
-    #         if self.limit_type in {'GLOBAL_Y', 'GLOBAL_XY', 'GLOBAL_YZ'}:
-    #             iu.draw_line_2d(context,
-    #                             self.pm.center_location,
-    #                             Vector((0, 1, 0)),
-    #                             (0.0, 1.0, 0.0, 0.5))
-    #         if self.limit_type in {'GLOBAL_Z', 'GLOBAL_YZ', 'GLOBAL_ZX'}:
-    #             iu.draw_line_2d(context,
-    #                             self.pm.center_location,
-    #                             Vector((0, 0, 1)),
-    #                             (0.0, 0.0, 1.0, 0.5))
-
-    #         mtx = np.array(context.active_object.matrix_world)
-    #         if self.limit_type in {'LOCAL_X', 'LOCAL_ZX', 'LOCAL_XY'}:
-    #             iu.draw_line_2d(context,
-    #                             self.pm.center_location,
-    #                             Vector(mtx[:3, 0]),
-    #                             (1.0, 0.0, 0.0, 0.5))
-    #         if self.limit_type in {'LOCAL_Y', 'LOCAL_XY', 'LOCAL_YZ'}:
-    #             iu.draw_line_2d(context,
-    #                             self.pm.center_location,
-    #                             Vector(mtx[:3, 1]),
-    #                             (0.0, 1.0, 0.0, 0.5))
-    #         if self.limit_type in {'LOCAL_Z', 'LOCAL_YZ', 'LOCAL_ZX'}:
-    #             iu.draw_line_2d(context,
-    #                             self.pm.center_location,
-    #                             Vector(mtx[:3, 2]),
-    #                             (0.0, 0.0, 1.0, 0.5))
-
-    #     # Set the header text
-    #     context.area.header_text_set(
-    #         f'Proportional Size({self.m_prop.falloff_type}): {self.m_prop.influence_radius:.2f}m  {self.limit_type}  move: ({self.move_vector[0]:.2f}, {self.move_vector[1]:.2f}, {self.move_vector[2]:.2f})')
 
     ################
     @staticmethod
@@ -922,24 +915,24 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
     ################
     def set_directions(self, context):
-        if self.limit_type in {'NONE',
-                               'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
-                               'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
-                               'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
-                               'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+        if self.direction in {'NONE',
+                              'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
+                              'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
+                              'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
+                              'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
             self.pm.directions = np.array(self.move_vector)[np.newaxis]
 
-        elif self.limit_type in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z'}:
+        elif self.direction in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z'}:
             armature = context.active_object
-            self.pm.set_directions_local(self.limit_type, armature)
+            self.pm.set_directions_local(self.direction, armature)
 
-        elif self.limit_type == 'VIEW_CAMERA':
+        elif self.direction == 'VIEW_CAMERA':
             self.pm.set_directions_from_view_camera()
 
-        elif self.limit_type == 'CURSOR_3D':
+        elif self.direction == 'CURSOR_3D':
             self.pm.set_directions_from_cursor_3d(context)
 
-        elif self.limit_type == 'OBJECT_ORIGIN':
+        elif self.direction == 'OBJECT_ORIGIN':
             armature = context.active_object
             self.pm.set_directions_from_object_origin(armature)
 
@@ -948,11 +941,11 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
     ################
     def update_directions(self):
-        if self.limit_type in {'NONE',
-                               'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
-                               'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
-                               'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
-                               'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+        if self.direction in {'NONE',
+                              'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
+                              'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
+                              'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
+                              'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
             self.pm.directions = np.array(self.move_vector)[np.newaxis]
 
     ################
@@ -979,7 +972,9 @@ class DDDBT_OT_poseProportionalMove(Operator):
         # Setup
         prop = context.scene.dddtools_bt_prop
         self.m_prop.copy_from(prop.poseProportionalMoveProp)
-        self.limit_type = 'NONE'
+        self.direction = 'NONE'
+        self.number_input.set_expression('')
+        self.save_move_vector = None
 
         # Set mouse cursor
         context.window.cursor_modal_set('CROSS')
@@ -1033,11 +1028,11 @@ class DDDBT_OT_poseProportionalMove(Operator):
                                   for b in armature.pose.bones], dtype=bool)
 
         move_vector = Vector(self.move_vector)
-        if self.limit_type in {'NONE',
-                               'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
-                               'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
-                               'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
-                               'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+        if self.direction in {'NONE',
+                              'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
+                              'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
+                              'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
+                              'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
             amount = move_vector.length
         else:
             amount = move_vector.z
@@ -1082,34 +1077,47 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
     ################
     def modal(self, context, event):
-        prop = context.scene.dddtools_bt_prop
-        falloff_type = prop.poseProportionalMoveProp.falloff_type
-        if self.m_prop.falloff_type != falloff_type:
-            self.m_prop.falloff_type = falloff_type
-            update = True
-
         context.area.tag_redraw()
-        pressed = not event.is_repeat and event.value == 'PRESS'
-        update = False
-        if event.type == 'MOUSEMOVE':
-            update = True
 
-        elif event.type in {'WHEELUPMOUSE', 'PAGE_UP', 'D'} and event.value == 'PRESS':
-            self.m_prop.influence_radius *= 1.1
-            update = True
+        ####
+        # Process NumberInput and confirm/cancel
 
-        elif event.type in {'WHEELDOWNMOUSE', 'PAGE_DOWN', 'A'} and event.value == 'PRESS':
-            self.m_prop.influence_radius /= 1.1
-            update = True
+        if self.number_input.process_event(event):
+            if self.save_move_vector is None:
+                self.save_move_vector = Vector(self.move_vector)
+            try:
+                amount = self.number_input.get_value()
+                norm = self.save_move_vector.length
+                if norm < 1e-8:
+                    move_vector = self.get_direction_unit(context) * amount
+                else:
+                    move_vector = self.save_move_vector * amount / norm
+                self.move_vector = move_vector
+            except:
+                if not self.number_input.is_processing():
+                    self.move_vector = self.save_move_vector
 
-        elif event.type in {'LEFTMOUSE', 'SPACE', 'RET'}:
+            self.execute(context)
+            return {'RUNNING_MODAL'}
+
+        elif event.type in {'LEFTMOUSE', 'SPACE', 'RET', 'NUMPAD_ENTER'}:
             self.finish(context)
             return {'FINISHED'}
 
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             return self.cancel(context)
 
-        elif event.type == 'O' and event.shift and pressed:
+        elif self.number_input.is_processing():
+            return {'RUNNING_MODAL'}
+
+        self.save_move_vector = None
+
+        pressed = not event.is_repeat and event.value == 'PRESS'
+
+        ####
+        # Process menus/tools
+
+        if event.type == 'O' and event.shift and pressed:
             bpy.ops.wm.call_menu_pie(name='DDDBT_MT_Falloff')
             return {'RUNNING_MODAL'}
 
@@ -1128,9 +1136,31 @@ class DDDBT_OT_poseProportionalMove(Operator):
             bpy.ops.transform.resize('INVOKE_DEFAULT')
             return {'CANCELLED'}
 
+        ####
+        # Process others
+
+        prop = context.scene.dddtools_bt_prop
+        falloff_type = prop.poseProportionalMoveProp.falloff_type
+        if self.m_prop.falloff_type != falloff_type:
+            self.m_prop.falloff_type = falloff_type
+            update = True
+        else:
+            update = False
+
+        if event.type == 'MOUSEMOVE':
+            update = True
+
+        elif event.type in {'WHEELUPMOUSE', 'PAGE_UP', 'D'} and event.value == 'PRESS':
+            self.m_prop.influence_radius *= 1.1
+            update = True
+
+        elif event.type in {'WHEELDOWNMOUSE', 'PAGE_DOWN', 'A'} and event.value == 'PRESS':
+            self.m_prop.influence_radius /= 1.1
+            update = True
+
         elif event.type in {'X', 'Y', 'Z', 'V'} and pressed:
-            self.limit_type = pm.get_next_direction(self.limit_type,
-                                                    event.type, event.shift)
+            self.direction = pm.get_next_direction(self.direction,
+                                                   event.type, event.shift)
             self.reset_movement(context)
             update = True
 
