@@ -18,6 +18,7 @@ from . import internalUtils as iu
 from . import mathUtils as mu
 from . import UIUtils as ui
 from . import BoneTool as bt
+from . import ProportionalMover as pm
 
 _ = lambda s: s
 from bpy.app.translations import pgettext_iface as iface_
@@ -635,43 +636,15 @@ class DDDBT_OT_poseProportionalMove(Operator):
         unit='LENGTH',
     )
 
-    limit_type: EnumProperty(
-        name=_('Limit Type'),
-        description=_('Specify axes or planes to restrict movement.'),
-        items=[
-            ('NONE', 'None', 'No limitation'),
-            ('GLOBAL_X', 'Global X', 'Global X axis'),
-            ('GLOBAL_Y', 'Global Y', 'Global Y axis'),
-            ('GLOBAL_Z', 'Global Z', 'Global Z axis'),
-            ('LOCAL_X', 'Local X', 'Local X axis'),
-            ('LOCAL_Y', 'Local Y', 'Local Y axis'),
-            ('LOCAL_Z', 'Local Z', 'Local Z axis'),
-            ('GLOBAL_YZ', 'Global YZ', 'Global YZ plane'),
-            ('GLOBAL_ZX', 'Global ZX', 'Global ZX plane'),
-            ('GLOBAL_XY', 'Global XY', 'Global XY plane'),
-            ('LOCAL_YZ', 'Local YZ', 'Local YZ plane'),
-            ('LOCAL_ZX', 'Local ZX', 'Local ZX plane'),
-            ('LOCAL_XY', 'Local XY', 'Local XY plane'),
-        ],
-        default='NONE',
-    )
+    limit_type: pm.get_direction_enum()
 
     ################
     def __init__(self):
-        # カメラ情報
-        self.view_data = None
-
-        # 選択ボーンの中心位置(ワールド座標)。移動方向決定のために参照する
-        self.center_location = None
-
-        # ボーンと選択ボーンとの最短距離(ワールド座標)
-        self.bone_distances = None
+        # プロポーショナル移動するクラス
+        self.pm = pm.ProportionalMover()
 
         # bone.matrix.translation の保存
         self.bone_translations = None
-
-        # ボーンの現在のワールド座標
-        self.bone_locations = None
 
         # 描画ハンドル
         self._handle = None
@@ -683,7 +656,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
         self.mouse_xy = None
 
         # center_location のあるべき位置の保存
-        self.prev_location = None
+        self.prev_center_location = None
 
     ################
     def get_limit_vector(self, context):
@@ -706,122 +679,199 @@ class DDDBT_OT_poseProportionalMove(Operator):
             raise RuntimeError()
 
     ################
-    def get_center_location(self, context, coord):
+    def compute_mouse_move(self, context, mouse_diff):
+        self.mouse_xy += mouse_diff
+        center_location = Vector(self.pm.center_location)
+
         # Get the 3D location that corresponds to the new mouse position
         if self.limit_type == 'NONE':
-            return view3d_utils.region_2d_to_location_3d(
+            new_location = view3d_utils.region_2d_to_location_3d(
                 context.region, context.region_data,
-                coord, self.center_location,)
+                self.mouse_xy, center_location)
 
         elif self.limit_type in {'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
                                  'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
             vec = self.get_limit_vector(context)
-            return iu.calculate_mouse_ray_plane_intersection(
-                context, coord, self.center_location, vec)
+            new_location = iu.calculate_mouse_ray_plane_intersection(
+                context, self.mouse_xy, center_location, vec)
 
         elif self.limit_type in {'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
                                  'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z'}:
             vec = self.get_limit_vector(context)
-            return iu.calculate_mouse_ray_line_intersection(
-                context, coord, self.center_location, vec)
+            new_location = iu.calculate_mouse_ray_line_intersection(
+                context, self.mouse_xy, center_location, vec)
+
+        elif self.limit_type in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z',
+                                 'VIEW_CAMERA', 'CURSOR_3D', 'OBJECT_ORIGIN'}:
+            unit = iu.calculate_mouse_move_unit(context, center_location)
+            vec = Vector((0, 0, mouse_diff.y * unit))
+            if self.prev_center_location:
+                new_location = self.prev_center_location + vec
+            else:
+                new_location = view3d_utils.region_2d_to_location_3d(
+                    context.region, context.region_data,
+                    self.mouse_xy, center_location) + vec
 
         else:
             raise RuntimeError()
 
-    ################
-    def switch_limit_type(self, axis, is_plane):
-        if axis == 'X':
-            if is_plane:
-                if self.limit_type == 'GLOBAL_YZ':
-                    self.limit_type = 'LOCAL_YZ'
-                elif self.limit_type == 'LOCAL_YZ':
-                    self.limit_type = 'NONE'
-                else:
-                    self.limit_type = 'GLOBAL_YZ'
-            else:
-                if self.limit_type == 'GLOBAL_X':
-                    self.limit_type = 'LOCAL_X'
-                elif self.limit_type == 'LOCAL_X':
-                    self.limit_type = 'NONE'
-                else:
-                    self.limit_type = 'GLOBAL_X'
-        elif axis == 'Y':
-            if is_plane:
-                if self.limit_type == 'GLOBAL_ZX':
-                    self.limit_type = 'LOCAL_ZX'
-                elif self.limit_type == 'LOCAL_ZX':
-                    self.limit_type = 'NONE'
-                else:
-                    self.limit_type = 'GLOBAL_ZX'
-            else:
-                if self.limit_type == 'GLOBAL_Y':
-                    self.limit_type = 'LOCAL_Y'
-                elif self.limit_type == 'LOCAL_Y':
-                    self.limit_type = 'NONE'
-                else:
-                    self.limit_type = 'GLOBAL_Y'
-        elif axis == 'Z':
-            if is_plane:
-                if self.limit_type == 'GLOBAL_XY':
-                    self.limit_type = 'LOCAL_XY'
-                elif self.limit_type == 'LOCAL_XY':
-                    self.limit_type = 'NONE'
-                else:
-                    self.limit_type = 'GLOBAL_XY'
-            else:
-                if self.limit_type == 'GLOBAL_Z':
-                    self.limit_type = 'LOCAL_Z'
-                elif self.limit_type == 'LOCAL_Z':
-                    self.limit_type = 'NONE'
-                else:
-                    self.limit_type = 'GLOBAL_Z'
+        if self.prev_center_location:
+            diff = new_location - self.prev_center_location
         else:
-            raise RuntimeError(f'Illegal parameter. axis:{axis} is_plane:{is_plane}')
+            diff = Vector()
+
+        self.prev_center_location = new_location
+        return diff
 
     ################
     @staticmethod
-    def draw_callback_px(self, context):
-        with iu.BlenderGpuState(blend='ALPHA', line_width=2.0):
-            iu.draw_circle_2d(context,
-                              self.center_location,
-                              self.m_prop.influence_radius,
-                              (1.0, 1.0, 1.0, 0.5))
+    def draw_callback_pv(self, context):
+        txt = f'Proportional Size({self.m_prop.falloff_type}): {self.m_prop.influence_radius:.2f}m  {self.limit_type}  move: ({self.move_vector[0]:.2f}, {self.move_vector[1]:.2f}, {self.move_vector[2]:.2f})'
+        context.area.header_text_set(txt)
+        context.area.tag_redraw()
+
+        # Define the shader
+        shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+        shader.bind()
+
+        if True:
+            arma = context.active_object
+            center_location = self.pm.center_location
+
+            colors = []
+            locations = np.empty((0, 3))
+            directions = np.empty((0, 3))
+
+            if self.limit_type in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z',
+                                   'VIEW_CAMERA', 'CURSOR_3D', 'OBJECT_ORIGIN'}:
+                COLOR_TABLE = {
+                    'LOCAL_EACH_X': (1, 0, 0, 0.1),
+                    'LOCAL_EACH_Y': (0, 1, 0, 0.1),
+                    'LOCAL_EACH_Z': (0, 0, 1, 0.1),
+                    'VIEW_CAMERA':  (0, 1, 1, 0.1),
+                    'CURSOR_3D':    (1, 1, 1, 0.1),
+                    'OBJECT_ORIGIN':(1, 1, 0, 0.1),
+                }
+                locations = self.pm.orig_locations
+                directions = self.pm.directions
+                colors = np.tile(COLOR_TABLE[self.limit_type],
+                                 (locations.shape[0], 1)).tolist()
+
             if self.limit_type in {'GLOBAL_X', 'GLOBAL_ZX', 'GLOBAL_XY'}:
-                iu.draw_line_2d(context,
-                                self.center_location,
-                                Vector((1, 0, 0)),
-                                (1.0, 0.0, 0.0, 0.5))
+                colors.append((1, 0, 0, 0.5))
+                locations = np.append(locations, [center_location])
+                directions = np.append(directions, [np.array((1, 0, 0))])
+                
             if self.limit_type in {'GLOBAL_Y', 'GLOBAL_XY', 'GLOBAL_YZ'}:
-                iu.draw_line_2d(context,
-                                self.center_location,
-                                Vector((0, 1, 0)),
-                                (0.0, 1.0, 0.0, 0.5))
+                colors.append((0, 1, 0, 0.5))
+                locations = np.append(locations, [center_location])
+                directions = np.append(directions, [np.array((0, 1, 0))])
+                
             if self.limit_type in {'GLOBAL_Z', 'GLOBAL_YZ', 'GLOBAL_ZX'}:
-                iu.draw_line_2d(context,
-                                self.center_location,
-                                Vector((0, 0, 1)),
-                                (0.0, 0.0, 1.0, 0.5))
+                colors.append((0, 0, 1, 0.5))
+                locations = np.append(locations, [center_location])
+                directions = np.append(directions, [np.array((0, 0, 1))])
 
-            mtx = np.array(context.active_object.matrix_world)
+            mtx = np.array(arma.matrix_world)
+
             if self.limit_type in {'LOCAL_X', 'LOCAL_ZX', 'LOCAL_XY'}:
-                iu.draw_line_2d(context,
-                                self.center_location,
-                                Vector(mtx[:3, 0]),
-                                (1.0, 0.0, 0.0, 0.5))
+                colors.append((1, 0, 0, 0.5))
+                locations = np.append(locations, [center_location])
+                directions = np.append(directions, [mtx[:3, 0]])
+                
             if self.limit_type in {'LOCAL_Y', 'LOCAL_XY', 'LOCAL_YZ'}:
-                iu.draw_line_2d(context,
-                                self.center_location,
-                                Vector(mtx[:3, 1]),
-                                (0.0, 1.0, 0.0, 0.5))
+                colors.append((0, 1, 0, 0.5))
+                locations = np.append(locations, [center_location])
+                directions = np.append(directions, [mtx[:3, 1]])
+                
             if self.limit_type in {'LOCAL_Z', 'LOCAL_YZ', 'LOCAL_ZX'}:
-                iu.draw_line_2d(context,
-                                self.center_location,
-                                Vector(mtx[:3, 2]),
-                                (0.0, 0.0, 1.0, 0.5))
+                colors.append((0, 0, 1, 0.5))
+                locations = np.append(locations, [center_location])
+                directions = np.append(directions, [mtx[:3, 2]])
+            
+            if colors:
+                # (n, 1, 3) の形状にリシェイプ
+                locations = np.reshape(locations, (-1, 1, 3))
+                directions = np.reshape(directions, (-1, 1, 3))
 
-        # Set the header text
-        context.area.header_text_set(
-            f'Proportional Size({self.m_prop.falloff_type}): {self.m_prop.influence_radius:.2f}m {self.limit_type}')
+                origin = arma.matrix_world.translation
+                unit = iu.calculate_mouse_move_unit(context, origin)
+                weights = np.linspace(-unit * 1000, unit * 1000, 10)
+
+                # weights を (1, m, 1) の形状にリシェイプ
+                weights = np.reshape(weights, (1, -1, 1))
+
+                # locations[i] + directions[i] * weights の計算
+                points = locations + directions * weights  # (n, m, 3) の配列
+
+                with iu.BlenderGpuState(blend='ALPHA', line_width=1.0):
+                    for strip, color in zip(points.tolist(), colors):
+                        shader.uniform_float('color', color)
+                        batch = batch_for_shader(shader,
+                                                 'LINE_STRIP',
+                                                 {'pos': strip})
+                        batch.draw(shader)
+
+            # Compute the right direction vector
+            view_matrix = np.array(context.space_data.region_3d.view_matrix)
+            angles = np.linspace(0, 2*np.pi, 60)
+            radius = self.m_prop.influence_radius
+            circle_verts = np.stack(
+                [radius * np.cos(angles),
+                 radius * np.sin(angles),
+                 np.zeros_like(angles)], axis=-1)
+            inv = np.linalg.inv(view_matrix)
+            points = center_location + circle_verts @ inv.T[:3, :3]
+            with iu.BlenderGpuState(blend='ALPHA', line_width=1.0):
+                shader.uniform_float('color', (1, 1, 1, 0.5))
+                batch = batch_for_shader(shader, 'LINE_LOOP',
+                                         {'pos': points.tolist()})
+                batch.draw(shader)
+
+    ################
+    # @staticmethod
+    # def draw_callback_px(self, context):
+    #     with iu.BlenderGpuState(blend='ALPHA', line_width=2.0):
+    #         iu.draw_circle_2d(context,
+    #                           self.pm.center_location,
+    #                           self.m_prop.influence_radius,
+    #                           (1.0, 1.0, 1.0, 0.5))
+    #         if self.limit_type in {'GLOBAL_X', 'GLOBAL_ZX', 'GLOBAL_XY'}:
+    #             iu.draw_line_2d(context,
+    #                             self.pm.center_location,
+    #                             Vector((1, 0, 0)),
+    #                             (1.0, 0.0, 0.0, 0.5))
+    #         if self.limit_type in {'GLOBAL_Y', 'GLOBAL_XY', 'GLOBAL_YZ'}:
+    #             iu.draw_line_2d(context,
+    #                             self.pm.center_location,
+    #                             Vector((0, 1, 0)),
+    #                             (0.0, 1.0, 0.0, 0.5))
+    #         if self.limit_type in {'GLOBAL_Z', 'GLOBAL_YZ', 'GLOBAL_ZX'}:
+    #             iu.draw_line_2d(context,
+    #                             self.pm.center_location,
+    #                             Vector((0, 0, 1)),
+    #                             (0.0, 0.0, 1.0, 0.5))
+
+    #         mtx = np.array(context.active_object.matrix_world)
+    #         if self.limit_type in {'LOCAL_X', 'LOCAL_ZX', 'LOCAL_XY'}:
+    #             iu.draw_line_2d(context,
+    #                             self.pm.center_location,
+    #                             Vector(mtx[:3, 0]),
+    #                             (1.0, 0.0, 0.0, 0.5))
+    #         if self.limit_type in {'LOCAL_Y', 'LOCAL_XY', 'LOCAL_YZ'}:
+    #             iu.draw_line_2d(context,
+    #                             self.pm.center_location,
+    #                             Vector(mtx[:3, 1]),
+    #                             (0.0, 1.0, 0.0, 0.5))
+    #         if self.limit_type in {'LOCAL_Z', 'LOCAL_YZ', 'LOCAL_ZX'}:
+    #             iu.draw_line_2d(context,
+    #                             self.pm.center_location,
+    #                             Vector(mtx[:3, 2]),
+    #                             (0.0, 0.0, 1.0, 0.5))
+
+    #     # Set the header text
+    #     context.area.header_text_set(
+    #         f'Proportional Size({self.m_prop.falloff_type}): {self.m_prop.influence_radius:.2f}m  {self.limit_type}  move: ({self.move_vector[0]:.2f}, {self.move_vector[1]:.2f}, {self.move_vector[2]:.2f})')
 
     ################
     @staticmethod
@@ -844,7 +894,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
         row.label(icon='EVENT_SHIFT')
         row.label(text='Z Plane', icon='EVENT_Z')
 
-        row.label(text='Inflate Move', icon='EVENT_F')
+        row.label(text='ViewCamera/Cursor/Origin', icon='EVENT_V')
 
         row.label(text='Move', icon='EVENT_G')
         row.label(text='Rotate', icon='EVENT_R')
@@ -862,12 +912,48 @@ class DDDBT_OT_poseProportionalMove(Operator):
         row.label(text='Precision Mode', icon='EVENT_SHIFT')
 
     ################
-    def reset_mouse_position(self, context):
+    def reset_movement(self, context):
+        self.pm.reset_movement()
+        self.set_directions(context)
         self.mouse_xy = view3d_utils.location_3d_to_region_2d(
-            context.region, context.space_data.region_3d, self.center_location)
-        self.prev_mouse = None
-        self.prev_location = None
+            context.region, context.space_data.region_3d, self.pm.center_location)
+        self.prev_center_location = None
         self.move_vector = Vector()
+
+    ################
+    def set_directions(self, context):
+        if self.limit_type in {'NONE',
+                               'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
+                               'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
+                               'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
+                               'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+            self.pm.directions = np.array(self.move_vector)[np.newaxis]
+
+        elif self.limit_type in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z'}:
+            armature = context.active_object
+            self.pm.set_directions_local(self.limit_type, armature)
+
+        elif self.limit_type == 'VIEW_CAMERA':
+            self.pm.set_directions_from_view_camera()
+
+        elif self.limit_type == 'CURSOR_3D':
+            self.pm.set_directions_from_cursor_3d(context)
+
+        elif self.limit_type == 'OBJECT_ORIGIN':
+            armature = context.active_object
+            self.pm.set_directions_from_object_origin(armature)
+
+        else:
+            raise RuntimeError()
+
+    ################
+    def update_directions(self):
+        if self.limit_type in {'NONE',
+                               'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
+                               'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
+                               'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
+                               'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+            self.pm.directions = np.array(self.move_vector)[np.newaxis]
 
     ################
     def invoke(self, context, event):
@@ -894,7 +980,6 @@ class DDDBT_OT_poseProportionalMove(Operator):
         prop = context.scene.dddtools_bt_prop
         self.m_prop.copy_from(prop.poseProportionalMoveProp)
         self.limit_type = 'NONE'
-        self.view_data = mu.ViewData(context.space_data)
 
         # Set mouse cursor
         context.window.cursor_modal_set('CROSS')
@@ -908,25 +993,17 @@ class DDDBT_OT_poseProportionalMove(Operator):
         # Compute current locations in world coordinate
         bone_translations_homo = \
             mu.append_homogeneous_coordinate(self.bone_translations)
-        self.bone_locations = \
-            np.dot(bone_translations_homo,
-                   np.array(armature.matrix_world).T)[:, :3]
-
-        # Compute center
-        selected_locations = self.bone_locations[is_selected_bones]
-        self.center_location = np.mean(selected_locations, axis=0)
-
-        # Save distances for each bone
-        diff_grid = self.bone_locations[:, np.newaxis] - selected_locations
-        self.bone_distances = np.min(np.linalg.norm(diff_grid, axis=2), axis=1)
-
-        # Reset locations
-        self.reset_mouse_position(context)
+        locations =\
+            (bone_translations_homo @ np.array(armature.matrix_world).T)[:, :3]
+        
+        # setup ProportionalMover
+        self.pm.setup(context.space_data, locations, is_selected_bones)
+        self.reset_movement(context)
 
         # Register the drawing callback
         args = (self, context)
         self._handle = bpy.types.SpaceView3D.draw_handler_add(
-            self.draw_callback_px, args, 'WINDOW', 'POST_PIXEL'
+            self.draw_callback_pv, args, 'WINDOW', 'POST_VIEW'
         )
 
         self.prev_show_menus = context.area.show_menus
@@ -945,49 +1022,33 @@ class DDDBT_OT_poseProportionalMove(Operator):
         prop = context.scene.dddtools_bt_prop
         prop.poseProportionalMoveProp.copy_from(self.m_prop)
 
+        self.pm.influence_radius = self.m_prop.influence_radius
+        self.pm.falloff_type = self.m_prop.falloff_type
+        self.update_directions()
+
         armature = context.active_object
-        move_vector = Vector(self.move_vector)
-
-        epsilon = 1e-9
-
-        if not self.view_data:
-            self.view_data = mu.ViewData(context.space_data)
-
-        # Set transformation_function
-        radius = max(self.m_prop.influence_radius, epsilon)
-        falloff = mu.falloff_funcs[self.m_prop.falloff_type]
-        rng = random.Random(0)
-
-        # Compute bone locations
-        factors = np.array([0 if val > 1 else falloff(val, rng.random)
-                            for val in self.bone_distances / radius])
-        move_vectors = self.move_vector * factors[:, np.newaxis]
-        locations = self.bone_locations + move_vectors
 
         # Which bone to move?
         visible_bones = np.array([bt.is_bone_visible(b.bone, armature.data)
                                   for b in armature.pose.bones], dtype=bool)
-        which_to_move = np.logical_and(visible_bones, factors > epsilon)
 
-        # If mesh is selected, snap onto its surface
-        mesh = iu.findfirst_selected_object('MESH')
-        if mesh:
-            hits, new_locations = mu.project_onto_mesh(
-                locations,
-                mesh,
-                self.view_data,
-                which_to_use=which_to_move,
-                mesh_thickness=self.m_prop.mesh_thickness,
-                backface_culling=self.m_prop.backface_culling,
-                epsilon=epsilon)
-            if np.any(hits):
-                locations = new_locations
+        move_vector = Vector(self.move_vector)
+        if self.limit_type in {'NONE',
+                               'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
+                               'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
+                               'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
+                               'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+            amount = move_vector.length
+        else:
+            amount = move_vector.z
+
+        locations, which_to_move =\
+            self.pm.compute_move(amount, visible_bones)
 
         # Compute local translations
         locations_homo = mu.append_homogeneous_coordinate(locations)
         translations = \
-            np.dot(locations_homo,
-                   np.array(armature.matrix_world.inverted()).T)[:, :3]
+            (locations_homo @ np.array(armature.matrix_world.inverted()).T)[:, :3]
 
         translations = np.where(which_to_move[:, np.newaxis],
                                 translations,
@@ -1033,11 +1094,11 @@ class DDDBT_OT_poseProportionalMove(Operator):
         if event.type == 'MOUSEMOVE':
             update = True
 
-        elif event.type in {'WHEELUPMOUSE', 'PAGE_UP', 'D'} and pressed:
+        elif event.type in {'WHEELUPMOUSE', 'PAGE_UP', 'D'} and event.value == 'PRESS':
             self.m_prop.influence_radius *= 1.1
             update = True
 
-        elif event.type in {'WHEELDOWNMOUSE', 'PAGE_DOWN', 'A'} and pressed:
+        elif event.type in {'WHEELDOWNMOUSE', 'PAGE_DOWN', 'A'} and event.value == 'PRESS':
             self.m_prop.influence_radius /= 1.1
             update = True
 
@@ -1051,11 +1112,6 @@ class DDDBT_OT_poseProportionalMove(Operator):
         elif event.type == 'O' and event.shift and pressed:
             bpy.ops.wm.call_menu_pie(name='DDDBT_MT_Falloff')
             return {'RUNNING_MODAL'}
-
-        elif event.type == 'F' and pressed:
-            self.cancel(context)
-            bpy.ops.pose.dddbt_pose_inflate_move('INVOKE_DEFAULT')
-            return {'CANCELLED'}
 
         elif event.type == 'G' and pressed:
             self.cancel(context)
@@ -1072,29 +1128,20 @@ class DDDBT_OT_poseProportionalMove(Operator):
             bpy.ops.transform.resize('INVOKE_DEFAULT')
             return {'CANCELLED'}
 
-        elif event.type in {'X', 'Y', 'Z'} and pressed:
-            self.switch_limit_type(event.type, event.shift)
-            self.reset_mouse_position(context)
+        elif event.type in {'X', 'Y', 'Z', 'V'} and pressed:
+            self.limit_type = pm.get_next_direction(self.limit_type,
+                                                    event.type, event.shift)
+            self.reset_movement(context)
             update = True
 
         if update:
-            self.mouse_xy += Vector((event.mouse_x - event.mouse_prev_x,
-                                     event.mouse_y - event.mouse_prev_y))
+            mouse_diff = Vector((event.mouse_x - event.mouse_prev_x,
+                                 event.mouse_y - event.mouse_prev_y))
 
-            # Get the 3D location that corresponds to the new mouse position
-            new_location = self.get_center_location(context, self.mouse_xy)
-            if not new_location:
-                print('Cannot calculate mouse location.')
-                return {'RUNNING_MODAL'}
-
-            if not self.prev_location:
-                self.prev_location = new_location
-
-            # Calculate the movement vector and apply it to the bone
-            vec = new_location - self.prev_location
+            # Compute mouse movement and get move vector
+            vec = self.compute_mouse_move(context, mouse_diff)
             if event.shift: vec *= 0.1
             self.move_vector = Vector(self.move_vector) + vec
-            self.prev_location = new_location
 
             self.execute(context)
 
@@ -1117,7 +1164,6 @@ class DDDBT_OT_Falloff(Operator):
     def execute(self, context):
         prop = context.scene.dddtools_bt_prop
         prop.poseProportionalMoveProp.falloff_type = self.falloff_type
-        print(f'falloff: {self.falloff_type}')
         return {'FINISHED'}
 
 ################

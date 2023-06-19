@@ -409,19 +409,19 @@ class ViewData():
         self.view_matrix = rv3d.view_matrix.copy()
         self.clip_end = sv3d.clip_end
 
-    def compute_local_ray_origins(self, locations_homo, mesh):
+    def compute_local_ray_origins(self, locations_homo, matrix_world):
         """
-        カメラから locations へ向かうレイの、mesh ローカルな基点を計算する
+        カメラから locations へ向かうレイの、ローカルな基点を計算する
         """
         if self.is_perspective:
             camera_pos = self.view_matrix.inverted().translation
-            l_camera_pos = np.array(mesh.matrix_world.inverted() @ camera_pos)
+            l_camera_pos = np.array(matrix_world.inverted() @ camera_pos)
             l_ray_origins = np.tile(l_camera_pos, (locations_homo.shape[0], 1))
         else:
             mtx = np.array(self.view_matrix).T
             l_locations_homo = locations_homo @ mtx
             l_locations_homo[:, 2] = self.clip_end * 0.5
-            mtx = np.array((self.view_matrix @ mesh.matrix_world).inverted()).T
+            mtx = np.array((self.view_matrix @ matrix_world).inverted()).T
             l_ray_origins = (l_locations_homo @ mtx)[:, :3]
         return l_ray_origins
 
@@ -469,7 +469,8 @@ def project_onto_mesh(locations,
     l_locations = (locations_homo @ world_to_mesh)[:, :3]
 
     # Compute mesh-local ray-origin
-    l_ray_origins = view_data.compute_local_ray_origins(locations_homo, mesh)
+    l_ray_origins = view_data.compute_local_ray_origins(locations_homo,
+                                                        mesh.matrix_world)
 
     # Compute directions
     l_directions = l_locations - l_ray_origins

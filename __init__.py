@@ -36,6 +36,7 @@ modules = [
     'NormalTool',
     'UVTool',
     'TextTool',
+    'ProportionalMover',
 
     'UI_MaterialTool',
     'UI_EditTool',
