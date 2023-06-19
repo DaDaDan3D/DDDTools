@@ -775,14 +775,14 @@ class BlenderGpuState:
 ################
 def draw_circle_2d(context, center, radius, color):
     # Compute the right direction vector
-    view_matrix = context.space_data.region_3d.view_matrix
+    view_matrix = context.region_data.view_matrix
     right_vector = Vector((view_matrix[0][0], view_matrix[0][1], view_matrix[0][2]))
 
     # Compute 2D locations
     center_location_2D = view3d_utils.location_3d_to_region_2d(
-        context.region, context.space_data.region_3d, center)
+        context.region, context.region_data, center)
     right_location_2D = view3d_utils.location_3d_to_region_2d(
-        context.region, context.space_data.region_3d, center + right_vector)
+        context.region, context.region_data, center + right_vector)
 
     # Compute the radius in 2D
     radius_2D = abs(right_location_2D.x - center_location_2D.x) * radius
@@ -812,9 +812,9 @@ def draw_line_2d(context, point, direction, color):
 
     # Compute 2D locations
     point1 = view3d_utils.location_3d_to_region_2d(
-        context.region, context.space_data.region_3d, point - direction)
+        context.region, context.region_data, point - direction)
     point2 = view3d_utils.location_3d_to_region_2d(
-        context.region, context.space_data.region_3d, point + direction)
+        context.region, context.region_data, point + direction)
 
     # Compute edge
     dir = point2 - point1

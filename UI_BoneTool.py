@@ -851,7 +851,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
                         batch.draw(shader)
 
             # Compute the right direction vector
-            view_matrix = np.array(context.space_data.region_3d.view_matrix)
+            view_matrix = np.array(context.region_data.view_matrix)
             angles = np.linspace(0, 2*np.pi, 60)
             radius = self.m_prop.influence_radius
             circle_verts = np.stack(
@@ -909,7 +909,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
         self.pm.reset_movement()
         self.set_directions(context)
         self.mouse_xy = view3d_utils.location_3d_to_region_2d(
-            context.region, context.space_data.region_3d, self.pm.center_location)
+            context.region, context.region_data, self.pm.center_location)
         self.prev_center_location = None
         self.move_vector = Vector()
 
