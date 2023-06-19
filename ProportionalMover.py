@@ -1,5 +1,7 @@
 # -*- encoding:utf-8 -*-
 import bpy
+from bpy.types import Object, PropertyGroup
+from bpy.props import PointerProperty, FloatProperty, BoolProperty, StringProperty
 import numpy as np
 import random
 from mathutils import (
@@ -132,6 +134,35 @@ def get_direction_enum():
         ],
         default='NONE',
     )
+
+################
+# ProportionalMover のモディファイアの基底クラス
+class ProportionalMoverModifier():
+    def modify(self, pm, new_locations, which_to_move):
+        """
+        移動時に呼ばれ、移動先の座標や、どの点を動かすかを調整する
+
+        Parameters:
+        -----------
+        pm : ProportionalMover
+          呼び出し元
+        new_locations : np.ndarray
+          移動先の座標の配列
+        which_to_move : np.ndarray
+          移動するかどうかを示す bool の配列
+
+        Returns:
+        --------
+        np.ndarray, np.ndarray
+          新しい移動先の座標の配列と、移動するかどうかを示す新しい bool の配列
+        """
+
+        # do something
+        return new_locations, which_to_move
+
+    def draw(self, context, layout):
+        # draw properties
+        pass
 
 ################
 class ProportionalMover():
@@ -337,3 +368,90 @@ class ProportionalMover():
                                  new_locations,
                                  self.orig_locations)
         return new_locations, which_to_move
+
+################
+def get_target_mesh_name_prop():
+    return StringProperty(
+        name=_('Target Mesh'),
+        description=_('スナップする対象のメッシュを指定します'),
+    )
+
+################
+def get_mesh_thickness_prop():
+    return FloatProperty(
+        name=_('Mesh Thickness'),
+        description=_('Specifies the thickness of the mesh.'),
+        subtype='DISTANCE',
+        min=0,
+        default=0.01,
+        precision=2,
+        step=1,
+        unit='LENGTH',
+    )
+
+################
+def get_snap_onto_backface_prop():
+    return BoolProperty(
+        name=_('裏面にもスナップする'),
+        description=_('当たったのがメッシュの裏面だった場合でも、スナップするように設定します'),
+        default=True)
+
+################
+class DDDPM_MeshSnapModifier_pg(PropertyGroup):
+    target_mesh_name: get_target_mesh_name_prop()
+    mesh_thickness: get_mesh_thickness_prop()
+    snap_onto_backface: get_snap_onto_backface_prop()
+
+    def draw(self, context, layout):
+        col = layout.column(align=False)
+        col.prop_search(self, 'target_mesh_name', context.blend_data, 'objects')
+
+        box = col.box().column()
+        mesh = bpy.data.objects.get(self.target_mesh_name)
+        box.enabled = (mesh is not None and mesh.type == 'MESH')
+        box.prop(self, 'mesh_thickness')
+        box.prop(self, 'snap_onto_backface')
+
+    def copy_from(self, src):
+        self.target_mesh_name = src.target_mesh_name
+        self.mesh_thickness = src.mesh_thickness
+        self.snap_onto_backface = src.snap_onto_backface
+
+################
+class MeshSnapModifier(ProportionalMoverModifier):
+    def __init__(self, prop):
+        self.m_prop = prop
+    
+    def modify(self, pm, new_locations, which_to_move):
+        mesh = bpy.data.objects.get(self.m_prop.target_mesh_name)
+        if not mesh or mesh.type != 'MESH':
+            return new_locations, which_to_move
+
+        hits, new_locations = mu.project_onto_mesh(
+            new_locations,
+            mesh,
+            pm.view_data,
+            which_to_move,
+            self.m_prop.mesh_thickness,
+            not self.m_prop.snap_onto_backface)
+
+        return new_locations, which_to_move
+
+    def draw(self, context, layout):
+        m_prop.draw(context, layout)
+
+################
+classes = (
+    DDDPM_MeshSnapModifier_pg,
+)
+
+def registerClass():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+def unregisterClass():
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
+
+if __name__ == '__main__':
+    registerClass()

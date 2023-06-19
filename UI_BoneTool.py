@@ -222,24 +222,14 @@ class DDDBT_poseProportionalMove_propertyGroup(PropertyGroup):
         default=1.0,
     )
 
-    mesh_thickness: FloatProperty(
-        name=_('Mesh Thickness'),
-        description=_('Specifies the thickness of the mesh.'),
-        subtype='DISTANCE',
-        min=0,
-        default=0.01,
-        precision=2,
-        step=1,
-        unit='LENGTH',
-    )
+    use_snap_onto_mesh: BoolProperty(
+        name=_('メッシュにスナップする'),
+        description=_('カメラからレイを飛ばし、指定したメッシュの表面にスナップするかどうかを指定します'),
+        default=False)
+    display_snap_onto_mesh: BoolProperty(default=False)
+    snap_onto_mesh_prop: PointerProperty(type=pm.DDDPM_MeshSnapModifier_pg)
 
-    backface_culling: BoolProperty(
-        name=_('Backface Culling'),
-        description=_('Execute back facing geometry from snapping.'),
-        default=False,
-    )
-
-    def draw(self, layout, has_mesh):
+    def draw(self, context, layout):
         col = layout.column(align=False)
         col.prop(self, 'use_proportional')
         box = col.box()
@@ -247,16 +237,20 @@ class DDDBT_poseProportionalMove_propertyGroup(PropertyGroup):
         box.prop(self, 'falloff_type')
         box.prop(self, 'influence_radius')
 
-        box = col.box()
-        box.enabled = has_mesh
-        box.prop(self, 'mesh_thickness')
-        box.prop(self, 'backface_culling')
+        display, split = ui.splitSwitch(col, self, 'display_snap_onto_mesh')
+        split.prop(self, 'use_snap_onto_mesh')
+        if display:
+            box = col.box()
+            box.enabled = self.use_snap_onto_mesh
+            self.snap_onto_mesh_prop.draw(context, box)
     
     def copy_from(self, src):
         self.use_proportional = src.use_proportional
+        self.display_snap_onto_mesh = src.display_snap_onto_mesh
         self.falloff_type = src.falloff_type
         self.influence_radius = src.influence_radius
-        self.mesh_thickness = src.mesh_thickness
+        self.use_snap_onto_mesh = src.use_snap_onto_mesh
+        self.snap_onto_mesh_prop.copy_from(src.snap_onto_mesh_prop)
 
 ################
 class DDDBT_poseInflateMove_propertyGroup(PropertyGroup):
@@ -1039,6 +1033,9 @@ class DDDBT_OT_poseProportionalMove(Operator):
             (bone_translations_homo @ np.array(armature.matrix_world).T)[:, :3]
         
         # setup ProportionalMover
+        mesh = iu.findfirst_selected_object('MESH')
+        if mesh:
+            self.m_prop.snap_onto_mesh_prop.target_mesh_name = mesh.name
         self.pm.setup(context.space_data, locations, is_selected_bones)
         self.reset_movement(context)
 
@@ -1067,6 +1064,11 @@ class DDDBT_OT_poseProportionalMove(Operator):
         self.pm.influence_radius = self.m_prop.influence_radius
         self.pm.falloff_type = self.m_prop.falloff_type
         self.update_directions()
+
+        self.pm.modifiers = []
+        if self.m_prop.use_snap_onto_mesh:
+            mod = pm.MeshSnapModifier(self.m_prop.snap_onto_mesh_prop)
+            self.pm.modifiers.append(mod)
 
         move_vector = Vector(self.move_vector)
         if self.direction in {'NONE',
@@ -1228,7 +1230,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
     def draw(self, context):
         mesh = iu.findfirst_selected_object('MESH')
         col = self.layout.column(align=False)
-        self.m_prop.draw(col, mesh is not None)
+        self.m_prop.draw(context, col)
         col.prop(self, 'move_vector')
 
 ################
@@ -1636,7 +1638,7 @@ class DDDBT_PT_BoneTool(Panel):
         split.operator(DDDBT_OT_poseProportionalMove.bl_idname)
         if display:
             box = col.box()
-            prop.poseProportionalMoveProp.draw(box, True)
+            prop.poseProportionalMoveProp.draw(context, box)
 
         display, split = ui.splitSwitch(col, prop, 'display_poseInflateMove')
         op = split.operator(DDDBT_OT_poseInflateMove.bl_idname)
