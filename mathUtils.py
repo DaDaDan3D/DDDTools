@@ -407,6 +407,7 @@ class ViewData():
         rv3d = sv3d.region_3d
         self.is_perspective = rv3d.is_perspective
         self.view_matrix = rv3d.view_matrix.copy()
+        self.view_location = rv3d.view_location.copy()
         self.clip_end = sv3d.clip_end
 
     def compute_local_ray_origins(self, locations_homo, matrix_world):

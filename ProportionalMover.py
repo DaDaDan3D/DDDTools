@@ -113,48 +113,50 @@ DIRECTION_INFO = {
     'LOCAL_ZX':         DirectionInfo(True, False, True, False, 1),
     'LOCAL_XY':         DirectionInfo(True, False, True, False, 2),
     'VIEW_CAMERA':      DirectionInfo(False, False, False, True, -1),
+    'VIEW_PIVOT':       DirectionInfo(False, False, False, True, -1),
     'CURSOR_3D':        DirectionInfo(False, False, False, True, -1),
     'OBJECT_ORIGIN':    DirectionInfo(False, False, False, True, -1),
 }
 
 ################
 # 次のタイプを得る
-def get_next_direction(direction, axis, is_plane):
-    if axis == 'X':
-        if is_plane:
-            if direction == 'GLOBAL_YZ':        return 'LOCAL_YZ'
-            elif direction == 'LOCAL_YZ':       return 'NONE'
-            else:                               return 'GLOBAL_YZ'
-        else:
-            if direction == 'GLOBAL_X':         return 'LOCAL_X'
-            elif direction == 'LOCAL_X':        return 'LOCAL_EACH_X'
-            elif direction == 'LOCAL_EACH_X':   return 'NONE'
-            else:                               return 'GLOBAL_X'
-    elif axis == 'Y':
-        if is_plane:
-            if direction == 'GLOBAL_ZX':        return 'LOCAL_ZX'
-            elif direction == 'LOCAL_ZX':       return 'NONE'
-            else:                               return 'GLOBAL_ZX'
-        else:
-            if direction == 'GLOBAL_Y':         return 'LOCAL_Y'
-            elif direction == 'LOCAL_Y':        return 'LOCAL_EACH_Y'
-            elif direction == 'LOCAL_EACH_Y':   return 'NONE'
-            else:                               return 'GLOBAL_Y'
-    elif axis == 'Z':
-        if is_plane:
-            if direction == 'GLOBAL_XY':        return 'LOCAL_XY'
-            elif direction == 'LOCAL_XY':       return 'NONE'
-            else:                               return 'GLOBAL_XY'
-        else:
-            if direction == 'GLOBAL_Z':         return 'LOCAL_Z'
-            elif direction == 'LOCAL_Z':        return 'LOCAL_EACH_Z'
-            elif direction == 'LOCAL_EACH_Z':   return 'NONE'
-            else:                               return 'GLOBAL_Z'
-    else:
-        if direction == 'NONE':                 return 'VIEW_CAMERA'
-        elif direction == 'VIEW_CAMERA':        return 'CURSOR_3D'
-        elif direction == 'CURSOR_3D':          return 'OBJECT_ORIGIN'
-        else:                                   return 'NONE'
+def get_next_direction(direction, key):
+    if key == 'X':
+        if direction == 'GLOBAL_YZ':            return 'LOCAL_YZ'
+        elif direction == 'LOCAL_YZ':           return 'NONE'
+        else:                                   return 'GLOBAL_YZ'
+    elif key == 'Y':
+        if direction == 'GLOBAL_ZX':            return 'LOCAL_ZX'
+        elif direction == 'LOCAL_ZX':           return 'NONE'
+        else:                                   return 'GLOBAL_ZX'
+    elif key == 'Z':
+        if direction == 'GLOBAL_XY':            return 'LOCAL_XY'
+        elif direction == 'LOCAL_XY':           return 'NONE'
+        else:                                   return 'GLOBAL_XY'
+    elif key == 'x':
+        if direction == 'GLOBAL_X':             return 'LOCAL_X'
+        elif direction == 'LOCAL_X':            return 'LOCAL_EACH_X'
+        elif direction == 'LOCAL_EACH_X':       return 'NONE'
+        else:                                   return 'GLOBAL_X'
+    elif key == 'y':
+        if direction == 'GLOBAL_Y':             return 'LOCAL_Y'
+        elif direction == 'LOCAL_Y':            return 'LOCAL_EACH_Y'
+        elif direction == 'LOCAL_EACH_Y':       return 'NONE'
+        else:                                   return 'GLOBAL_Y'
+    elif key == 'z':
+        if direction == 'GLOBAL_Z':             return 'LOCAL_Z'
+        elif direction == 'LOCAL_Z':            return 'LOCAL_EACH_Z'
+        elif direction == 'LOCAL_EACH_Z':       return 'NONE'
+        else:                                   return 'GLOBAL_Z'
+    elif key == 'v':
+        if direction == 'VIEW_PIVOT':           return 'VIEW_CAMERA'
+        elif direction == 'VIEW_CAMERA':        return 'NONE'
+        else:                                   return 'VIEW_PIVOT'
+    elif key == 'c':
+        if direction == 'CURSOR_3D':            return 'OBJECT_ORIGIN'
+        elif direction == 'OBJECT_ORIGIN':      return 'NONE'
+        else:                                   return 'CURSOR_3D'
+    else:                                       return 'NONE'
 
 ################
 def get_direction_enum():
@@ -179,6 +181,7 @@ def get_direction_enum():
             ('LOCAL_ZX', 'Local ZX', 'Local ZX plane'),
             ('LOCAL_XY', 'Local XY', 'Local XY plane'),
             ('VIEW_CAMERA', _('View Camera'), _('View Camera Position')),
+            ('VIEW_PIVOT', _('View Pivot'), _('View Pivot Position')),
             ('CURSOR_3D', _('3D Cursor'), _('3D Cursor Position')),
             ('OBJECT_ORIGIN', _('Object Origin'), _('Object Origin Position')),
         ],
@@ -337,6 +340,11 @@ class ProportionalMover():
         locations_h = mu.append_homogeneous_coordinate(self.orig_locations)
         orig_pnt = self.view_data.compute_local_ray_origins(locations_h,
                                                             Matrix())
+        self.directions = self.orig_locations - orig_pnt
+
+    # カメラ注視点からの方向を設定する
+    def set_directions_from_view_pivot(self):
+        orig_pnt = np.array(self.view_data.view_location)
         self.directions = self.orig_locations - orig_pnt
 
     # 3D カーソルからの方向を設定する

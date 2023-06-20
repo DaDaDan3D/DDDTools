@@ -700,7 +700,8 @@ class DDDBT_OT_poseProportionalMove(Operator):
                 context, self.mouse_xy, center_location, vec)
 
         elif self.direction in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z',
-                                'VIEW_CAMERA', 'CURSOR_3D', 'OBJECT_ORIGIN'}:
+                                'VIEW_CAMERA', 'VIEW_PIVOT',
+                                'CURSOR_3D', 'OBJECT_ORIGIN'}:
             unit = iu.calculate_mouse_move_unit(context, center_location)
             vec = Vector((0, 0, mouse_diff.y * unit))
             if self.prev_center_location:
@@ -762,6 +763,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
                     'LOCAL_EACH_Y': (0, 1, 0, 0.1),
                     'LOCAL_EACH_Z': (0, 0, 1, 0.1),
                     'VIEW_CAMERA':  (0, 1, 1, 0.1),
+                    'VIEW_PIVOT':   (1, 0, 1, 0.1),
                     'CURSOR_3D':    (1, 1, 1, 0.1),
                     'OBJECT_ORIGIN':(1, 1, 0, 0.1),
                 }
@@ -868,16 +870,15 @@ class DDDBT_OT_poseProportionalMove(Operator):
         row.label(icon='EVENT_SHIFT')
         row.label(text='Z Plane', icon='EVENT_Z')
 
-        row.label(text='ViewCamera/Cursor/Origin', icon='EVENT_V')
+        row.label(text='Cursor / Origin', icon='EVENT_C')
+        row.label(text='Pivot / Camera', icon='EVENT_V')
 
-        row.label(icon='EVENT_PAGEUP')
-        row.label(icon='EVENT_D')
-        row.label(icon='EVENT_PAGEDOWN')
-        row.label(icon='EVENT_A')
+        row.label(icon='MOUSE_MMB')
         row.label(icon='EVENT_W')
-        row.label(icon='MOUSE_MMB', text='Adjust Proportional Influence')
+        row.label(icon='EVENT_A')
+        row.label(icon='EVENT_D', text='Radius')
 
-        row.label(text='Switch Proportional', icon='EVENT_O')
+        row.label(text='Proportional On/Off', icon='EVENT_O')
 
         row.label(icon='EVENT_SHIFT')
         row.label(text='Falloff type', icon='EVENT_O')
@@ -915,6 +916,9 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
         elif self.direction == 'VIEW_CAMERA':
             self.pm.set_directions_from_view_camera()
+
+        elif self.direction == 'VIEW_PIVOT':
+            self.pm.set_directions_from_view_pivot()
 
         elif self.direction == 'CURSOR_3D':
             self.pm.set_directions_from_cursor_3d(context)
@@ -1181,9 +1185,8 @@ class DDDBT_OT_poseProportionalMove(Operator):
             self.m_prop.influence_radius = min(range) * .3
             update=True
 
-        elif event.type in {'X', 'Y', 'Z', 'V'} and pressed:
-            self.direction = pm.get_next_direction(self.direction,
-                                                   event.type, event.shift)
+        elif event.type in {'X', 'Y', 'Z', 'V', 'C'} and pressed:
+            self.direction = pm.get_next_direction(self.direction, event.ascii)
             self.set_cursor(context)
             self.reset_movement(context)
             update = True
