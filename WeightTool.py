@@ -9,10 +9,6 @@ _ = lambda s: s
 from bpy.app.translations import pgettext_iface as iface_
 
 ################
-# reg-exp for _L
-re_name_L = re.compile(r'(.*[._-])L$')
-
-################
 def getSelectedEditableBones():
     return [iu.EditBoneWrapper(eb) for eb in bpy.context.selected_editable_bones]
 
@@ -263,17 +259,17 @@ def equalizeVertexWeightsForMirroredBones(mesh):
         return 0
 
     with iu.mode_context(mesh.obj, 'OBJECT'):
-        # Make Left_to_Right_dictionary from vertex groups
-        # eg. leftToRight[vertex_groups['hoge_L'].index] -> vertex_groups['hoge_R'].index
-        leftToRight = dict()
+        # Make sides_dictionary from vertex groups
+        # eg. vg_sides[vertex_groups['hoge_L'].index] -> vertex_groups['hoge_R'].index
+        vg_sides = dict()
+        vg_names = mesh.obj.vertex_groups.keys()
         for vg in mesh.obj.vertex_groups:
-            mo = re_name_L.match(vg.name)
-            if mo:
-                rightName = f'{mo.group(1)}R'
-                rightVG = mesh.obj.vertex_groups.get(rightName)
-                if rightVG:
-                    leftToRight[vg.index] = rightVG.index
-        #print(leftToRight)
+            if vg.index not in vg_sides:
+                flip_name = iu.find_flip_side_name(vg_names, vg.name)
+                if flip_name:
+                    flip_vg = mesh.obj.vertex_groups[flip_name]
+                    vg_sides[flip_vg.index] = vg.index
+        #print(vg_sides)
 
         bm = bmesh.new()
         bm.from_mesh(mesh.obj.data)
@@ -291,7 +287,7 @@ def equalizeVertexWeightsForMirroredBones(mesh):
             if vtx.select:
                 equalized = False
                 gr = vtx[deform]
-                for idx_L, idx_R in leftToRight.items():
+                for idx_L, idx_R in vg_sides.items():
                     value_L = gr.get(idx_L)
                     value_R = gr.get(idx_R)
                     if value_L:

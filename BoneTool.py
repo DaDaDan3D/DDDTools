@@ -676,3 +676,8 @@ def is_bone_visible(bone, armature):
             return True    
 
     return False
+
+################
+def find_flip_side_bone_name(arma, bone_name):
+    names = [b.name for b in arma.data.bones]
+    return iu.find_flip_side_name(names, bone_name)

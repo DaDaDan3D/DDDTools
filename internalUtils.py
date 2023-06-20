@@ -1001,3 +1001,77 @@ It supports simple four arithmetic operations, parentheses, and cursor movement.
             return True
 
         return False
+
+################################################################
+RE_NAME = re.compile(r'^((?P<side0>left|Left|LEFT|right|Right|RIGHT)(?P<sep0>[. -_]?)|(?P<side1>[lLrR])(?P<sep1>[. -_]))?(?P<main>.+?)((?P<sep2>[. -_])(?P<side2>[lLrR])|(?P<sep3>[. -_]?)(?P<side3>left|Left|LEFT|right|Right|RIGHT))?(?P<number>\.\d+)?$')
+
+FLIP = {
+    None:       '',
+    'l':        'r',
+    'L':        'R',
+    'left':     'right',
+    'Left':     'Right',
+    'LEFT':     'RIGHT',
+    'r':        'l',
+    'R':        'L',
+    'right':    'left',
+    'Right':    'Left',
+    'RIGHT':    'LEFT',
+}
+
+def separator(sep):
+    return sep if sep else ''
+
+def flip_side_name(name):
+    """
+    左右を反転した名前を得る。
+    もし左右を反転した名前がなければ None を得る。
+    数字のサフィックス(.003 など)は削られる。
+    e.g.
+      hand -> None
+      l_hand -> r_hand
+      lefthand -> righthand
+      left_hand -> right_hand
+      hand_l -> hand_r
+      hand.L -> hand.R
+      hand.L.003 -> hand.R
+
+    Parameters:
+    -----------
+    name : string
+      名前
+
+    Returns:
+    --------
+    string
+      左右を反転した名前
+    """
+
+    mo = RE_NAME.match(name)
+    if not mo: return None
+
+    prefix =\
+        FLIP[mo.group('side0')] + separator(mo.group('sep0')) +\
+        FLIP[mo.group('side1')] + separator(mo.group('sep1'))
+
+    main = mo.group('main')
+
+    suffix =\
+        separator(mo.group('sep2')) + FLIP[mo.group('side2')] +\
+        separator(mo.group('sep3')) + FLIP[mo.group('side3')]
+
+    if prefix or suffix:
+        return prefix + main + suffix
+    else:
+        return None
+
+################
+RE_NAME_NUMBER = re.compile(r'^(?P<main>.+?)(?P<number>\.\d+)?$')
+
+def find_flip_side_name(names, name):
+    flip_name = flip_side_name(name)
+    if not flip_name: return None
+
+    names_wo_number = [RE_NAME_NUMBER.sub(r'\g<main>', n) for n in names]
+    names_dic = dict(zip(names_wo_number, names))
+    return names_dic.get(flip_name)
