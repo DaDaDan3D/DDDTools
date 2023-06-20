@@ -813,9 +813,8 @@ class DDDBT_OT_poseProportionalMove(Operator):
                 locations = np.reshape(locations, (-1, 1, 3))
                 directions = np.reshape(directions, (-1, 1, 3))
 
-                pivot = context.region_data.view_location
-                unit = iu.calculate_mouse_move_unit(context, pivot)
-                weights = np.linspace(-unit * 1000, unit * 1000, 10)
+                unit = max(iu.calculate_mouse_range_at_pivot(context))
+                weights = np.linspace(-unit, unit, 10)
 
                 # weights を (1, m, 1) の形状にリシェイプ
                 weights = np.reshape(weights, (1, -1, 1))
@@ -875,6 +874,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
         row.label(icon='EVENT_D')
         row.label(icon='EVENT_PAGEDOWN')
         row.label(icon='EVENT_A')
+        row.label(icon='EVENT_W')
         row.label(icon='MOUSE_MMB', text='Adjust Proportional Influence')
 
         row.label(text='Switch Proportional', icon='EVENT_O')
@@ -1175,6 +1175,11 @@ class DDDBT_OT_poseProportionalMove(Operator):
         elif event.type in {'WHEELDOWNMOUSE', 'PAGE_DOWN', 'A'} and event.value == 'PRESS':
             self.m_prop.influence_radius /= 1.1
             update = True
+
+        elif event.type in {'MIDDLEMOUSE', 'W'} and pressed:
+            range = iu.calculate_mouse_range_at_pivot(context)
+            self.m_prop.influence_radius = min(range) * .3
+            update=True
 
         elif event.type in {'X', 'Y', 'Z', 'V'} and pressed:
             self.direction = pm.get_next_direction(self.direction,

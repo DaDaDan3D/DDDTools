@@ -888,6 +888,13 @@ def calculate_mouse_move_unit(context, location):
     return (new_location - location).length
 
 ################
+def calculate_mouse_range_at_pivot(context):
+    pivot = context.region_data.view_location
+    unit = calculate_mouse_move_unit(context, pivot)
+    region = context.region
+    return (region.width * unit, region.height * unit)
+
+################
 class NumberInput():
     """Class supporting numerical input.
 It supports simple four arithmetic operations, parentheses, and cursor movement.
