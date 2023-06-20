@@ -8,6 +8,7 @@ from mathutils import (
     Vector,
     Matrix,
 )
+from dataclasses import dataclass
 
 from . import internalUtils as iu
 from . import mathUtils as mu
@@ -18,53 +19,102 @@ from bpy.app.translations import pgettext_iface as iface_
 # 十分に小さい値
 EPSILON = 1e-9
 
-# 軸の方向
-GLOBAL_DIRECTIONS = {
-    'GLOBAL_X': np.array((1, 0, 0)),
-    'GLOBAL_Y': np.array((0, 1, 0)),
-    'GLOBAL_Z': np.array((0, 0, 1)),
-}
+################
+@dataclass
+class DirectionInfo:
+    """
+    Information of each Direction.
 
-# 軸のインデックス
-DIRECTION_ROWS = {
-    'GLOBAL_X': 0,
-    'GLOBAL_Y': 1,
-    'GLOBAL_Z': 2,
-    'LOCAL_X': 0,
-    'LOCAL_Y': 1,
-    'LOCAL_Z': 2,
-    'LOCAL_EACH_X': 0,
-    'LOCAL_EACH_Y': 1,
-    'LOCAL_EACH_Z': 2,
-    'GLOBAL_YZ': 0,
-    'GLOBAL_ZX': 1,
-    'GLOBAL_XY': 2,
-    'LOCAL_YZ': 0,
-    'LOCAL_ZX': 1,
-    'LOCAL_XY': 2,
-}
+    Parameters:
+    -----------
+    uniform_direction : bool
+      (Read-only) Whether it directs in a uniform direction, regardless of the position.
 
-# ローテートする場合の次のタイプ
-DIRECTION_NEXT = {
-    'NONE': 'VIEW_CAMERA',
-    'GLOBAL_X': 'LOCAL_X',
-    'GLOBAL_Y': 'LOCAL_Y',
-    'GLOBAL_Z': 'LOCAL_Z',
-    'LOCAL_X': 'LOCAL_EACH_X',
-    'LOCAL_Y': 'LOCAL_EACH_Y',
-    'LOCAL_Z': 'LOCAL_EACH_Z',
-    'LOCAL_EACH_X': 'NONE',
-    'LOCAL_EACH_Y': 'NONE',
-    'LOCAL_EACH_Z': 'NONE',
-    'GLOBAL_YZ': 'LOCAL_YZ',
-    'GLOBAL_ZX': 'LOCAL_ZX',
-    'GLOBAL_XY': 'LOCAL_XY',
-    'LOCAL_YZ': 'NONE',
-    'LOCAL_ZX': 'NONE',
-    'LOCAL_XY': 'NONE',
-    'VIEW_CAMERA': 'CURSOR_3D',
-    'CURSOR_3D': 'OBJECT_ORIGIN',
-    'OBJECT_ORIGIN': 'NONE',
+    constant_direction : bool
+      (Read-only) Whether it directs in the constant direction in any context.
+
+    normal_direction : bool
+      (Read-only) Whether it's a normal vector or not.
+
+    global_direction : bool
+      (Read-only) Whether it directs in the direction of global coordinates.
+
+    row_index : int
+      (Read-only) Index of Vector. (If exists)
+
+
+    Attributes:
+    -----------
+    vector : Vector
+      (Read-only) The direction vector.
+      Vector associated with Direction.
+      It can be a direction vector or a normal vector.
+
+    ndarray : np.ndarray
+      (Read-only) The direction vector.
+      np.ndarray version of vector.
+      See 'vector' information above.
+    """
+
+    _uniform_direction : bool
+    _constant_direction : bool
+    _normal_direction : bool
+    _global_direction : bool
+    _row_index : int
+
+    def __post_init__(self):
+        self._list = [0] * 3
+        if self._row_index >= 0:
+            self._list[self._row_index] = 1
+
+    @property
+    def uniform_direction(self):
+        return self._uniform_direction
+
+    @property
+    def constant_direction(self):
+        return self._constant_direction
+
+    @property
+    def global_direction(self):
+        return self._global_direction
+
+    @property
+    def normal_direction(self):
+        return self._normal_direction
+
+    @property
+    def row_index(self):
+        return self._row_index
+
+    @property
+    def vector(self):
+        return Vector(self._list)
+
+    @property
+    def ndarray(self):
+        return np.array(self._list)
+
+DIRECTION_INFO = {
+    'NONE':             DirectionInfo(True, False, False, True, -1),
+    'GLOBAL_X':         DirectionInfo(True, True, False, True, 0),
+    'GLOBAL_Y':         DirectionInfo(True, True, False, True, 1),
+    'GLOBAL_Z':         DirectionInfo(True, True, False, True, 2),
+    'LOCAL_X':          DirectionInfo(True, False, False, False, 0),
+    'LOCAL_Y':          DirectionInfo(True, False, False, False, 1),
+    'LOCAL_Z':          DirectionInfo(True, False, False, False, 2),
+    'LOCAL_EACH_X':     DirectionInfo(False, False, False, False, 0),
+    'LOCAL_EACH_Y':     DirectionInfo(False, False, False, False, 1),
+    'LOCAL_EACH_Z':     DirectionInfo(False, False, False, False, 2),
+    'GLOBAL_YZ':        DirectionInfo(True, True, True, True, 0),
+    'GLOBAL_ZX':        DirectionInfo(True, True, True, True, 1),
+    'GLOBAL_XY':        DirectionInfo(True, True, True, True, 2),
+    'LOCAL_YZ':         DirectionInfo(True, False, True, False, 0),
+    'LOCAL_ZX':         DirectionInfo(True, False, True, False, 1),
+    'LOCAL_XY':         DirectionInfo(True, False, True, False, 2),
+    'VIEW_CAMERA':      DirectionInfo(False, False, False, True, -1),
+    'CURSOR_3D':        DirectionInfo(False, False, False, True, -1),
+    'OBJECT_ORIGIN':    DirectionInfo(False, False, False, True, -1),
 }
 
 ################
@@ -264,25 +314,23 @@ class ProportionalMover():
 
     # GLOBAL_X|Y|Z の方向を設定する
     def set_directions_global(self, direction_type):
-        if direction_type in GLOBAL_DIRECTIONS:
-            self.directions = GLOBAL_DIRECTIONS[direction_type]
-        else:
-            raise ValueError(f'Illegal direction_type: {direction_type}')
+        di = DIRECTION_INFO[direction_type]
+        assert di.constant_direction, f'Illegal direction_type: {direction_type}'
+        self.directions = di.ndarray
 
     # オブジェクトの行列から LOCAL_X|Y|Z の方向を設定する
     def set_directions_local(self, direction_type, obj):
-        if direction_type in {'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z'}:
-            row = DIRECTION_ROWS[direction_type]
+        di = DIRECTION_INFO[direction_type]
+        row = di.row_index
+        assert row >= 0, f'Illegal direction_type: {direction_type}'
+        if di.uniform_direction:
+            assert not di.constant_direction, f'Illegal direction_type: {direction_type}'
             self.directions = np.array(obj.matrix_world)[:3, row]
 
-        elif direction_type in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z'}:
-            row = DIRECTION_ROWS[direction_type]
+        else:
             self.directions = np.array(
                 [np.array(obj.matrix_world @ b.matrix)[:3, row]
                  for b in obj.pose.bones])
-
-        else:
-            raise ValueError(f'Illegal direction_type: {direction_type}')
 
     # カメラからの方向を設定する
     def set_directions_from_view_camera(self):

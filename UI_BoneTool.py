@@ -648,46 +648,33 @@ class DDDBT_OT_poseProportionalMove(Operator):
     ################
     # 方向ベクトルまたは法線ベクトルを得る
     def get_direction_vector(self, context):
-        if self.direction in {'GLOBAL_X', 'GLOBAL_YZ'}:
-            return Vector((1, 0, 0))
-        elif self.direction in {'GLOBAL_Y', 'GLOBAL_ZX'}:
-            return Vector((0, 1, 0))
-        elif self.direction in {'GLOBAL_Z', 'GLOBAL_XY'}:
-            return Vector((0, 0, 1))
-        elif self.direction in {'LOCAL_X', 'LOCAL_YZ'}:
+        di = pm.DIRECTION_INFO[self.direction]
+        if di.constant_direction:
+            return di.vector
+
+        elif di.uniform_direction:
+            row = di.row_index
+            assert row >= 0, f'Illegal direction: {self.direction}'
             mtx = np.array(context.active_object.matrix_world)
-            return Vector(mtx[:3, 0])
-        elif self.direction in {'LOCAL_Y', 'LOCAL_ZX'}:
-            mtx = np.array(context.active_object.matrix_world)
-            return Vector(mtx[:3, 1])
-        elif self.direction in {'LOCAL_Z', 'LOCAL_XY'}:
-            mtx = np.array(context.active_object.matrix_world)
-            return Vector(mtx[:3, 2])
+            return Vector(mtx[:3, row])
+
         else:
             raise RuntimeError()
 
     ################
     # 基本の単位ベクトルを得る
     def get_direction_unit(self, context):
-        if self.direction in {'NONE',
-                              'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
-                              'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
-            return Vector()
+        di = pm.DIRECTION_INFO[self.direction]
 
-        if self.direction in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z',
-                              'VIEW_CAMERA', 'CURSOR_3D', 'OBJECT_ORIGIN'}:
-            return Vector((0, 0, 1))
+        if not di.uniform_direction:    return Vector((0, 0, 1))
+        if di.normal_direction:         return Vector()
+        if di.constant_direction:       return di.vector
 
-        if self.direction == 'GLOBAL_X': return Vector((1, 0, 0))
-        if self.direction == 'GLOBAL_Y': return Vector((0, 1, 0))
-        if self.direction == 'GLOBAL_Z': return Vector((0, 0, 1))
+        if self.direction in {'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z'}:
+            mtx = np.array(context.active_object.matrix_world)
+            return Vector(mtx[:3, di.row])
 
-        mtx = np.array(context.active_object.matrix_world)
-        if self.direction == 'LOCAL_X': return Vector(mtx[:3, 0])
-        if self.direction == 'LOCAL_Y': return Vector(mtx[:3, 1])
-        if self.direction == 'LOCAL_Z': return Vector(mtx[:3, 2])
-
-        raise RuntimeError()
+        return Vector()
 
     ################
     def compute_mouse_move(self, context, mouse_diff):
@@ -767,8 +754,9 @@ class DDDBT_OT_poseProportionalMove(Operator):
             locations = np.empty((0, 3))
             directions = np.empty((0, 3))
 
-            if self.direction in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z',
-                                  'VIEW_CAMERA', 'CURSOR_3D', 'OBJECT_ORIGIN'}:
+            di = pm.DIRECTION_INFO[self.direction]
+
+            if not di.uniform_direction:
                 COLOR_TABLE = {
                     'LOCAL_EACH_X': (1, 0, 0, 0.1),
                     'LOCAL_EACH_Y': (0, 1, 0, 0.1),
@@ -854,8 +842,8 @@ class DDDBT_OT_poseProportionalMove(Operator):
                      np.zeros_like(angles)], axis=-1)
                 inv = np.linalg.inv(view_matrix)
                 points = center_location + circle_verts @ inv.T[:3, :3]
-                with iu.BlenderGpuState(blend='ALPHA', line_width=1.0):
-                    shader.uniform_float('color', (1, 1, 1, 0.5))
+                with iu.BlenderGpuState(blend='ALPHA', line_width=4.0):
+                    shader.uniform_float('color', (0.1, 0.1, 0.1, 0.8))
                     batch = batch_for_shader(shader, 'LINE_LOOP',
                                              {'pos': points.tolist()})
                     batch.draw(shader)
@@ -917,14 +905,11 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
     ################
     def set_directions(self, context):
-        if self.direction in {'NONE',
-                              'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
-                              'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
-                              'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
-                              'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+        di = pm.DIRECTION_INFO[self.direction]
+        if di.uniform_direction:
             self.pm.directions = np.array(self.move_vector)[np.newaxis]
 
-        elif self.direction in {'LOCAL_EACH_X', 'LOCAL_EACH_Y', 'LOCAL_EACH_Z'}:
+        elif not di.global_direction:
             armature = context.active_object
             self.pm.set_directions_local(self.direction, armature)
 
@@ -943,20 +928,14 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
     ################
     def update_directions(self):
-        if self.direction in {'NONE',
-                              'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
-                              'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
-                              'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
-                              'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+        di = pm.DIRECTION_INFO[self.direction]
+        if di.uniform_direction:
             self.pm.directions = np.array(self.move_vector)[np.newaxis]
 
     ################
     def set_cursor(self, context):
-        if self.direction in {'NONE',
-                              'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
-                              'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
-                              'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
-                              'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+        di = pm.DIRECTION_INFO[self.direction]
+        if di.uniform_direction:
             context.window.cursor_modal_set('CROSS')
         else:
             context.window.cursor_modal_set('MOVE_Y')
@@ -1062,11 +1041,8 @@ class DDDBT_OT_poseProportionalMove(Operator):
             self.pm.modifiers.append(mod)
 
         move_vector = Vector(self.move_vector)
-        if self.direction in {'NONE',
-                              'GLOBAL_X', 'GLOBAL_Y', 'GLOBAL_Z',
-                              'LOCAL_X', 'LOCAL_Y', 'LOCAL_Z',
-                              'GLOBAL_YZ', 'GLOBAL_ZX', 'GLOBAL_XY',
-                              'LOCAL_YZ', 'LOCAL_ZX', 'LOCAL_XY'}:
+        di = pm.DIRECTION_INFO[self.direction]
+        if di.uniform_direction:
             amount = move_vector.length
         else:
             amount = move_vector.z
