@@ -825,8 +825,8 @@ class DDDBT_OT_poseProportionalMove(Operator):
                 locations = np.reshape(locations, (-1, 1, 3))
                 directions = np.reshape(directions, (-1, 1, 3))
 
-                origin = arma.matrix_world.translation
-                unit = iu.calculate_mouse_move_unit(context, origin)
+                pivot = context.region_data.view_location
+                unit = iu.calculate_mouse_move_unit(context, pivot)
                 weights = np.linspace(-unit * 1000, unit * 1000, 10)
 
                 # weights を (1, m, 1) の形状にリシェイプ
@@ -1084,6 +1084,12 @@ class DDDBT_OT_poseProportionalMove(Operator):
         translations = np.where(which_to_move[:, np.newaxis],
                                 translations,
                                 self.bone_translations)
+
+        # Mirror copy
+        if context.object.pose.use_mirror_x:
+            translations = bt.pose_mirror_x_translations(armature,
+                                                         translations,
+                                                         which_to_move)
 
         # Set translation
         for bone, translation in zip(armature.pose.bones, translations):

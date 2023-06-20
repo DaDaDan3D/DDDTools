@@ -681,3 +681,57 @@ def is_bone_visible(bone, armature):
 def find_flip_side_bone_name(arma, bone_name):
     names = [b.name for b in arma.data.bones]
     return iu.find_flip_side_name(names, bone_name)
+
+################
+def get_flip_side_indices(arma):
+    """
+    Get an array of flipped left and right bone indices.
+    For example, if the sequence of bones is
+    ['chest', 'arm_L', 'hand_L', 'arm_R', 'hand_R'], then
+    [0, 3, 4, 1, 2] is obtained.
+
+    Parameters:
+    -----------
+    arma : bpy.types.Object
+      Armature object.
+
+    Returns:
+    --------
+    list
+      Indices of flipped left and right bone.
+    """
+    names = [b.name for b in arma.data.bones]
+    flipped_names = [iu.find_flip_side_name_or_self(names, n) for n in names]
+    name_to_index = dict(zip(names, range(len(names))))
+    flipped_indices = [name_to_index[n] for n in flipped_names]
+    return flipped_indices
+
+################
+def pose_mirror_x_translations(arma, translations, selection):
+    #print(selection)
+    flipped_indices = np.array(get_flip_side_indices(arma))
+    has_mirror = flipped_indices != np.arange(flipped_indices.size)
+
+    # ミラーを持ち、かつ、ミラーが選択されていない骨を対象とする
+    target = selection & has_mirror
+    target_indices = np.where(target)[0]
+    mirror_indices = flipped_indices[target_indices]
+    target[mirror_indices] = False
+
+    # 再度取得
+    target_indices = np.where(target)[0]
+    mirror_indices = flipped_indices[target_indices]
+    #print(target_indices, mirror_indices)
+
+    # Compute mirror translation
+    mirror_translations = translations.copy()
+    mirror_translations[mirror_indices] = translations[target_indices]
+    mirror_translations[mirror_indices, 0] *= -1
+
+    # 見えている骨のみ移動する
+    visible_bones = np.array([is_bone_visible(b.bone, arma.data)
+                              for b in arma.pose.bones], dtype=bool)
+    new_translations = np.where(visible_bones[:, np.newaxis],
+                                mirror_translations,
+                                translations)
+    return new_translations

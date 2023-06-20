@@ -1019,14 +1019,13 @@ FLIP = {
     'RIGHT':    'LEFT',
 }
 
-def separator(sep):
-    return sep if sep else ''
+def ensure_string(s):
+    return s if s else ''
 
 def flip_side_name(name):
     """
     左右を反転した名前を得る。
     もし左右を反転した名前がなければ None を得る。
-    数字のサフィックス(.003 など)は削られる。
     e.g.
       hand -> None
       l_hand -> r_hand
@@ -1051,27 +1050,32 @@ def flip_side_name(name):
     if not mo: return None
 
     prefix =\
-        FLIP[mo.group('side0')] + separator(mo.group('sep0')) +\
-        FLIP[mo.group('side1')] + separator(mo.group('sep1'))
+        FLIP[mo.group('side0')] + ensure_string(mo.group('sep0')) +\
+        FLIP[mo.group('side1')] + ensure_string(mo.group('sep1'))
 
     main = mo.group('main')
 
     suffix =\
-        separator(mo.group('sep2')) + FLIP[mo.group('side2')] +\
-        separator(mo.group('sep3')) + FLIP[mo.group('side3')]
+        ensure_string(mo.group('sep2')) + FLIP[mo.group('side2')] +\
+        ensure_string(mo.group('sep3')) + FLIP[mo.group('side3')]
 
     if prefix or suffix:
-        return prefix + main + suffix
+        number = ensure_string(mo.group('number'))
+        return prefix + main + suffix + number
     else:
         return None
 
 ################
-RE_NAME_NUMBER = re.compile(r'^(?P<main>.+?)(?P<number>\.\d+)?$')
-
 def find_flip_side_name(names, name):
-    flip_name = flip_side_name(name)
-    if not flip_name: return None
+    flipped_name = flip_side_name(name)
+    if flipped_name and flipped_name in names:
+        return flipped_name
+    else:
+        return None
 
-    names_wo_number = [RE_NAME_NUMBER.sub(r'\g<main>', n) for n in names]
-    names_dic = dict(zip(names_wo_number, names))
-    return names_dic.get(flip_name)
+def find_flip_side_name_or_self(names, name):
+    flipped_name = flip_side_name(name)
+    if flipped_name and flipped_name in names:
+        return flipped_name
+    else:
+        return name
