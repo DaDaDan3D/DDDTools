@@ -216,6 +216,8 @@ def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
             if vert_tail not in vert_to_bone:
                 vert_to_bone[vert_tail] = bone
 
+        bm.free()
+
     return armature
 
 ################

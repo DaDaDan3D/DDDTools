@@ -520,6 +520,7 @@ def convertSphereToEmpty(sphere, keep_original=False):
     bm.from_mesh(mesh)
     mtx = sphere.matrix_world
     verts = [mtx @ vtx.co for vtx in bm.verts]
+    bm.free()
     try:
         radius, center = mu.calcFit(np.array(verts))
         radius /= sphere.matrix_world.median_scale
