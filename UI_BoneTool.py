@@ -759,13 +759,13 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
             if not di.uniform_direction:
                 COLOR_TABLE = {
-                    'LOCAL_EACH_X': (1, 0, 0, 0.1),
-                    'LOCAL_EACH_Y': (0, 1, 0, 0.1),
-                    'LOCAL_EACH_Z': (0, 0, 1, 0.1),
-                    'VIEW_CAMERA':  (0, 1, 1, 0.1),
-                    'VIEW_PIVOT':   (1, 0, 1, 0.1),
-                    'CURSOR_3D':    (1, 1, 1, 0.1),
-                    'OBJECT_ORIGIN':(1, 1, 0, 0.1),
+                    'LOCAL_EACH_X': (1, 0, 0, 0.3),
+                    'LOCAL_EACH_Y': (0, 1, 0, 0.3),
+                    'LOCAL_EACH_Z': (0, 0, 1, 0.3),
+                    'VIEW_CAMERA':  (0, 1, 1, 0.3),
+                    'VIEW_PIVOT':   (1, 0, 1, 0.3),
+                    'CURSOR_3D':    (1, 1, 1, 0.3),
+                    'OBJECT_ORIGIN':(1, 1, 0, 0.3),
                 }
                 locations = self.pm.orig_locations
                 directions = self.pm.directions
@@ -824,7 +824,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
                 # locations[i] + directions[i] * weights の計算
                 points = locations + directions * weights  # (n, m, 3) の配列
 
-                with iu.BlenderGpuState(blend='ALPHA', line_width=1.0):
+                with iu.BlenderGpuState(blend='ALPHA', line_width=2.0):
                     for strip, color in zip(points.tolist(), colors):
                         shader.uniform_float('color', color)
                         batch = batch_for_shader(shader,
@@ -1067,9 +1067,11 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
         # Mirror copy
         if context.object.pose.use_mirror_x:
-            translations = bt.pose_mirror_x_translations(armature,
-                                                         translations,
-                                                         which_to_move)
+            translations, mirror_bones = bt.pose_mirror_x_translations(
+                armature,
+                translations,
+                which_to_move)
+            which_to_move |= mirror_bones
 
         # Set translation
         bt.set_translations(armature, translations, which_to_move)

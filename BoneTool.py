@@ -740,13 +740,18 @@ def pose_mirror_x_translations(arma, translations, selection):
     mirror_translations[mirror_indices] = translations[target_indices]
     mirror_translations[mirror_indices, 0] *= -1
 
+    # どの骨を移動するかのマスクを作成
+    mirror_bones = np.full_like(selection, False)
+    mirror_bones[mirror_indices] = True
+
     # 見えている骨のみ移動する
     visible_bones = np.array([is_bone_visible(b.bone, arma.data)
                               for b in arma.pose.bones], dtype=bool)
-    new_translations = np.where(visible_bones[:, np.newaxis],
+    mirror_bones &= visible_bones
+    new_translations = np.where(mirror_bones[:, np.newaxis],
                                 mirror_translations,
                                 translations)
-    return new_translations
+    return new_translations, mirror_bones
 
 ################
 def convert_local_to_pose_safe(bone, mtx, invert=False):
@@ -831,9 +836,9 @@ def set_translations(arma, translations, which_to_move):
                     bone.bone.matrix_local,
                     invert = True)
 
-            translation_l = translation_matrix_l.translation
+            new_location = translation_matrix_l.translation
             new_matrix_basis = bone.matrix_basis.copy()
-            new_matrix_basis.translation = translation_l
+            new_matrix_basis.translation = new_location
             
             # 子のために新しい matrix を計算
             if not has_child:
@@ -851,7 +856,7 @@ def set_translations(arma, translations, which_to_move):
                         bone.bone.matrix_local)
 
             # 設定する
-            bone.location = translation_matrix_l.translation
+            bone.location = new_location
 
         # 子のためにデータを保存しておく
         if has_child:
