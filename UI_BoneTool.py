@@ -1072,8 +1072,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
                                                          which_to_move)
 
         # Set translation
-        for bone, translation in zip(armature.pose.bones, translations):
-            bone.matrix.translation = translation
+        bt.set_translations(armature, translations, which_to_move)
 
         armature.pose.bones.update()
         return {'FINISHED'}

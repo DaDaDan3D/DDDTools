@@ -231,6 +231,18 @@ def getBoneIndexDictionary(arma):
     return result
 
 ################
+def get_sorted_bone_names(arma):
+    """
+    親から子の順にソートしたボーン名の配列を得る
+    """
+    sorted_list = []
+    for bone in arma.data.bones:
+        if not bone.parent:
+            sorted_list.append(bone.name)
+            sorted_list.extend([b.name for b in bone.children_recursive])
+    return sorted_list
+
+################
 def createMeshFromSelectedBones(armaObj):
     """
     Create the mesh such that the selected bones of the armature are the edges.
@@ -735,3 +747,112 @@ def pose_mirror_x_translations(arma, translations, selection):
                                 mirror_translations,
                                 translations)
     return new_translations
+
+################
+def convert_local_to_pose_safe(bone, mtx, invert=False):
+    """
+    bone.convert_local_to_pose() のラッパー。
+    親がいてもいなくても計算できる。
+    convert_local_to_pose(bone.matrix_basis) は bone.matrix と一致する
+    """
+    if bone.parent:
+        matrix = bone.bone.convert_local_to_pose(
+            mtx,
+            bone.bone.matrix_local,
+            parent_matrix=bone.parent.matrix,
+            parent_matrix_local=bone.parent.bone.matrix_local,
+            invert=invert)
+    else:
+        matrix = bone.bone.convert_local_to_pose(
+            mtx,
+            bone.bone.matrix_local,
+            invert=invert)
+    return matrix
+
+################
+def set_translations(arma, translations, which_to_move):
+    """
+    ポーズボーンのローカル座標を設定する。
+
+    Parameters:
+    -----------
+    arma : bpy.types.Object
+      アーマチュアオブジェクト
+    translations : np.ndarray
+      ローカル座標の配列。移動しない骨も必ず設定しておくこと
+    which_to_move : np.ndarray
+      移動するかどうかを指定する bool の配列
+    """
+
+    # 骨の名前 -> index の辞書
+    bone_indices = {b.name: i for i, b in enumerate(arma.pose.bones)}
+
+    # データを親から子の順に作成していくことで、
+    # 移動後の bone.matrix をまとめて計算する
+    @dataclass
+    class BoneData():
+        moved : bool
+        matrix : Matrix
+        matrix_local : Matrix
+
+    # 計算した骨のデータを保存しておく
+    bone_data = dict()
+
+    # 親→子の順にソートした骨の名前
+    sorted_bone_names = get_sorted_bone_names(arma)
+    for bn in sorted_bone_names:
+        idx = bone_indices[bn]
+        bone = arma.pose.bones[idx]
+        has_child = bone.bone.children is not None
+        has_parent = bone.parent is not None
+        if has_parent:
+            parent_data = bone_data[bone.parent.name]
+        else:
+            parent_data = None
+
+        # 移動するボーン、及び、変更のあったボーンの子を全て設定する
+        moving = which_to_move[idx] or has_parent and parent_data.moved
+        if not moving:
+            new_matrix = bone.matrix
+        else:
+            translation_matrix_p = Matrix.Translation(translations[idx])
+
+            # ボーンの location を計算する
+            if has_parent:
+                translation_matrix_l = bone.bone.convert_local_to_pose(
+                    translation_matrix_p,
+                    bone.bone.matrix_local,
+                    parent_matrix = parent_data.matrix,
+                    parent_matrix_local = parent_data.matrix_local,
+                    invert = True)
+            else:
+                translation_matrix_l = bone.bone.convert_local_to_pose(
+                    translation_matrix_p,
+                    bone.bone.matrix_local,
+                    invert = True)
+
+            translation_l = translation_matrix_l.translation
+            new_matrix_basis = bone.matrix_basis.copy()
+            new_matrix_basis.translation = translation_l
+            
+            # 子のために新しい matrix を計算
+            if not has_child:
+                new_matrix = None
+            else:
+                if has_parent:
+                    new_matrix = bone.bone.convert_local_to_pose(
+                        new_matrix_basis,
+                        bone.bone.matrix_local,
+                        parent_matrix = parent_data.matrix,
+                        parent_matrix_local = parent_data.matrix_local)
+                else:
+                    new_matrix = bone.bone.convert_local_to_pose(
+                        new_matrix_basis,
+                        bone.bone.matrix_local)
+
+            # 設定する
+            bone.location = translation_matrix_l.translation
+
+        # 子のためにデータを保存しておく
+        if has_child:
+            bone_data[bn] = BoneData(moving, new_matrix, bone.bone.matrix_local)
