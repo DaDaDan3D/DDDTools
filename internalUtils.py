@@ -735,6 +735,33 @@ def findfirst_selected_object(type):
     return next((obj for obj in bpy.context.selected_objects if obj.type == type), None)
 
 ################
+def get_total_vert_sel(mesh_obj):
+    if mesh_obj.type != 'MESH':
+        return 0
+    elif mesh_obj.mode == 'EDIT':
+        return mesh_obj.data.total_vert_sel
+    else:
+        return len([v.index for v in mesh_obj.data.vertices if v.select])
+
+################
+def get_total_edge_sel(mesh_obj):
+    if mesh_obj.type != 'MESH':
+        return 0
+    elif mesh_obj.mode == 'EDIT':
+        return mesh_obj.data.total_edge_sel
+    else:        
+        return len([e.index for e in mesh_obj.data.edges if e.select])
+
+################
+def get_total_face_sel(mesh_obj):
+    if mesh_obj.type != 'MESH':
+        return 0
+    elif mesh_obj.mode == 'EDIT':
+        return mesh_obj.data.total_face_sel
+    else:        
+        return len([p.index for p in mesh_obj.data.polygons if p.select])
+
+################
 class BlenderGpuState:
     _state_names = {
         'blend': {'multi_args': False},

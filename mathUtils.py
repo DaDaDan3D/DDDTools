@@ -319,25 +319,25 @@ def convolve_tube(mesh, window_size, std_dev):
     return smooth_mesh
 
 ################
-def falloff_smooth(val, _):
+def falloff_smooth(val, _=None):
     return 1 - 3 * val**2 + 2 * val**3
 
-def falloff_sphere(val, _):
+def falloff_sphere(val, _=None):
     return math.sqrt(1 - val**2)
 
-def falloff_root(val, _):
+def falloff_root(val, _=None):
     return math.sqrt(1 - val)
 
-def falloff_inverse_square(val, _):
+def falloff_inverse_square(val, _=None):
     return 1 - val**2
 
-def falloff_sharp(val, _):
+def falloff_sharp(val, _=None):
     return (1 - val)**2
 
-def falloff_linear(val, _):
+def falloff_linear(val, _=None):
     return 1 - val
 
-def falloff_constant(val, _):
+def falloff_constant(val, _=None):
     return 1
 
 def falloff_random(val, rng):
@@ -586,3 +586,39 @@ def block_with_mesh(orig_locations,
     new_locations = np.where(hits_on_surface[:, np.newaxis],
                              hit_locations, next_locations)
     return hits_on_surface, new_locations
+
+################
+def calc_weight_least_squares(points_h, weights, point_h):
+    """
+    重み付きの点群が与えられた時、ある特定の点における重みを
+    最小二乗法により求める。
+
+    Parameters:
+    -----------
+    points_h : np.ndarray
+      点群の同次座標付きの位置ベクトルの配列
+    weights : np.ndarray
+      各点における重みを float で表した配列
+    point_h : np.ndarray
+      求める点の同次座標付きの位置ベクトル
+
+    Returns:
+    --------
+    float
+      point_h における重み
+    """
+
+    if len(points_h) < 3:
+        raise ValueError('At least 3 points are required.')
+
+    # Compute the weights matrix
+    weights_matrix = np.diag(weights)
+
+    # Compute the solution to the weighted least squares problem
+    coeffs = np.linalg.lstsq(weights_matrix @ points_h,
+                             weights_matrix @ weights, rcond=None)[0]
+
+    # Compute weight at point
+    weight = np.dot(point_h, coeffs)
+
+    return weight

@@ -3,7 +3,9 @@
 import re
 import bpy
 import bmesh
+import numpy as np
 from . import internalUtils as iu
+from . import mathUtils as mu
 
 _ = lambda s: s
 from bpy.app.translations import pgettext_iface as iface_
@@ -11,6 +13,111 @@ from bpy.app.translations import pgettext_iface as iface_
 ################
 def getSelectedEditableBones():
     return [iu.EditBoneWrapper(eb) for eb in bpy.context.selected_editable_bones]
+
+################
+def get_vertex_weights(mesh_obj):
+    """
+    Get an array of vertex weights.
+    The array can be accessed by [vertex index, vertex group index].
+
+    Parameters:
+    -----------
+    mesh_obj : bpy.types.Object
+      Mesh object
+
+    Returns:
+    --------
+    np.ndarray
+      Array of vertex-weights
+    """
+
+    number_of_vertices = len(mesh_obj.data.vertices)
+    number_of_vertex_groups = len(mesh_obj.vertex_groups)
+    vertex_weights = np.zeros((number_of_vertices, number_of_vertex_groups))
+
+    for ii, vertex_group in enumerate(mesh_obj.vertex_groups):
+        for jj in range(number_of_vertices):
+            try:
+                weight = vertex_group.weight(jj)
+                vertex_weights[jj, ii] = weight
+            except RuntimeError:
+                pass
+
+    return vertex_weights
+
+################
+def set_vertex_weights(mesh_obj, vertex_weights,
+                       which_to_set=None,
+                       normalize=False, limit=1e-8, epsilon=1e-10):
+    """
+    Set vertex weights.
+
+    Parameters:
+    -----------
+    mesh_obj : bpy.types.Object
+      Mesh object
+
+    vertex_weights : np.ndarray
+      An array of vertex weights where shape is (number of vertices, number of vertex groups).
+
+    which_to_set : np.ndarray
+      Array of bool indicating which vertices to set.
+      If None, set all.
+
+    normalize : bool
+      Whether to normalize the vertex weights so that they sum to 1.
+
+    limit : float
+      Weights less than this are considered 0.
+
+    epsilon : float
+      Number sufficiently close to 0 (to avoid division by zero).
+    """
+
+    # Limit weights and normalize.
+    if normalize:
+        vertex_weights = np.where(vertex_weights < limit, 0, vertex_weights)
+
+        total_weights = np.sum(vertex_weights, axis=1)
+        vertex_weights = np.where(
+            total_weights[:, np.newaxis] < epsilon,
+            vertex_weights,
+            vertex_weights / (total_weights[:, np.newaxis] + epsilon))
+
+    if which_to_set is None:
+        which_to_set = np.full((vertex_weights.shape), True)
+
+    # Clip values in [0..1]
+    vertex_weights = np.clip(vertex_weights, 0, 1)
+
+    # Remove vertices with a weight of 0 from the vertex group.
+    for jj, vertex_group in enumerate(mesh_obj.vertex_groups):
+        zero_verts = vertex_weights[:, jj] < limit
+        target = np.logical_and(zero_verts, which_to_set)
+        zero_indices = np.where(target)[0].tolist()
+        if zero_indices:
+            try:
+                vertex_group.remove(zero_indices)
+            except RuntimeError:
+                pass
+        
+    bm = bmesh.new()
+    bm.from_mesh(mesh_obj.data)
+    bm.verts.ensure_lookup_table()
+
+    # Ensure custom data exists.
+    bm.verts.layers.deform.verify()
+    deform = bm.verts.layers.deform.active
+
+    # Set each vertex weights.
+    nonzero_verts = vertex_weights >= limit
+    target = np.logical_and(nonzero_verts, which_to_set)
+    nonzero_indices = np.where(target)
+    for ii, jj in zip(*nonzero_indices):
+        bm.verts[ii][deform][jj] = vertex_weights[ii, jj]
+
+    bm.to_mesh(mesh_obj.data)
+    bm.free()
 
 ################
 def resetWeight(mesh):
@@ -451,3 +558,252 @@ def set_weight_for_selected_bones(mesh_object, armature_object, weight):
     bmesh.update_edit_mesh(mesh_object.data)
 
     return count_verts, bone_names, ''
+
+################
+# FIXME
+# mathUtils の falloff を ndarray に対応させて使いたい
+def calculate_factors(distances, radius):
+    values = distances / radius
+    factors = np.where(values <= 1, (1 - values) ** 2, 0)
+    return factors
+
+################
+def calculate_vertex_distances_by_poligon_connections(mesh_obj,
+                                                      which_to_use=None,
+                                                      inf=1e10):
+    """
+    Calculates the distance between vertices on the same polygon.
+
+    Parameters:
+    -----------
+    mesh_obj : bpy.types.Object
+      Mesh object
+
+    which_to_use : np.ndarray
+      Array of bools indicating which vertices to use.
+
+    inf : float
+      A sufficiently large value.
+
+    Returns:
+    --------
+    np.ndarray
+      Distance between vertices.
+      Accessible via [vertex_index, vertex_index].
+    """
+
+    # Get the mesh data from the object
+    mesh = mesh_obj.data
+    
+    # Create a bmesh from the object mesh
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.verts.ensure_lookup_table()
+    
+    number_of_vertices = len(mesh.vertices)
+    
+    # Initialize the distances array with infinite distances
+    distances = np.full((number_of_vertices, number_of_vertices), inf)
+    
+    # Set the diagonal to zero
+    np.fill_diagonal(distances, 0)
+    
+    max_distance = 0
+
+    if which_to_use is None:
+        which_to_use = np.full((number_of_vertices,), True)
+
+    # Iterate over each face in the mesh
+    for face in bm.faces:
+        # Calculate the distances between each pair of vertices in the face
+        for ii in range(len(face.verts)):
+            vert_i = face.verts[ii]
+            if which_to_use[vert_i.index]:
+                for jj in range(ii + 1, len(face.verts)):
+                    vert_j = face.verts[jj]
+                    if which_to_use[vert_j.index]:
+                        # Compute the distance between the two vertices
+                        distance = (vert_i.co - vert_j.co).length
+
+                        # If the computed distance is less than the
+                        # current distance in the array, update the array
+                        if distance < distances[vert_i.index, vert_j.index]:
+                            distances[vert_i.index, vert_j.index] = distance
+                            distances[vert_j.index, vert_i.index] = distance
+                            max_distance = max(max_distance, distance)
+    
+                            # Clear and free the bmesh
+    bm.free()
+    
+    return distances, max_distance
+
+################
+def smooth_vertex_weights_falloff(mesh_obj,
+                                  count=1,
+                                  radius=1.0,
+                                  normalize=False,
+                                  limit=1e-8,
+                                  epsilon=1e-10):
+    """
+    選択した頂点の頂点ウェイトを、ポリゴンの接続を考慮した上で、
+    falloff 関数を使って平滑化する。
+
+    Parameters:
+    -----------
+    mesh_obj : bpy.types.Object
+      メッシュオブジェクト
+
+    radius : float
+      falloff をかける範囲(m)
+
+    count : int
+      平滑化をかける回数
+
+    normalize : bool
+      最終的に正規化するかどうか
+
+    limit : float
+      頂点ウェイトがこれ以下になった頂点を頂点グループから外す
+
+    epsilon : float
+      十分に小さい値(ゼロ除算回避用)
+    """
+
+    # 選択された頂点を得る
+    bm = bmesh.new()
+    bm.from_mesh(mesh_obj.data)
+    bm.verts.ensure_lookup_table()
+    selected_verts = np.array([v.select for v in bm.verts])
+    bm.free()
+
+    # パラメータの設定
+    distances, max_distance =\
+        calculate_vertex_distances_by_poligon_connections(
+            mesh_obj, which_to_use=selected_verts)
+    #radius = max_distance * radius_factor + epsilon
+    factors = calculate_factors(distances, radius)
+    vertex_weights = get_vertex_weights(mesh_obj)
+
+    # スムージング処理
+    for _ in range(count):
+        vertex_weights = np.max(
+            vertex_weights * factors[:, None, :, None],
+            axis=-2)
+        vertex_weights = np.squeeze(vertex_weights, axis=1)
+
+    set_vertex_weights(mesh_obj, vertex_weights,
+                       which_to_set=selected_verts[:, np.newaxis],
+                       normalize=normalize,
+                       limit=limit,
+                       epsilon=epsilon)
+    
+################
+def smooth_vertex_weights_least_square(mesh_obj,
+                                       count=1,
+                                       strength=0.5,
+                                       normalize=False,
+                                       limit=1e-8,
+                                       epsilon=1e-10):
+    """
+    選択した頂点の頂点ウェイトを、ポリゴンの接続を考慮した上で、
+    最小二乗法を使って平滑化する。
+
+    Parameters:
+    -----------
+    mesh_obj : bpy.types.Object
+      メッシュオブジェクト
+
+    strength : float
+      平滑化の強さ
+
+    count : int
+      平滑化をかける回数
+
+    normalize : bool
+      最終的に正規化するかどうか
+
+    limit : float
+      頂点ウェイトがこれ以下になった頂点を頂点グループから外す
+
+    epsilon : float
+      十分に小さい値(ゼロ除算回避用)
+    """
+
+    orig_vertex_weights = get_vertex_weights(mesh_obj)
+
+    bm = bmesh.new()
+    bm.from_mesh(mesh_obj.data)
+    bm.verts.ensure_lookup_table()
+    bm.faces.ensure_lookup_table()
+
+    number_of_vertex_groups = len(mesh_obj.vertex_groups)
+    number_of_vertices = len(bm.verts)
+    number_of_faces = len(bm.faces)
+
+    # 選択していない頂点のウェイトを 0 にする
+    selected_verts = np.array([v.select for v in bm.verts])
+    vertex_weights = np.where(selected_verts[:, np.newaxis],
+                              orig_vertex_weights, 0)
+
+    # 計算用の配列を一旦全て確保
+    vert_points_h = mu.append_homogeneous_coordinate(
+        np.array([np.array(v.co) for v in bm.verts]))
+    centroids_h = np.zeros((number_of_faces, 4))
+    weight_at_centroids = np.zeros((number_of_faces,))
+    new_vertex_weights = vertex_weights.copy()
+
+    for _ in range(count):
+        # 面ごとの頂点ウェイトの重心位置を計算する
+        for vg_idx in range(number_of_vertex_groups):
+            # ポリゴンごとに、頂点ウェイトの重心とその値を計算する
+            for face_idx in range(number_of_faces):
+                face = bm.faces[face_idx]
+                indices = np.array([v.index for v in face.verts])
+                points_h = vert_points_h[indices]
+                weights = vertex_weights[indices, vg_idx]
+
+                try:
+                    centroid_h = np.average(points_h, axis=0, weights=weights)
+                except ZeroDivisionError:
+                    centroid_h = np.append(
+                        np.array(face.calc_center_median_weighted()), 1)
+
+                try:
+                    weight = mu.calc_weight_least_squares(
+                        points_h, weights, centroid_h)
+                except ZeroDivisionError:
+                    weight = np.average(weights, axis=0)
+
+                centroids_h[face_idx] = centroid_h
+                weight_at_centroids[face_idx] = weight
+
+            # 頂点ごとに、含まれるポリゴンの平均からウェイトを計算する
+            for vert in bm.verts:
+                face_indices = np.array([f.index for f in vert.link_faces])
+                face_centroids_h = centroids_h[face_indices]
+                face_weights = weight_at_centroids[face_indices]
+                point_h = vert_points_h[vert.index]
+
+                try:
+                    weight = mu.calc_weight_least_squares(
+                        face_centroids_h, face_weights, point_h)
+                except (ZeroDivisionError, ValueError):
+                    weight = np.average(face_weights, axis=0)
+
+                new_vertex_weights[vert.index, vg_idx] = weight
+
+        # 新しい頂点ウェイトを前の頂点ウェイトと補間して計算
+        smooth_strength = (strength, 1 - strength)
+        new_vertex_weights = np.average((new_vertex_weights, vertex_weights),
+                                        weights=smooth_strength,
+                                        axis=0)
+        vertex_weights = np.where(selected_verts[:, np.newaxis],
+                                  new_vertex_weights, 0)
+        
+    set_vertex_weights(mesh_obj, vertex_weights,
+                       which_to_set=selected_verts[:, np.newaxis],
+                       normalize=normalize,
+                       limit=limit,
+                       epsilon=epsilon)
+
+    bm.free()

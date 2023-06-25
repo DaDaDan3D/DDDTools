@@ -13,6 +13,82 @@ _ = lambda s: s
 from bpy.app.translations import pgettext_iface as iface_
 
 ################################################################
+class DDDWT_smooth_vertex_weights_falloff_pg(PropertyGroup):
+    count: IntProperty(
+        name=_('Iterations'),
+        description=_('Specifies the number of times smoothing is to be performed.'),
+        min=1,
+        max=200,
+        default=10,
+    )
+
+    radius: FloatProperty(
+        name=_('Radius'),
+        description=_('Specifies the range of influence of smoothing.'),
+        subtype='DISTANCE',
+        default=1.0,
+        min=1e-9,
+        precision=2,
+        step=1,
+        unit='LENGTH',
+    )
+        
+    normalize: BoolProperty(
+        name=_('Normalize'),
+        description=_('Specifies whether the vertex weights should be normalized so that they sum to 1.0.'),
+        default=False,
+    )
+
+    def draw(self, layout):
+        col = layout.column(align=True)
+        col.prop(self, 'count')
+        col.prop(self, 'radius')
+        col.prop(self, 'normalize')
+
+    def copy_from(self, src):
+        self.count = src.count
+        self.radius = src.radius
+        self.normalize = src.normalize
+
+################
+class DDDWT_smooth_vertex_weights_least_square_pg(PropertyGroup):
+    count: IntProperty(
+        name=_('Iterations'),
+        description=_('Specifies the number of times smoothing is to be performed.'),
+        min=1,
+        max=5,
+        default=1,
+    )
+
+    strength: FloatProperty(
+        name=_('Strength'),
+        description=_('Specifies the smoothing intensity; the closer to 1, the stronger the smoothing.'),
+        #subtype='FACTOR',
+        default=0.5,
+        min=0,
+        max=1,
+        precision=2,
+        step=1,
+    )
+        
+    normalize: BoolProperty(
+        name=_('Normalize'),
+        description=_('Specifies whether the vertex weights should be normalized so that they sum to 1.0.'),
+        default=False,
+    )
+
+    def draw(self, layout):
+        col = layout.column(align=True)
+        col.prop(self, 'count')
+        col.prop(self, 'strength')
+        col.prop(self, 'normalize')
+
+    def copy_from(self, src):
+        self.count = src.count
+        self.strength = src.strength
+        self.normalize = src.normalize
+
+################
 class DDDWT_propertyGroup(PropertyGroup):
     display_cleanupWeightsOfSelectedObjects: BoolProperty(
         name='cleanupWeightsOfSelectedObjects_settings',
@@ -76,6 +152,14 @@ class DDDWT_propertyGroup(PropertyGroup):
         precision=3,
         step=1,
     )
+
+    display_smooth_vertex_weights_falloff: BoolProperty(default=False)
+    smooth_vertex_weights_falloff_prop: PointerProperty(
+        type=DDDWT_smooth_vertex_weights_falloff_pg)
+
+    display_smooth_vertex_weights_least_square: BoolProperty(default=False)
+    smooth_vertex_weights_least_square_prop: PointerProperty(
+        type=DDDWT_smooth_vertex_weights_least_square_pg)
 
 ################################################################
 class DDDWT_OT_resetWeightOfSelectedObjects(bpy.types.Operator):
@@ -163,7 +247,7 @@ class DDDWT_OT_equalizeVertexWeightsForMirroredBones(bpy.types.Operator):
     @classmethod
     def poll(self, context):
         obj = bpy.context.active_object
-        return obj and obj.type == 'MESH' and obj.mode == 'EDIT'
+        return obj and obj.mode == 'EDIT' and iu.get_total_vert_sel(obj) > 0
 
     def execute(self, context):
         mesh = iu.ObjectWrapper(bpy.context.active_object)
@@ -246,6 +330,77 @@ class DDDWT_OT_setWeightForSelectedBones(Operator):
         return self.execute(context)
 
 ################################################################
+class DDDWT_OT_smoothVertexWeightFalloff(Operator):
+    bl_idname = 'paint.dddwt_smooth_vertex_weights_falloff'
+    bl_label = _('Vertex weight smooth (range)')
+    bl_description = _('Smoothes the weight of selected vertices by distance, referring to polygonal connections.')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    m_prop : PointerProperty(type=DDDWT_smooth_vertex_weights_falloff_pg)
+
+    @classmethod
+    def poll(self, context):
+        obj = bpy.context.active_object
+        return obj.mode == 'WEIGHT_PAINT' and iu.get_total_vert_sel(obj) >= 2
+
+    def execute(self, context):
+        obj = bpy.context.active_object
+        wt.smooth_vertex_weights_falloff(obj,
+                                         count=self.m_prop.count,
+                                         radius=self.m_prop.radius,
+                                         normalize=self.m_prop.normalize)
+        with iu.mode_context(obj, 'OBJECT'):
+            bpy.context.view_layer.update()
+        prop = context.scene.dddtools_wt_prop
+        prop.smooth_vertex_weights_falloff_prop.copy_from(self.m_prop)
+        
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        prop = context.scene.dddtools_wt_prop
+        self.m_prop.copy_from(prop.smooth_vertex_weights_falloff_prop)
+        return self.execute(context)
+
+    def draw(self, context):
+        self.m_prop.draw(self.layout)
+
+################################################################
+class DDDWT_OT_smoothVertexWeightLeastSquare(Operator):
+    bl_idname = 'paint.dddwt_smooth_vertex_weights_least_square'
+    bl_label = _('Vertex weight smooth (approximate)')
+    bl_description = _('Smoothes the weights of selected vertices by the least-squares method, referring to the polygonal connections.')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    m_prop : PointerProperty(type=DDDWT_smooth_vertex_weights_least_square_pg)
+
+    @classmethod
+    def poll(self, context):
+        obj = bpy.context.active_object
+        return obj.mode == 'WEIGHT_PAINT' and iu.get_total_vert_sel(obj) >= 2
+
+    def execute(self, context):
+        obj = bpy.context.active_object
+        wt.smooth_vertex_weights_least_square(obj,
+                                              count=self.m_prop.count,
+                                              strength=self.m_prop.strength,
+                                              normalize=self.m_prop.normalize,
+                                              limit=1e-3)
+        with iu.mode_context(obj, 'OBJECT'):
+            bpy.context.view_layer.update()
+        prop = context.scene.dddtools_wt_prop
+        prop.smooth_vertex_weights_least_square_prop.copy_from(self.m_prop)
+        
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        prop = context.scene.dddtools_wt_prop
+        self.m_prop.copy_from(prop.smooth_vertex_weights_least_square_prop)
+        return self.execute(context)
+
+    def draw(self, context):
+        self.m_prop.draw(self.layout)
+
+################################################################
 class DDDWT_PT_WeightTool(bpy.types.Panel):
     bl_idname = 'WT_PT_WeightTool'
     bl_label = 'WeightTool'
@@ -295,8 +450,22 @@ class DDDWT_PT_WeightTool(bpy.types.Panel):
             col = layout.box().column(align=True)
             col.prop(prop, 'weight')
 
+        display, split = ui.splitSwitch(layout, prop, 'display_smooth_vertex_weights_falloff')
+        split.operator(DDDWT_OT_smoothVertexWeightFalloff.bl_idname)
+        if display:
+            col = layout.box().column(align=True)
+            prop.smooth_vertex_weights_falloff_prop.draw(col)
+
+        # display, split = ui.splitSwitch(layout, prop, 'display_smooth_vertex_weights_least_square')
+        # split.operator(DDDWT_OT_smoothVertexWeightLeastSquare.bl_idname)
+        # if display:
+        #     col = layout.box().column(align=True)
+        #     prop.smooth_vertex_weights_least_square_prop.draw(col)
+
 ################################################################
 classes = (
+    DDDWT_smooth_vertex_weights_falloff_pg,
+    DDDWT_smooth_vertex_weights_least_square_pg,
     DDDWT_propertyGroup,
     DDDWT_OT_resetWeightOfSelectedObjects,
     DDDWT_OT_cleanupWeightsOfSelectedObjects,
@@ -304,6 +473,8 @@ classes = (
     DDDWT_OT_equalizeVertexWeightsForMirroredBones,
     DDDWT_OT_dissolveWeightedBones,
     DDDWT_OT_setWeightForSelectedBones,
+    DDDWT_OT_smoothVertexWeightFalloff,
+    #DDDWT_OT_smoothVertexWeightLeastSquare,
     DDDWT_PT_WeightTool,
 )
 
