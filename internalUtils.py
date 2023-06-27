@@ -890,6 +890,21 @@ def calculate_mouse_ray_line_intersection(context,
     return intersection
 
 ################
+def calculate_mouse_ray_cast_to_mesh(context, coord, obj):
+    # マウスカーソルの位置からビューポートへの3Dレイを取得します
+    ray_origin = view3d_utils.region_2d_to_origin_3d(
+        context.region, context.region_data, coord)
+    ray_direction = view3d_utils.region_2d_to_vector_3d(
+        context.region, context.region_data, coord)
+
+    # メッシュとの交点を計算します
+    mtx = obj.matrix_world.inverted()
+    ray_origin = mtx @ ray_origin
+    ray_direction = mtx.to_3x3() @ ray_direction
+
+    return obj.ray_cast(ray_origin, ray_direction)
+
+################
 def calculate_mouse_move_unit(context, location):
     """
     Calculates how far an object at world coordinate location will move in relation to a mouse movement of 1.
