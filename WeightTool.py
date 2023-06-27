@@ -768,11 +768,11 @@ def smooth_vertex_weights_least_square(mesh_obj,
                     centroid_h = np.append(
                         np.array(face.calc_center_median_weighted()), 1)
 
-                try:
-                    weight = mu.calc_weight_least_squares(
-                        points_h, weights, centroid_h)
-                except ZeroDivisionError:
-                    weight = np.average(weights, axis=0)
+                bw = mu.intersection_based_barycentric_mapping(
+                    points_h[:, :3],
+                    np.array(face.normal),
+                    centroid_h[:3])
+                weight = np.dot(bw, weights)
 
                 centroids_h[face_idx] = centroid_h
                 weight_at_centroids[face_idx] = weight
