@@ -373,7 +373,11 @@ def get_falloff_enum():
 ################
 def normalize_vectors(vectors, epsilon=1e-10):
     magnitudes = np.linalg.norm(vectors, axis=-1)
-    normalized_vectors = vectors / (magnitudes[:, np.newaxis] + epsilon)
+    magnitudes = np.where(
+        magnitudes < epsilon,
+        epsilon,
+        magnitudes)
+    normalized_vectors = vectors / (magnitudes[:, np.newaxis])
     return normalized_vectors
 
 ################
@@ -622,3 +626,112 @@ def calc_weight_least_squares(points_h, weights, point_h):
     weight = np.dot(point_h, coeffs)
 
     return weight
+
+################
+def intersection_based_barycentric_mapping(verts, face_normal, point):
+    """
+    平面上の凸な多角形におけるバリセントリック座標を、原点と頂点を結ぶ直線と
+    特定の平面との交点を用いて求める。
+
+    Parameters:
+    -----------
+    verts : np.ndarray
+      平面上の凸な多角形
+    face_normal : np.ndarray
+      平面の法線
+    point : np.ndarray
+      バリセントリック座標を求める点
+
+    Returns:
+    --------
+    np.ndarray
+      バリセントリック座標
+    """
+
+    n = verts.shape[0]
+
+    # Calculate the epsilon
+    max_value = np.max(np.abs(verts))
+    epsilon = 16.0 * np.finfo(float).eps * max_value
+
+    # 計算誤差を避けるため、面法線の方向に少し移動する
+    bias = face_normal * max_value
+
+    P = point + bias
+    A = verts + bias
+    B = np.roll(A, -1, axis=0)
+
+    # 各辺における側面の法線を計算する
+    normals = normalize_vectors(np.cross(A, B), epsilon)
+
+    # 各辺と P との距離の逆数を計算し、法線 normal を決定する
+    distances = distances_to_edges(A, P)
+    distances = np.where(
+        distances < epsilon,
+        epsilon,
+        distances)
+    distances_inv = 1 / distances
+
+    normal = np.sum(distances_inv[:, np.newaxis] * normals, axis=0) / np.sum(distances_inv)
+
+    # 平面と、各頂点と原点を結ぶ直線との交点を求め、これを weights とする
+    dot_normal_A = np.sum(normal * A, axis=1)
+    dot_normal_A = np.where(
+        dot_normal_A < epsilon,
+        epsilon,
+        dot_normal_A)
+
+    dot_normal_P = np.dot(normal, P)
+    weights = dot_normal_P / dot_normal_A
+    weights /= np.sum(weights)
+    return weights
+
+################
+def distances_to_edges(verts, point):
+    """
+    ポリゴンの各辺と与えられた点との距離を計算する。
+
+    Parameters:
+    -----------
+    verts : np.ndarray
+      ポリゴンの各頂点
+    point : np.ndarray
+      距離を計算する点
+
+    Returns:
+    --------
+    np.ndarray
+      辺と点との距離
+    """
+
+    # 頂点の数
+    N = len(verts)
+
+    # 頂点A, Bを定義 (Aは各頂点, Bは次の頂点)
+    A = verts
+    B = np.roll(A, -1, axis=0)
+
+    # 線分ABと点Pのベクトル
+    AB = B - A
+    AP = point - A
+    BP = point - B
+
+    # ベクトルの内積
+    dot_A = np.einsum('ij,ij->i', AB, AP)
+    dot_B = np.einsum('ij,ij->i', -AB, BP)
+
+    # 距離を計算
+    distances = np.where(
+        dot_A > 0,  # if dot_A > 0
+        np.where(
+            dot_B > 0,  # if dot_B > 0
+            # 線分ABへの距離
+            np.linalg.norm(np.cross(AB, AP), axis=1) / np.linalg.norm(AB, axis=1),
+            # 点PからBへの距離
+            np.linalg.norm(BP, axis=1)
+        ),
+        # 点PからAへの距離
+        np.linalg.norm(AP, axis=1)
+    )
+
+    return distances
