@@ -647,7 +647,6 @@ def intersection_based_barycentric_mapping(verts, face_normal, point):
     np.ndarray
       バリセントリック座標
     """
-
     n = verts.shape[0]
 
     # Calculate the epsilon
@@ -655,7 +654,8 @@ def intersection_based_barycentric_mapping(verts, face_normal, point):
     epsilon = 16.0 * np.finfo(float).eps * max_value
 
     # 計算誤差を避けるため、面法線の方向に少し移動する
-    bias = face_normal * max_value
+    # またこれにより、裏面がなくなる
+    bias = face_normal * max_value * 2
 
     P = point + bias
     A = verts + bias
