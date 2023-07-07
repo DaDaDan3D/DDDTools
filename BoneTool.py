@@ -162,6 +162,11 @@ def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
     with iu.mode_context(meshObj.obj, 'OBJECT'): 
         pass
 
+    # 辺ストリップを得る
+    strips = iu.get_selected_edge_strips(meshObj.obj)
+    if not strips:
+        return None
+
     created_bones = []
 
     # アーマチュアを作成
@@ -183,42 +188,32 @@ def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
         root_bone.tail = cursor_loc + Vector((0, 0, 1))
         created_bones.append(root_bone.name)
 
-        # メッシュの選択したエッジに基づいてボーンを作成
         mesh = obj.data
-        mesh.update()
         bm = bmesh.new()
         bm.from_mesh(mesh)
-        bm.edges.ensure_lookup_table()
+        bm.verts.ensure_lookup_table()
 
-        # 選択されたエッジから頂点を取得
-        edges = [[edge.verts[0], edge.verts[1]] for edge in bm.edges if edge.select]
+        # strip に基づいてボーンを作成
+        for strip_count, strip in enumerate(strips):
+            # 近い方を始点にする
+            if (bm.verts[strip[0]].co - cursor_loc).length >\
+               (bm.verts[strip[-1]].co - cursor_loc).length:
+                strip.reverse()
 
-        # 3D カーソルからの距離で頂点及びエッジをソート
-        for idx in range(len(edges)):
-            edges[idx].sort(key=lambda vert:(vert.co - cursor_loc).length)
-        edges.sort(key=lambda edge: ((edge[0].co + edge[1].co) / 2 - cursor_loc).length)
+            parent = root_bone
+            vert_head = bm.verts[strip[0]]
+            for bone_count, vert_idx in enumerate(strip[1:]):
+                vert_tail = bm.verts[vert_idx]
+                newName = f'{basename}_{strip_count}_{bone_count}'
+                bone = edit_bones.new(newName)
+                bone.head = vert_head.co
+                bone.tail = vert_tail.co
+                bone.parent = parent
+                bone.use_connect = (parent != root_bone)
+                created_bones.append(bone.name)
 
-        # 近い順にボーンを作成し、接続できるならしていく
-        vert_to_bone = dict()
-        count = 0
-        for edge in edges:
-            vert_head, vert_tail = edge
-            parent = vert_to_bone.get(vert_head)
-            if parent:
-                newName = parent.name
-            else:
-                newName = f'{basename}_{count:03d}'
-                count += 1
-                parent = root_bone
-
-            bone = edit_bones.new(newName)
-            bone.head = vert_head.co
-            bone.tail = vert_tail.co
-            bone.parent = parent
-            bone.use_connect = (parent != root_bone)
-            created_bones.append(bone.name)
-            if vert_tail not in vert_to_bone:
-                vert_to_bone[vert_tail] = bone
+                vert_head = vert_tail
+                parent = bone
 
         bm.free()
 
