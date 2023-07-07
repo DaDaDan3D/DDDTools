@@ -1129,3 +1129,69 @@ def find_flip_side_name_or_self(names, name):
         return flipped_name
     else:
         return name
+
+################
+def get_selected_edge_strips(obj):
+    """
+    obj の選択された辺を、繋がったストリップに分解したものを得る
+
+    Parameters:
+    -----------
+    obj : bpy.types.Object
+      メッシュオブジェクト
+
+    Returns:
+    --------
+    list
+      頂点のインデックスのリストのリスト
+    """
+
+    # 明示的に OBJECT モードにすることで EditMesh を確定させる
+    with mode_context(obj, 'OBJECT'):
+        pass
+
+    mesh = obj.data
+    mesh.update()
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.verts.ensure_lookup_table()
+    bm.edges.ensure_lookup_table()
+
+    # 選択されたエッジから頂点のインデックスを取得
+    edges = np.array([[e.verts[0].index, e.verts[1].index] for e in bm.edges if e.select])
+    mask = np.ones(len(edges), dtype=bool)
+    def edges_pop(idx):
+        edge = edges[idx]
+        mask[idx] = False
+        return edge
+
+    # strip を作っていく
+    strips = []
+    while mask.any():
+        idx = np.where(mask)[0][0]
+        strip = edges_pop(idx).tolist()
+        strips.append(strip)
+
+        def append_strip():
+            while mask.any():
+                idx = strip[-1]
+                for row in range(2):
+                    found = np.logical_and(mask, edges[:, row] == idx)
+                    found = np.where(found)[0]
+                    if found.size > 0:
+                        edge = edges_pop(found[0])
+                        strip.append(edge[1 - row])
+                        break
+                else:
+                    return
+
+        # 正方向に繋がっている辺を検索
+        append_strip()
+
+        # 逆方向に繋がっている辺を検索
+        strip.reverse()
+        append_strip()
+        
+    bm.free()
+
+    return strips
