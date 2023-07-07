@@ -162,6 +162,8 @@ def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
     with iu.mode_context(meshObj.obj, 'OBJECT'): 
         pass
 
+    created_bones = []
+
     # アーマチュアを作成
     arm_data = bpy.data.armatures.new('Armature')
     armature = bpy.data.objects.new('Armature', arm_data)
@@ -179,6 +181,7 @@ def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
         root_bone = edit_bones.new(f'{basename}_Root')
         root_bone.head = cursor_loc
         root_bone.tail = cursor_loc + Vector((0, 0, 1))
+        created_bones.append(root_bone.name)
 
         # メッシュの選択したエッジに基づいてボーンを作成
         mesh = obj.data
@@ -213,10 +216,15 @@ def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
             bone.tail = vert_tail.co
             bone.parent = parent
             bone.use_connect = (parent != root_bone)
+            created_bones.append(bone.name)
             if vert_tail not in vert_to_bone:
                 vert_to_bone[vert_tail] = bone
 
         bm.free()
+
+    # ベンディボーンのサイズを自動調整
+    # FIXME サイズを指定できるようにする？
+    adjust_bendy_bone_size(armature, created_bones, 0.1, 0.1)
 
     return armature
 
@@ -631,6 +639,10 @@ def buildHandleFromVertices(bone_length=0.1,
                             obj.vertex_groups.new(name=group_name)
                         obj.vertex_groups[group_name].add([vertex.index], 1.0, 'REPLACE')
 
+    # ベンディボーンのサイズを自動調整
+    # FIXME サイズを指定できるようにする？
+    adjust_bendy_bone_size(armature, created_bones, 0.1, 0.1)
+
     return armature
 
 ################
@@ -669,6 +681,11 @@ def buildHandleFromBones(bone_length=0.1, axis='NEG_Y', pre='handle'):
             constraint = pbone.constraints.new('STRETCH_TO')
             constraint.target = armature
             constraint.subtarget = f'{pre}_{boneName}'
+            constraint.volume = 'NO_VOLUME'
+
+    # ベンディボーンのサイズを自動調整
+    # FIXME サイズを指定できるようにする？
+    adjust_bendy_bone_size(armature, created_bones, 0.1, 0.1)
 
     return created_bones
 
@@ -863,3 +880,13 @@ def set_translations(arma, translations, which_to_move):
         # 子のためにデータを保存しておく
         if has_child:
             bone_data[bn] = BoneData(moving, new_matrix, bone.bone.matrix_local)
+
+################
+def adjust_bendy_bone_size(arma, bone_names, ratio_z, ratio_x):
+    with iu.mode_context(arma, 'OBJECT'):
+        for bn in bone_names:
+            bone = arma.data.bones[bn]
+            size = bone.vector.length
+            bone.bbone_z = size * ratio_z
+            bone.bbone_x = size * ratio_x
+        

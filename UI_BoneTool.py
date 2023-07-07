@@ -206,6 +206,38 @@ class DDDBT_changeBoneLengthDirection_propertyGroup(PropertyGroup):
         self.direction = src.direction
 
 ################
+class DDDBT_adjustBendyBoneSize_propertyGroup(PropertyGroup):
+    ratio_z: FloatProperty(
+        name=_('Ratio Z'),
+        description=_('Z 方向のサイズ'),
+        subtype='FACTOR',
+        default=0.1,
+        min=0.01,
+        max=2.00,
+        precision=2,
+        step=1,
+    )
+    ratio_x: FloatProperty(
+        name=_('Ratio X'),
+        description=_('X 方向のサイズ'),
+        subtype='FACTOR',
+        default=0.1,
+        min=0.01,
+        max=2.00,
+        precision=2,
+        step=1,
+    )
+
+    def draw(self, layout):
+        col = layout.column(align=False)
+        col.prop(self, 'ratio_x')
+        col.prop(self, 'ratio_z')
+
+    def copy_from(self, src):
+        self.ratio_z = src.ratio_z
+        self.ratio_x = src.ratio_x
+
+################
 class DDDBT_poseProportionalMove_propertyGroup(PropertyGroup):
     use_proportional: BoolProperty(
         name=_('Use Proportional'),
@@ -300,6 +332,10 @@ class DDDBT_propertyGroup(PropertyGroup):
     display_changeBoneLengthDirection: BoolProperty(default=False)
     changeBoneLengthDirectionProp: PointerProperty(
         type=DDDBT_changeBoneLengthDirection_propertyGroup)
+
+    display_adjustBendyBoneSize: BoolProperty(default=False)
+    adjustBendyBoneSizeProp: PointerProperty(
+        type=DDDBT_adjustBendyBoneSize_propertyGroup)
 
     display_poseProportionalMove: BoolProperty(default=False)
     poseProportionalMoveProp: PointerProperty(
@@ -593,6 +629,38 @@ class DDDBT_OT_changeBoneLengthDirection(Operator):
     def invoke(self, context, event):
         prop = context.scene.dddtools_bt_prop
         self.m_prop.copy_from(prop.changeBoneLengthDirectionProp)
+        return self.execute(context)
+
+    def draw(self, context):
+        self.m_prop.draw(self.layout)
+
+################
+class DDDBT_OT_adjustBendyBoneSize(Operator):
+    bl_idname = 'armature.dddbt_adjust_bendy_bone_size'
+    bl_label = _('ベンディボーンサイズ調整')
+    bl_description = _('ベンディボーンのサイズを調整します')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    m_prop: PointerProperty(type=DDDBT_adjustBendyBoneSize_propertyGroup)
+    
+    @classmethod
+    def poll(self, context):
+        return bt.get_selected_bone_names()
+
+    def execute(self, context):
+        arma = bpy.context.active_object
+        bone_names = bt.get_selected_bone_names()
+        prop = context.scene.dddtools_bt_prop
+        prop.adjustBendyBoneSizeProp.copy_from(self.m_prop)
+        bt.adjust_bendy_bone_size(arma,
+                                  bone_names,
+                                  self.m_prop.ratio_z,
+                                  self.m_prop.ratio_x)
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        prop = context.scene.dddtools_bt_prop
+        self.m_prop.copy_from(prop.adjustBendyBoneSizeProp)
         return self.execute(context)
 
     def draw(self, context):
@@ -1173,11 +1241,11 @@ class DDDBT_OT_poseProportionalMove(Operator):
         if event.type == 'MOUSEMOVE':
             update = True
 
-        elif event.type in {'WHEELUPMOUSE', 'PAGE_UP', 'D'} and event.value == 'PRESS':
+        elif event.type in {'WHEELDOWNMOUSE', 'PAGE_UP', 'D'} and event.value == 'PRESS':
             self.m_prop.influence_radius *= 1.1
             update = True
 
-        elif event.type in {'WHEELDOWNMOUSE', 'PAGE_DOWN', 'A'} and event.value == 'PRESS':
+        elif event.type in {'WHEELUPMOUSE', 'PAGE_DOWN', 'A'} and event.value == 'PRESS':
             self.m_prop.influence_radius /= 1.1
             update = True
 
@@ -1302,6 +1370,12 @@ class DDDBT_PT_BoneTool(Panel):
             box = col.box()
             prop.changeBoneLengthDirectionProp.draw(box)
 
+        display, split = ui.splitSwitch(col, prop, 'display_adjustBendyBoneSize')
+        split.operator(DDDBT_OT_adjustBendyBoneSize.bl_idname)
+        if display:
+            box = col.box()
+            prop.adjustBendyBoneSizeProp.draw(box)
+
         display, split = ui.splitSwitch(col, prop, 'display_poseProportionalMove')
         split.operator(DDDBT_OT_poseProportionalMove.bl_idname)
         if display:
@@ -1319,6 +1393,7 @@ classes = (
     DDDBT_buildHandleFromVertices_propertyGroup,
     DDDBT_buildHandleFromBones_propertyGroup,
     DDDBT_changeBoneLengthDirection_propertyGroup,
+    DDDBT_adjustBendyBoneSize_propertyGroup,
     DDDBT_poseProportionalMove_propertyGroup,
     DDDBT_propertyGroup,
     DDDBT_OT_renameChildBonesWithNumber,
@@ -1332,6 +1407,7 @@ classes = (
     DDDBT_OT_buildHandleFromVertices,
     DDDBT_OT_buildHandleFromBones,
     DDDBT_OT_changeBoneLengthDirection,
+    DDDBT_OT_adjustBendyBoneSize,
     DDDBT_OT_poseProportionalMove,
     DDDBT_OT_Falloff,
     DDDBT_MT_Falloff,
