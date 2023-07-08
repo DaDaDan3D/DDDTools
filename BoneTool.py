@@ -183,6 +183,8 @@ def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
         cursor_loc = obj.matrix_world.inverted() @ bpy.context.scene.cursor.location
 
         # 3D カーソルの位置にルートボーンを作成
+        # FIXME
+        # アーマチュアローカル座標に変換すべし
         root_bone = edit_bones.new(f'{basename}_Root')
         root_bone.head = cursor_loc
         root_bone.tail = cursor_loc + Vector((0, 0, 1))
@@ -206,6 +208,8 @@ def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
                 vert_tail = bm.verts[vert_idx]
                 newName = f'{basename}_{strip_count}_{bone_count}'
                 bone = edit_bones.new(newName)
+                # FIXME
+                # メッシュローカル座標からアーマチュアローカル座標に変換すべし
                 bone.head = vert_head.co
                 bone.tail = vert_tail.co
                 bone.parent = parent
@@ -731,6 +735,40 @@ def get_flip_side_indices(arma):
     name_to_index = dict(zip(names, range(len(names))))
     flipped_indices = [name_to_index[n] for n in flipped_names]
     return flipped_indices
+
+################
+def find_mirror_bones(armature, bone_names, epsilon=1e-10):
+    """
+    Find bones at flipped side location.
+
+    Parameters:
+    -----------
+    armature : bpy.types.Object
+      Armature object.
+
+    bone_names : list of strings
+      Bone names to find mirrored-bones.
+
+    epsilon : float
+      Distance that can be considered close enough.
+
+    Returns:
+    --------
+    list of strings
+      Mirror bone names.
+    """
+    mirror_bones = [None] * len(bone_names)
+    for idx, bn in enumerate(bone_names):
+        bone = armature.data.bones[bn]
+
+        mirror_pos = mathutils.Vector((-bone.head_local.x, bone.head_local.y, bone.head_local.z))
+
+        for b in armature.data.bones:
+            if b != bone and (b.head_local - mirror_pos).length < epsilon:
+                mirror_bones[idx] = b.name
+                break
+
+    return mirror_bones
 
 ################
 def pose_mirror_x_translations(arma, translations, selection):
