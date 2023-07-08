@@ -1116,6 +1116,59 @@ def flip_side_name(name):
         return None
 
 ################
+def plain_name(name):
+    """
+    左右や番号の付いていない、素の名前を得る
+
+    Parameters:
+    -----------
+    name : string
+      名前
+
+    Returns:
+    --------
+    string
+      素の名前
+    """
+    mo = RE_NAME.match(name)
+    if not mo: return None
+    main = mo.group('main')
+    return main
+
+################
+def get_side(name):
+    """
+    名前が 左/右/左右なし のどれかを得る
+
+    Parameters:
+    -----------
+    name : string
+      名前
+
+    Returns:
+    --------
+    bool
+      左なら +1, 右なら -1, 左右なしなら 0
+    """
+    mo = RE_NAME.match(name)
+    if not mo: return 0
+
+    for gn in ['side0', 'side1', 'side2', 'side3']:
+        side = mo.group(gn)
+        if side:
+            if side[0].upper() == 'L':
+                return 1
+            else:
+                return -1
+    return 0
+
+def is_left_name(name):
+    return get_side(name) > 0
+
+def is_right_name(name):
+    return get_side(name) < 0
+
+################
 def find_flip_side_name(names, name):
     flipped_name = flip_side_name(name)
     if flipped_name and flipped_name in names:
