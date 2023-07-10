@@ -341,7 +341,7 @@ class DDDWT_OT_smoothVertexWeightFalloff(Operator):
     @classmethod
     def poll(self, context):
         obj = bpy.context.active_object
-        return obj.mode == 'WEIGHT_PAINT' and iu.get_total_vert_sel(obj) >= 2
+        return obj and obj.mode == 'WEIGHT_PAINT' and iu.get_total_vert_sel(obj) >= 2
 
     def execute(self, context):
         obj = bpy.context.active_object
@@ -376,7 +376,7 @@ class DDDWT_OT_smoothVertexWeightLeastSquare(Operator):
     @classmethod
     def poll(self, context):
         obj = bpy.context.active_object
-        return obj.mode == 'WEIGHT_PAINT' and iu.get_total_vert_sel(obj) >= 2
+        return obj and obj.mode == 'WEIGHT_PAINT' and iu.get_total_vert_sel(obj) >= 2
 
     def execute(self, context):
         obj = bpy.context.active_object
