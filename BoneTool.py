@@ -999,7 +999,7 @@ def rename_bones_for_symmetry(arma, bone_names, epsilon=None):
                 if new_name not in used_names:
                     break
         used_names.add(new_name)
-        rename_dic[bone] = new_name
+        rename_dic[bone.name] = new_name
 
     # 骨のペアに一度に名前を付ける
     def rename_pair(bone_0, bone_1, new_name_0):
@@ -1021,8 +1021,8 @@ def rename_bones_for_symmetry(arma, bone_names, epsilon=None):
                     break
         used_names.add(new_name_0)
         used_names.add(new_name_1)
-        rename_dic[bone_0] = new_name_0
-        rename_dic[bone_1] = new_name_1
+        rename_dic[bone_0.name] = new_name_0
+        rename_dic[bone_1.name] = new_name_1
 
 
     # 骨→反対側の骨 の名前の辞書を作る
@@ -1077,12 +1077,25 @@ def rename_bones_for_symmetry(arma, bone_names, epsilon=None):
 
     # 一気にリネームする
     result = []
-    for bone, new_name in rename_dic.items():
-        if bone.name != new_name:
-            #print(f' {bone.name} -> {new_name}')
-            bone.name = str(uuid.uuid4())
-    for bone, new_name in rename_dic.items():
-        if bone.name != new_name:
+    with iu.mode_context(arma, 'EDIT'):
+        # まず、リネームする骨の名前を全てユニークにする
+        uuid_dic = dict()
+        for bn, new_name in rename_dic.items():
+            if bn != new_name:
+                #print(f' {bn} -> {new_name}')
+                bone = arma.data.edit_bones[bn]
+                uuid_name = str(uuid.uuid4())
+                uuid_dic[uuid_name] = new_name
+                bone.name = uuid_name
+
+        # そして最終的にリネームする
+        for uuid_name, new_name in uuid_dic.items():
+            bone = arma.data.edit_bones[uuid_name]
             bone.name = new_name
             result.append(new_name)
+
+    # 明示的に OBJECT モードにすることで EditBone を確定させる
+    with iu.mode_context(arma, 'OBJECT'):
+        pass
+
     return result
