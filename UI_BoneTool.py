@@ -366,6 +366,30 @@ class DDDBT_OT_renameChildBonesWithNumber(Operator):
         return context.window_manager.invoke_props_dialog(self)
 
 ################
+class DDDBT_OT_renameBonesForSymmetry(Operator):
+    bl_idname = 'armature.dddbt_rename_bones_for_symmetry'
+    bl_label = _('Rename Symmetry')
+    bl_description = _('左右対称を考慮してボーンの名前を変えます')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        return bt.get_selected_bone_names()
+
+    def execute(self, context):
+        arma = bpy.context.active_object
+        selected_bones = bt.get_selected_bone_names()
+        renamed_bones = bt.rename_bones_for_symmetry(arma, selected_bones)
+        if renamed_bones:
+            self.report({'INFO'},
+                        iface_('{len_renamed_bones} 個の骨をリネームしました。').format(len_renamed_bones=len(renamed_bones)))
+            bt.select_bones(iu.ObjectWrapper(arma), renamed_bones)
+            return {'FINISHED'}
+        else:
+            self.report({'INFO'}, iface_('リネームされた骨はありません。'))
+            return {'CANCELLED'}
+
+################
 class DDDBT_OT_resetStretchTo(Operator):
     bl_idname = 'dddbt.reset_stretch_to'
     bl_label = _('Reset Stretch')
@@ -1334,6 +1358,7 @@ class DDDBT_PT_BoneTool(Panel):
         col.operator(DDDBT_OT_selectAncestralBones.bl_idname)
         col.operator(DDDBT_OT_printSelectedBoneNamess.bl_idname)
         col.operator(DDDBT_OT_renameChildBonesWithNumber.bl_idname)
+        col.operator(DDDBT_OT_renameBonesForSymmetry.bl_idname)
         col.operator(DDDBT_OT_resetStretchTo.bl_idname)
         col.operator(DDDBT_OT_applyArmatureToRestPose.bl_idname)
         col.operator(DDDBT_OT_createMeshFromSelectedBones.bl_idname)
@@ -1397,6 +1422,7 @@ classes = (
     DDDBT_poseProportionalMove_propertyGroup,
     DDDBT_propertyGroup,
     DDDBT_OT_renameChildBonesWithNumber,
+    DDDBT_OT_renameBonesForSymmetry,
     DDDBT_OT_resetStretchTo,
     DDDBT_OT_applyArmatureToRestPose,
     DDDBT_OT_createArmatureFromSelectedEdges,

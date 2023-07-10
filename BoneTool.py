@@ -737,6 +737,38 @@ def get_flip_side_indices(arma):
     return flipped_indices
 
 ################
+def find_mirror_bone(armature, bone_name, epsilon=1e-10):
+    """
+    Find bone at flipped side location.
+
+    Parameters:
+    -----------
+    armature : bpy.types.Object
+      Armature object.
+
+    bone_name : string
+      Bone name to find mirrored-bone.
+
+    epsilon : float
+      Distance that can be considered close enough.
+
+    Returns:
+    --------
+    string
+      Mirror bone name.
+    """
+    bone = armature.data.bones[bone_name]
+
+    mirror_head = Vector((-bone.head_local.x, bone.head_local.y, bone.head_local.z))
+    mirror_tail = Vector((-bone.tail_local.x, bone.tail_local.y, bone.tail_local.z))
+
+    for b in armature.data.bones:
+        if b != bone and (b.head_local - mirror_head).length < epsilon and (b.tail_local - mirror_tail).length < epsilon:
+            return b.name
+
+    return None
+
+################
 def find_mirror_bones(armature, bone_names, epsilon=1e-10):
     """
     Find bones at flipped side location.
@@ -757,17 +789,7 @@ def find_mirror_bones(armature, bone_names, epsilon=1e-10):
     list of strings
       Mirror bone names.
     """
-    mirror_bones = [None] * len(bone_names)
-    for idx, bn in enumerate(bone_names):
-        bone = armature.data.bones[bn]
-
-        mirror_pos = mathutils.Vector((-bone.head_local.x, bone.head_local.y, bone.head_local.z))
-
-        for b in armature.data.bones:
-            if b != bone and (b.head_local - mirror_pos).length < epsilon:
-                mirror_bones[idx] = b.name
-                break
-
+    mirror_bones = [find_mirror_bone(armature, bn, epsilon=epsilon) for bn in bone_names]
     return mirror_bones
 
 ################
@@ -923,3 +945,144 @@ def adjust_bendy_bone_size(arma, bone_names, ratio_z, ratio_x):
             bone.bbone_z = size * ratio_z
             bone.bbone_x = size * ratio_x
         
+################
+def compute_bone_epsilon(arma):
+    # Using list comprehension to collect all coordinates
+    all_coords = [coord for bone in arma.data.bones for coord in (bone.head_local, bone.tail_local)]
+
+    # Convert the list into a numpy array
+    all_coords = np.array(all_coords)
+
+    # Calculate the absolute values
+    abs_coords = np.abs(all_coords)
+
+    # Find the maximum value
+    max_value = np.max(abs_coords)
+
+    # Calculate a very small value compared to max_value
+    epsilon = max_value * 1e-3
+
+    return epsilon
+
+################
+def rename_bones_for_symmetry(arma, bone_names, epsilon=None):
+    """
+    指定した骨を、左右対称の位置の骨の名前を考慮しつつリネームする
+    """
+
+    # 明示的に OBJECT モードにすることで EditBone を確定させる
+    with iu.mode_context(arma, 'OBJECT'):
+        pass
+
+    if not bone_names:
+        return []
+
+    all_bones = [b.name for b in arma.data.bones]
+
+    # epsilon の計算
+    if not epsilon:
+        epsilon = compute_bone_epsilon(arma)
+
+    # 狙い通りにリネームするための仕組み
+    rename_dic = dict()
+    used_names = set(all_bones)
+    def rename(bone, new_name):
+        nonlocal rename_dic, used_names
+        if bone.name == new_name: return
+        used_names.discard(bone.name)
+
+        if new_name in used_names:
+            basename = new_name
+            # (総数 + 1) 回チェックすることで必ず未使用の番号が見つかる
+            for idx in range(len(used_names) + 1):
+                new_name = f'{basename}.{idx:03d}'
+                if new_name not in used_names:
+                    break
+        used_names.add(new_name)
+        rename_dic[bone] = new_name
+
+    # 骨のペアに一度に名前を付ける
+    def rename_pair(bone_0, bone_1, new_name_0):
+        nonlocal rename_dic, used_names
+        new_name_1 = iu.flip_side_name(new_name_0)
+        if bone_0.name == new_name_0 and bone_1.name == new_name_1: return
+        used_names.discard(bone_0.name)
+        used_names.discard(bone_1.name)
+        #print(f'rename_pair({bone_0.name}, {bone_1.name}, {new_name_0})')
+
+        if new_name_0 in used_names or new_name_1 in used_names:
+            basename = iu.plain_name(new_name_0)
+            side = 'L' if iu.get_side(new_name_0) > 0 else 'R'
+            # (総数 + 1) 回チェックすることで必ず未使用の番号が見つかる
+            for idx in range(len(used_names) + 1):
+                new_name_0 = f'{basename}.{side}.{idx:03d}'
+                new_name_1 = iu.flip_side_name(new_name_0)
+                if new_name_0 not in used_names and new_name_1 not in used_names:
+                    break
+        used_names.add(new_name_0)
+        used_names.add(new_name_1)
+        rename_dic[bone_0] = new_name_0
+        rename_dic[bone_1] = new_name_1
+
+
+    # 骨→反対側の骨 の名前の辞書を作る
+    other_bone = dict()
+    for bn in bone_names:
+        bone = arma.data.bones.get(bn)
+        if not bone:
+            raise ValueError(f'Armature({arma.name}) does not have a bone({bn})')
+
+        if bn in other_bone:
+            # 既に登録済みなら何もしない
+            continue
+
+        flipped_bone = iu.find_flip_side_name(all_bones, bn)
+        if flipped_bone:
+            # お互い.L.Rが付いているなら何もしない
+            #print(f'Already flipped: {bn} {flipped_bone}')
+            continue
+
+        mirrored_bone = find_mirror_bone(arma, bn, epsilon=epsilon)
+        if mirrored_bone:
+            # 対称位置の骨を発見したので登録する
+            #print(f'Find mirror: {bn} {mirrored_bone}')
+            other_bone[bn] = mirrored_bone
+            continue
+
+        if iu.get_side(bn) != 0:
+            # 反対側の骨がないのに .L.R が付いているなら削る
+            #print(f'Not mirror: {bn}')
+            rename(bone, iu.plain_name(bn))
+            
+    # それぞれのペアについて、適切な名前を付ける
+    for bn_0, bn_1 in other_bone.items():
+        bn = [bn_0, bn_1]
+        bone = [arma.data.bones[n] for n in bn]
+
+        for side in range(2):
+            if bone[side].head_local.x * iu.get_side(bn[side]) > 0 or\
+               bone[side].tail_local.x * iu.get_side(bn[side]) > 0:
+                # bone[side] に正しい名前が付いている
+                basename = iu.plain_name(bn[side])
+                break
+        else:
+            # どちらも正しい名前ではなかったら、1 を元にする
+            basename = iu.plain_name(bn[1])
+
+        # 1 の位置を元に適切な名前を付ける
+        if (bone[1].head_local.x + bone[1].tail_local.x) * 0.5 < 0:
+            rename_pair(bone[1], bone[0], f'{basename}.R')
+        else:
+            rename_pair(bone[1], bone[0], f'{basename}.L')
+
+    # 一気にリネームする
+    result = []
+    for bone, new_name in rename_dic.items():
+        if bone.name != new_name:
+            #print(f' {bone.name} -> {new_name}')
+            bone.name = str(uuid.uuid4())
+    for bone, new_name in rename_dic.items():
+        if bone.name != new_name:
+            bone.name = new_name
+            result.append(new_name)
+    return result
