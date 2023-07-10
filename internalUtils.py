@@ -1133,6 +1133,7 @@ def plain_name(name):
     mo = RE_NAME.match(name)
     if not mo: return None
     main = mo.group('main')
+    main = re.sub(r'\.[.0-9]*$', '', main)
     return main
 
 ################
