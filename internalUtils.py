@@ -736,7 +736,7 @@ def findfirst_selected_object(type):
 
 ################
 def get_total_vert_sel(mesh_obj):
-    if mesh_obj.type != 'MESH':
+    if not mesh_obj or mesh_obj.type != 'MESH':
         return 0
     elif mesh_obj.mode == 'EDIT':
         return mesh_obj.data.total_vert_sel
@@ -745,7 +745,7 @@ def get_total_vert_sel(mesh_obj):
 
 ################
 def get_total_edge_sel(mesh_obj):
-    if mesh_obj.type != 'MESH':
+    if not mesh_obj or mesh_obj.type != 'MESH':
         return 0
     elif mesh_obj.mode == 'EDIT':
         return mesh_obj.data.total_edge_sel
@@ -754,7 +754,7 @@ def get_total_edge_sel(mesh_obj):
 
 ################
 def get_total_face_sel(mesh_obj):
-    if mesh_obj.type != 'MESH':
+    if not mesh_obj or mesh_obj.type != 'MESH':
         return 0
     elif mesh_obj.mode == 'EDIT':
         return mesh_obj.data.total_face_sel
