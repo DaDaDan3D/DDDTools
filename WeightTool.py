@@ -85,7 +85,7 @@ def set_vertex_weights(mesh_obj, vertex_weights,
             vertex_weights / (total_weights[:, np.newaxis] + epsilon))
 
     if which_to_set is None:
-        which_to_set = np.full((vertex_weights.shape), True)
+        which_to_set = np.full((vertex_weights.shape[0], 1), True)
 
     # Clip values in [0..1]
     vertex_weights = np.clip(vertex_weights, 0, 1)
