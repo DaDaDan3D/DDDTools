@@ -134,9 +134,30 @@ def applyArmatureToRestPose(arma):
     resetStretchTo(arma)
 
 ################
-def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
+def find_existing_armature(obj):
+    # Check parent
+    if obj.parent and obj.parent.type == 'ARMATURE':
+        return obj.parent
+
+    # Find ARMATURE modifier
+    for mod in obj.modifiers:
+        if mod.type == 'ARMATURE':
+            return mod.object
+
+    return None
+
+################
+def createBonesFromSelectedEdges(meshObj,
+                                 basename='Bone',
+                                 suffix='',
+                                 create_root=False,
+                                 create_handle=False,
+                                 bbone_segments=1,
+                                 use_existing_armature=True,
+                                 set_weight=True,
+                                 handle_vector=Vector((0,-1,0))):
     """
-    Create an armature such that the selected edge of the object is the bone. The bone's orientation and connections are automatically calculated based on its distance from the 3D cursor.
+    Create bones such that the selected edge of the object is the bone. The bone's orientation and connections are automatically calculated based on its distance from the 3D cursor.
 
     Parameters
     ----------------
@@ -145,18 +166,40 @@ def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
 
     basename: string
       Base name of bones.
-      Bone names should be like these: Bone_Root, Bone_012, Bone_012.001, ...
+      Bone names will be like these: Bone_Root, Bone_2.2, Bone_12.5, ...
+
+    suffix: string
+      Suffix to be added to the name.
+
+    create_root: bool
+      Create root bone.
+
+    create_handle: bool
+      Create handle bone.
+
+    bbone_segments: int
+      Number of subdivisions of bone for B-Bones.
+
+    use_existing_armature: bool
+      Search Parent → Armature Modifier, and if there is an existing armature, create a bone in it.
+
+    set_weight: bool
+      Set vertex weights on the mesh.
+
+    handle_vector: Vector
+      Specify the direction and length of the handle.
+    
 
     Returns
     ----------------
-    Armature object
-
+    ObjectWrapper
+      Armature object.
     """
 
     # メッシュが選択されていることを確認
     if meshObj.obj.type != 'MESH':
         print(f'{meshObj.obj} is not a mesh.')
-        return None
+        return None, None
 
     # 明示的に OBJECT モードにすることで EditMesh を確定させる
     with iu.mode_context(meshObj.obj, 'OBJECT'): 
@@ -165,35 +208,84 @@ def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
     # 辺ストリップを得る
     strips = iu.get_selected_edge_strips(meshObj.obj)
     if not strips:
-        return None
+        return None, None
 
-    created_bones = []
+    if use_existing_armature:
+        arma = iu.ObjectWrapper(find_existing_armature(meshObj.obj))
+    else:
+        arma = None
 
-    # アーマチュアを作成
-    arm_data = bpy.data.armatures.new('Armature')
-    armature = bpy.data.objects.new('Armature', arm_data)
-    iu.setupObject(armature, None, 'OBJECT', '', meshObj.obj.matrix_world)
-    bpy.context.collection.objects.link(armature)
+    if not arma:
+        # アーマチュアを作成
+        arm_data = bpy.data.armatures.new('Armature')
+        armature = bpy.data.objects.new('Armature', arm_data)
+        iu.setupObject(armature, None, 'OBJECT', '', Matrix())
+        bpy.context.collection.objects.link(armature)
+        if set_weight:
+            meshObj.obj.parent = armature
+        arma = iu.ObjectWrapper(armature)
+
+    # アーマチュアローカル座標に変換
+    mtx = arma.obj.matrix_world.inverted()
+    mesh_to_arma =  mtx @ meshObj.obj.matrix_world
 
     # ボーンを作成するために編集モードにする
-    with iu.mode_context(armature, 'EDIT'):
-        edit_bones = armature.data.edit_bones
+    with iu.mode_context(arma.obj, 'EDIT'):
+        edit_bones = arma.obj.data.edit_bones
 
+        # 新規作成したボーン
+        created_bones = []
+        
+        # 新規作成した変形ボーン
+        created_deform_bones = []
+
+        # メッシュローカル座標 head, tail の位置に new_name で骨を作成する
+        def create_bone(new_name, head, tail,
+                        parent=None,
+                        use_connect=False,
+                        use_deform=False):
+            nonlocal edit_bones, created_bones, created_deform_bones
+            new_bone = edit_bones.new(new_name)
+            new_bone.head = mesh_to_arma @ head
+            new_bone.tail = mesh_to_arma @ tail
+            new_bone.parent = parent
+            new_bone.use_connect = use_connect
+            new_bone.use_deform = use_deform
+            created_bones.append(new_bone.name)
+            if use_deform:
+                created_deform_bones.append(new_bone.name)
+            return new_bone
+
+        # メッシュローカル座標での 3D カーソルの位置を計算
         obj = meshObj.obj
-        cursor_loc = obj.matrix_world.inverted() @ bpy.context.scene.cursor.location
+        mtx = obj.matrix_world.inverted()
+        cursor_loc = mtx @ bpy.context.scene.cursor.location
+        handle_vector = mtx.to_3x3() @ handle_vector
 
         # 3D カーソルの位置にルートボーンを作成
-        # FIXME
-        # アーマチュアローカル座標に変換すべし
-        root_bone = edit_bones.new(f'{basename}_Root')
-        root_bone.head = cursor_loc
-        root_bone.tail = cursor_loc + Vector((0, 0, 1))
-        created_bones.append(root_bone.name)
+        if create_root:
+            root_bone = create_bone(f'{basename}_Root{suffix}',
+                                    cursor_loc,
+                                    cursor_loc + handle_vector)
+        else:
+            root_bone = None
 
+        # 参照用の bmesh を作成
         mesh = obj.data
         bm = bmesh.new()
         bm.from_mesh(mesh)
         bm.verts.ensure_lookup_table()
+
+        # 頂点インデックス→頂点グループ のリスト
+        vert_to_boneNames = dict()
+        def vert_to_boneNames_add(vert, bone):
+            nonlocal vert_to_boneNames
+            lst = vert_to_boneNames.get(vert.index, [])
+            lst.append(bone.name)
+            vert_to_boneNames[vert.index] = lst
+
+        strip_bones = []
+        strip_handles = []
 
         # strip に基づいてボーンを作成
         for strip_count, strip in enumerate(strips):
@@ -204,28 +296,134 @@ def createArmatureFromSelectedEdges(meshObj,  basename='Bone'):
 
             parent = root_bone
             vert_head = bm.verts[strip[0]]
+            bones = []
+            handles = []
             for bone_count, vert_idx in enumerate(strip[1:]):
                 vert_tail = bm.verts[vert_idx]
-                newName = f'{basename}_{strip_count}_{bone_count}'
-                bone = edit_bones.new(newName)
-                # FIXME
-                # メッシュローカル座標からアーマチュアローカル座標に変換すべし
-                bone.head = vert_head.co
-                bone.tail = vert_tail.co
-                bone.parent = parent
-                bone.use_connect = (parent != root_bone)
-                created_bones.append(bone.name)
+                bone = create_bone(f'{basename}_{strip_count}.{bone_count}{suffix}',
+                                   vert_head.co,
+                                   vert_tail.co,
+                                   parent = parent,
+                                   use_connect = (bone_count > 0),
+                                   use_deform = True)
+                bone.bbone_segments = bbone_segments
+                bones.append(bone.name)
 
+                # ウェイトを乗せる頂点を設定
+                # 最初の骨は head と tail、ほかは tail のみ
+                if bone_count == 0:
+                    vert_to_boneNames_add(vert_head, bone)
+                vert_to_boneNames_add(vert_tail, bone)
+
+                # ハンドルの作成
+                if create_handle:
+                    if bone_count == 0:
+                        # 開始ハンドルの作成
+                        vec = vert_tail.co - vert_head.co
+                        vec = vec.normalized() * handle_vector.length
+                        handle = create_bone(f'handle_head_{bone.name}',
+                                             vert_head.co,
+                                             vert_head.co + vec,
+                                             parent = root_bone)
+                        bone.bbone_custom_handle_start = handle
+                        bone.bbone_handle_type_start = 'TANGENT'
+
+                        # 開始ハンドルは handles に保存せず、
+                        # bbone_custom_handle_start から参照する
+
+                    if bone_count < len(strip) - 2:
+                        # 途中ハンドルの作成
+                        handle = create_bone(f'handle_{bone.name}',
+                                             vert_tail.co,
+                                             vert_tail.co + handle_vector,
+                                             parent = root_bone)
+                    else:
+                        # 終了ハンドルの作成
+                        vec = vert_tail.co - vert_head.co
+                        vec = vec.normalized() * handle_vector.length
+                        handle = create_bone(f'handle_{bone.name}',
+                                             vert_tail.co,
+                                             vert_tail.co + vec,
+                                             parent = root_bone)
+                        bone.bbone_custom_handle_end = handle
+                        bone.bbone_handle_type_end = 'TANGENT'
+
+                    handles.append(handle.name)
+
+                # 次へ
                 vert_head = vert_tail
                 parent = bone
 
+            strip_bones.append(bones)
+            strip_handles.append(handles)
+
         bm.free()
+        print(vert_to_boneNames)
+
+
+    # ハンドル絡みのコンストレイントの設定
+    if create_handle:
+        with iu.mode_context(arma.obj, 'POSE'):
+            for bones, handles in zip(strip_bones, strip_handles):
+                # 最初のボーンにコピートランスフォームコンストレイントを追加
+                # 開始ハンドルのトランスフォームをコピー
+                bone = arma.obj.pose.bones[bones[0]]
+                handle_name = bone.bbone_custom_handle_start.name
+                cst = bone.constraints.new('COPY_TRANSFORMS')
+                cst.target = arma.obj
+                cst.subtarget = handle_name
+                cst.target_space = 'POSE'
+                cst.owner_space = 'POSE'
+
+                # 全てのボーンに stretch-to コンストレイントを追加
+                for bn, hn in zip(bones, handles):
+                    print(bn, hn)
+                    bone = arma.obj.pose.bones[bn]
+                    cst = bone.constraints.new('STRETCH_TO')
+                    cst.target = arma.obj
+                    cst.subtarget = hn
+                    cst.volume = 'NO_VOLUME'
 
     # ベンディボーンのサイズを自動調整
     # FIXME サイズを指定できるようにする？
-    adjust_bendy_bone_size(armature, created_bones, 0.1, 0.1)
+    adjust_bendy_bone_size(arma.obj, created_bones, 0.1, 0.1)
 
-    return armature
+    # 頂点ウェイトの設定
+    if set_weight:
+        with iu.mode_context(meshObj.obj, 'OBJECT'):
+            obj = meshObj.obj
+
+            # 対象の頂点のウェイトをまずは全て削除
+            # verts = list(vert_to_boneNames.keys())
+            # for vertex_group in obj.vertex_groups:
+            #     vertex_group.remove(verts)
+
+            # 新しい頂点グループの作成とリセット
+            all_verts = list(range(len(mesh.vertices)))
+            for bn in created_deform_bones:
+                vertex_group = obj.vertex_groups.get(bn)
+                if not vertex_group:
+                    vertex_group = obj.vertex_groups.new(name=bn)
+                vertex_group.remove(all_verts)
+
+            # 対象の頂点のウェイトを設定
+            for v_idx, bone_names in vert_to_boneNames.items():
+                print(f'v[{v_idx}] -> {bone_names}')
+                weight = 1 / len(bone_names)
+                for bn in bone_names:
+                    vertex_group = obj.vertex_groups[bn]
+                    vertex_group.add([v_idx], weight, 'ADD')
+
+            # アーマチュアモディファイアの設定
+            for mod in obj.modifiers:
+                if mod.type == 'ARMATURE':
+                    break
+            else:
+                # Add armature modifier to the object
+                mod = obj.modifiers.new(name="Armature", type='ARMATURE')
+            mod.object = arma.obj
+
+    return arma, created_bones
 
 ################
 # ボーンのツリーごとの、ルートを 0 としたインデックスを取得する

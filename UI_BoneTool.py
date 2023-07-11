@@ -122,6 +122,90 @@ def get_axis_enum():
         default='NEG_Y')
 
 ################
+class DDDBT_createBonesFromSelectedEdges_propertyGroup(PropertyGroup):
+    obj_name_to_basename: BoolProperty(
+        name=_('Object Name to Bone Name'),
+        description=_('The object name is automatically set as the bone name.'),
+        default=True,
+    )
+    basename: StringProperty(
+        name=_('Bone Name'),
+        description=_('The name of the bone to be created.'),
+        default='Bone',
+    )
+    suffix: StringProperty(
+        name=_('接尾辞'),
+        description=_('接尾辞を指定します'),
+        default='',
+    )
+    create_root: BoolProperty(
+        name=_('ルートボーンを作成する'),
+        description=_('3Dカーソルの位置にルートボーンを作成するかどうかを指定します'),
+        default=False,
+    )
+    create_handle: BoolProperty(
+        name=_('ハンドルを作成する'),
+        description=_('骨を操作するためのハンドルを作成するかどうかを指定します。チェックすると、ボーンの前後にハンドルが作成され、Stretch-to コンストレイントやトランスフォームコピーコンストレイントなどが作成されます'),
+        default=False,
+    )
+    bbone_segments: IntProperty(
+        name=_('ベンディボーンの分割数'),
+        description=_('ベンディボーンの分割数を指定します。2以上を設定するとベンディボーンになります'),
+        min=1,
+        max=32,
+        default=1,
+    )
+    use_existing_armature: BoolProperty(
+        name=_('既存のアーマチュアを使用する'),
+        description=_('ペアレント→アーマチュアモディファイア、の順に検索し、見つかったアーマチュアを使用します。見つからなかった場合、新規にアーマチュアを作成します'),
+        default=True,
+    )
+    set_weight: BoolProperty(
+        name=_('頂点ウェイトを設定する'),
+        description=_('メッシュに頂点ウェイトを設定します'),
+        default=True,
+    )
+    handle_vector: FloatVectorProperty(
+        name=_('ハンドルの方向'),
+        description=_('ハンドルの方向と長さを指定します'),
+        size=3,
+        default=[0, -0.5, 0],
+        precision=2,
+        step=1.0,
+        unit='NONE',
+    )
+
+    def draw(self, layout):
+        col = layout.column(align=True)
+        col.prop(self, 'obj_name_to_basename')
+        col2 = col.box().column(align=True)
+        col2.enabled = not self.obj_name_to_basename
+        col2.prop(self, 'basename')
+        col2.prop(self, 'suffix')
+
+        col.prop(self, 'use_existing_armature')
+        col.prop(self, 'set_weight')
+        col.prop(self, 'bbone_segments')
+
+        col.prop(self, 'create_root')
+        col.prop(self, 'create_handle')
+        col2 = col.box().column(align=True)
+        col2.enabled = self.create_root or self.create_handle
+        col2.prop(self, 'handle_vector')
+
+
+    def copy_from(self, src):
+        self.obj_name_to_basename = src.obj_name_to_basename
+        self.basename = src.basename
+        self.suffix = src.suffix
+        self.create_root = src.create_root
+        self.create_handle = src.create_handle
+        self.bbone_segments = src.bbone_segments
+        self.use_existing_armature = src.use_existing_armature
+        self.set_weight = src.set_weight
+        self.handle_vector = src.handle_vector
+
+################
 class DDDBT_buildHandleFromVertices_propertyGroup(PropertyGroup):
     bone_length: FloatProperty(
         name=_('Bone Length'),
@@ -305,17 +389,9 @@ class DDDBT_poseProportionalMove_propertyGroup(PropertyGroup):
 
 ################
 class DDDBT_propertyGroup(PropertyGroup):
-    display_createArmatureFromSelectedEdges: BoolProperty(default=False)
-    objNameToBasename: BoolProperty(
-        name=_('Object Name to Bone Name'),
-        description=_('The object name is automatically set as the bone name.'),
-        default=True,
-    )
-    basename: StringProperty(
-        name=_('Bone Name'),
-        description=_('The name of the bone to be created.'),
-        default='Bone',
-    )
+    display_createBonesFromSelectedEdges: BoolProperty(default=False)
+    createBonesFromSelectedEdgesProp: PointerProperty(
+        type=DDDBT_createBonesFromSelectedEdges_propertyGroup)
 
     display_createEncasedSkin: BoolProperty(default=False)
     createEncasedSkinProp: PointerProperty(
@@ -427,28 +503,48 @@ class DDDBT_OT_applyArmatureToRestPose(Operator):
         return {'FINISHED'}
 
 ################
-class DDDBT_OT_createArmatureFromSelectedEdges(Operator):
+class DDDBT_OT_createBonesFromSelectedEdges(Operator):
     bl_idname = 'dddbt.create_armature_from_selected_edges'
     bl_label = _('Edges to Bones')
+    # FIXME
     bl_description = _('Creates an armature such that the currently selected edge of the active mesh is the bone. The orientation and connections of the bones are automatically set by the distance from the 3D cursor.')
-    bl_options = {'UNDO'}
+    bl_options = {'REGISTER', 'UNDO'}
+
+    m_prop: PointerProperty(type=DDDBT_createBonesFromSelectedEdges_propertyGroup)
 
     @classmethod
     def poll(self, context):
-        return bpy.context.active_object and bpy.context.active_object.type == 'MESH'
+        return bpy.context.mode == 'EDIT_MESH' and iu.get_total_edge_sel(bpy.context.active_object) > 0
 
     def execute(self, context):
         prop = context.scene.dddtools_bt_prop
+        prop.createBonesFromSelectedEdgesProp.copy_from(self.m_prop)
         obj = iu.ObjectWrapper(bpy.context.active_object)
-        if prop.objNameToBasename:
+        if self.m_prop.obj_name_to_basename:
             basename = obj.name
         else:
-            basename = prop.basename
-        arma = bt.createArmatureFromSelectedEdges(obj, basename=basename)
+            basename = self.m_prop.basename
+        arma, created_bones = bt.createBonesFromSelectedEdges(
+            obj,
+            basename=basename,
+            suffix=self.m_prop.suffix,
+            create_root=self.m_prop.create_root,
+            create_handle=self.m_prop.create_handle,
+            bbone_segments=self.m_prop.bbone_segments,
+            use_existing_armature=self.m_prop.use_existing_armature,
+            set_weight=self.m_prop.set_weight,
+            handle_vector=Vector(self.m_prop.handle_vector))
+        
         if arma:
+            bt.select_bones(arma, created_bones)
             return {'FINISHED'}
         else:
             return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        prop = context.scene.dddtools_bt_prop
+        self.m_prop.copy_from(prop.createBonesFromSelectedEdgesProp)
+        return self.execute(context)
 
 ################
 class DDDBT_OT_createMeshFromSelectedBones(Operator):
@@ -1362,14 +1458,11 @@ class DDDBT_PT_BoneTool(Panel):
         col.operator(DDDBT_OT_resetStretchTo.bl_idname)
         col.operator(DDDBT_OT_applyArmatureToRestPose.bl_idname)
         col.operator(DDDBT_OT_createMeshFromSelectedBones.bl_idname)
-        display, split = ui.splitSwitch(col, prop, 'display_createArmatureFromSelectedEdges')
-        split.operator(DDDBT_OT_createArmatureFromSelectedEdges.bl_idname)
+        display, split = ui.splitSwitch(col, prop, 'display_createBonesFromSelectedEdges')
+        split.operator(DDDBT_OT_createBonesFromSelectedEdges.bl_idname)
         if display:
             box = col.box().column()
-            box.prop(prop, 'objNameToBasename')
-            col2 = box.column(align=True)
-            col2.enabled = not prop.objNameToBasename
-            col2.prop(prop, 'basename')
+            prop.createBonesFromSelectedEdgesProp.draw(box)
     
         display, split = ui.splitSwitch(col, prop, 'display_createEncasedSkin')
         split.operator(DDDBT_OT_createEncasedSkin.bl_idname)
@@ -1414,6 +1507,7 @@ def draw_pose_menu(self, context):
 
 ################################################################
 classes = (
+    DDDBT_createBonesFromSelectedEdges_propertyGroup,
     DDDBT_createEncasedSkin_propertyGroup,
     DDDBT_buildHandleFromVertices_propertyGroup,
     DDDBT_buildHandleFromBones_propertyGroup,
@@ -1425,7 +1519,7 @@ classes = (
     DDDBT_OT_renameBonesForSymmetry,
     DDDBT_OT_resetStretchTo,
     DDDBT_OT_applyArmatureToRestPose,
-    DDDBT_OT_createArmatureFromSelectedEdges,
+    DDDBT_OT_createBonesFromSelectedEdges,
     DDDBT_OT_createMeshFromSelectedBones,
     DDDBT_OT_selectAncestralBones,
     DDDBT_OT_printSelectedBoneNamess,
