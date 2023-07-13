@@ -131,21 +131,16 @@ class DDDBT_createBonesFromSelectedEdges_propertyGroup(PropertyGroup):
     basename: StringProperty(
         name=_('Bone Name'),
         description=_('The name of the bone to be created.'),
-        default='Bone',
+        default='Lip',
     )
     suffix: StringProperty(
         name=_('接尾辞'),
         description=_('接尾辞を指定します'),
-        default='',
-    )
-    create_root: BoolProperty(
-        name=_('ルートボーンを作成する'),
-        description=_('3Dカーソルの位置にルートボーンを作成するかどうかを指定します'),
-        default=False,
+        default='L',
     )
     create_handle: BoolProperty(
-        name=_('ハンドルを作成する'),
-        description=_('骨を操作するためのハンドルを作成するかどうかを指定します。チェックすると、ボーンの前後にハンドルが作成され、Stretch-to コンストレイントやトランスフォームコピーコンストレイントなどが作成されます'),
+        name=_('リグにする'),
+        description=_('チェックすると、リグとして使えるようにハンドルを作成します。また、Stretch-to コンストレイントやトランスフォームコピーコンストレイントなどが自動的に作成されます。これにより、ボーンの前後に作成されたハンドルを使ってリグとして操作できます'),
         default=False,
     )
     bbone_segments: IntProperty(
@@ -155,24 +150,10 @@ class DDDBT_createBonesFromSelectedEdges_propertyGroup(PropertyGroup):
         max=32,
         default=1,
     )
-    use_existing_armature: BoolProperty(
-        name=_('既存のアーマチュアを使用する'),
-        description=_('ペアレント→アーマチュアモディファイア、の順に検索し、見つかったアーマチュアを使用します。見つからなかった場合、新規にアーマチュアを作成します'),
-        default=True,
-    )
     set_weight: BoolProperty(
-        name=_('頂点ウェイトを設定する'),
-        description=_('メッシュに頂点ウェイトを設定します'),
+        name=_('頂点ウェイトを付ける'),
+        description=_('エッジの頂点に、作成したボーンに対応する頂点ウェイトを設定します'),
         default=True,
-    )
-    handle_vector: FloatVectorProperty(
-        name=_('ハンドルの方向'),
-        description=_('ハンドルの方向と長さを指定します'),
-        size=3,
-        default=[0, -0.5, 0],
-        precision=2,
-        step=1.0,
-        unit='NONE',
     )
 
     def draw(self, layout):
@@ -183,27 +164,17 @@ class DDDBT_createBonesFromSelectedEdges_propertyGroup(PropertyGroup):
         col2.prop(self, 'basename')
         col2.prop(self, 'suffix')
 
-        col.prop(self, 'use_existing_armature')
         col.prop(self, 'set_weight')
-        col.prop(self, 'bbone_segments')
-
-        col.prop(self, 'create_root')
         col.prop(self, 'create_handle')
-        col2 = col.box().column(align=True)
-        col2.enabled = self.create_root or self.create_handle
-        col2.prop(self, 'handle_vector')
-
+        col.prop(self, 'bbone_segments')
 
     def copy_from(self, src):
         self.obj_name_to_basename = src.obj_name_to_basename
         self.basename = src.basename
         self.suffix = src.suffix
-        self.create_root = src.create_root
         self.create_handle = src.create_handle
         self.bbone_segments = src.bbone_segments
-        self.use_existing_armature = src.use_existing_armature
         self.set_weight = src.set_weight
-        self.handle_vector = src.handle_vector
 
 ################
 class DDDBT_buildHandleFromVertices_propertyGroup(PropertyGroup):
@@ -524,27 +495,37 @@ class DDDBT_OT_createBonesFromSelectedEdges(Operator):
             basename = obj.name
         else:
             basename = self.m_prop.basename
+        suffix = self.m_prop.suffix
+        if suffix: suffix = f'.{suffix}'
+
         arma, created_bones = bt.createBonesFromSelectedEdges(
             obj,
             basename=basename,
-            suffix=self.m_prop.suffix,
-            create_root=self.m_prop.create_root,
+            suffix=suffix,
+            use_existing_armature=True,
             create_handle=self.m_prop.create_handle,
             bbone_segments=self.m_prop.bbone_segments,
-            use_existing_armature=self.m_prop.use_existing_armature,
-            set_weight=self.m_prop.set_weight,
-            handle_vector=Vector(self.m_prop.handle_vector))
+            set_weight=self.m_prop.set_weight)
         
         if arma:
+            self.report({'INFO'},
+                        iface_('アーマチュア({arma_name})にボーン({created_bones})を作成しました。').\
+                        format(arma_name=arma.name,
+                               created_bones=sorted(created_bones)))
             bt.select_bones(arma, created_bones)
             return {'FINISHED'}
         else:
+            self.report({'WARNING'}, iface_('ボーンは作成されませんでした'))
             return {'CANCELLED'}
 
     def invoke(self, context, event):
         prop = context.scene.dddtools_bt_prop
         self.m_prop.copy_from(prop.createBonesFromSelectedEdgesProp)
+        bpy.ops.ed.undo_push(message='Create Bones From Selected Edges')
         return self.execute(context)
+
+    def draw(self, context):
+        self.m_prop.draw(self.layout)
 
 ################
 class DDDBT_OT_createMeshFromSelectedBones(Operator):

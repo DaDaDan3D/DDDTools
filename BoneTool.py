@@ -154,8 +154,7 @@ def createBonesFromSelectedEdges(meshObj,
                                  create_handle=False,
                                  bbone_segments=1,
                                  use_existing_armature=True,
-                                 set_weight=True,
-                                 handle_vector=Vector((0,-1,0))):
+                                 set_weight=True):
     """
     Create bones such that the selected edge of the object is the bone. The bone's orientation and connections are automatically calculated based on its distance from the 3D cursor.
 
@@ -211,19 +210,24 @@ def createBonesFromSelectedEdges(meshObj,
         return None, None
 
     if use_existing_armature:
-        arma = iu.ObjectWrapper(find_existing_armature(meshObj.obj))
+        existing_arma = iu.ObjectWrapper(find_existing_armature(meshObj.obj))
     else:
-        arma = None
+        existing_arma = None
 
-    if not arma:
-        # アーマチュアを作成
-        arm_data = bpy.data.armatures.new('Armature')
-        armature = bpy.data.objects.new('Armature', arm_data)
-        iu.setupObject(armature, None, 'OBJECT', '', Matrix())
-        bpy.context.collection.objects.link(armature)
-        if set_weight:
-            meshObj.obj.parent = armature
-        arma = iu.ObjectWrapper(armature)
+    # アーマチュアを作成
+    # Blender のバグで、メッシュが EDIT モードの時に、
+    # 既存のアーマチュアを EDIT モードにしてボーンを追加すると
+    # Undo ができなくなってしまう(おそらくメモリリークしている)
+    # そのため、まず強制的に新規アーマチュアを作る
+    arm_data = bpy.data.armatures.new('Armature')
+    armature = bpy.data.objects.new('Armature', arm_data)
+    iu.setupObject(armature, None, 'OBJECT', '', Matrix())
+    bpy.context.collection.objects.link(armature)
+    if set_weight:
+        meshObj.obj.parent = armature
+    if bbone_segments > 1:
+        armature.data.display_type = 'BBONE'
+    arma = iu.ObjectWrapper(armature)
 
     # アーマチュアローカル座標に変換
     mtx = arma.obj.matrix_world.inverted()
@@ -231,7 +235,7 @@ def createBonesFromSelectedEdges(meshObj,
 
     # ボーンを作成するために編集モードにする
     with iu.mode_context(arma.obj, 'EDIT'):
-        edit_bones = arma.obj.data.edit_bones
+        mesh = meshObj.obj.data
 
         # 新規作成したボーン
         created_bones = []
@@ -244,8 +248,8 @@ def createBonesFromSelectedEdges(meshObj,
                         parent=None,
                         use_connect=False,
                         use_deform=False):
-            nonlocal edit_bones, created_bones, created_deform_bones
-            new_bone = edit_bones.new(new_name)
+            nonlocal arma, created_bones, created_deform_bones
+            new_bone = arma.obj.data.edit_bones.new(new_name)
             new_bone.head = mesh_to_arma @ head
             new_bone.tail = mesh_to_arma @ tail
             new_bone.parent = parent
@@ -257,10 +261,8 @@ def createBonesFromSelectedEdges(meshObj,
             return new_bone
 
         # メッシュローカル座標での 3D カーソルの位置を計算
-        obj = meshObj.obj
-        mtx = obj.matrix_world.inverted()
+        mtx = meshObj.obj.matrix_world.inverted()
         cursor_loc = mtx @ bpy.context.scene.cursor.location
-        handle_vector = mtx.to_3x3() @ handle_vector
 
         # 3D カーソルの位置にルートボーンを作成
         if create_root:
@@ -270,11 +272,25 @@ def createBonesFromSelectedEdges(meshObj,
         else:
             root_bone = None
 
-        # 参照用の bmesh を作成
-        mesh = obj.data
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
-        bm.verts.ensure_lookup_table()
+        # 辺ストリップからハンドルの長さと向きを計算する
+        if create_root or create_handle:
+            vectors = np.array([])
+            normals = np.array([])
+            for strip in strips:
+                coords = np.array([list(mesh.vertices[v].co) for v in strip])
+                vectors = np.append(
+                    vectors,
+                    (np.roll(coords, -1, axis=0) - coords)[:-1])
+                normals = np.append(
+                    normals,
+                    np.array([list(mesh.vertices[v].normal) for v in strip]))
+
+            vectors = np.reshape(vectors, (-1, 3))
+            handle_length = np.median(np.linalg.norm(vectors, axis=-1)) * 0.5
+
+            normals = np.reshape(normals, (-1, 3))
+            normal = np.mean(normals, axis=0)
+            handle_vector = Vector(mu.closest_axis(normal) * handle_length)
 
         # 頂点インデックス→頂点グループ のリスト
         vert_to_boneNames = dict()
@@ -290,16 +306,16 @@ def createBonesFromSelectedEdges(meshObj,
         # strip に基づいてボーンを作成
         for strip_count, strip in enumerate(strips):
             # 近い方を始点にする
-            if (bm.verts[strip[0]].co - cursor_loc).length >\
-               (bm.verts[strip[-1]].co - cursor_loc).length:
+            if (mesh.vertices[strip[0]].co - cursor_loc).length >\
+               (mesh.vertices[strip[-1]].co - cursor_loc).length:
                 strip.reverse()
 
             parent = root_bone
-            vert_head = bm.verts[strip[0]]
+            vert_head = mesh.vertices[strip[0]]
             bones = []
             handles = []
             for bone_count, vert_idx in enumerate(strip[1:]):
-                vert_tail = bm.verts[vert_idx]
+                vert_tail = mesh.vertices[vert_idx]
                 bone = create_bone(f'{basename}_{strip_count}.{bone_count}{suffix}',
                                    vert_head.co,
                                    vert_tail.co,
@@ -319,8 +335,7 @@ def createBonesFromSelectedEdges(meshObj,
                 if create_handle:
                     if bone_count == 0:
                         # 開始ハンドルの作成
-                        vec = vert_tail.co - vert_head.co
-                        vec = vec.normalized() * handle_vector.length
+                        vec = (vert_tail.co - vert_head.co) * 0.5
                         handle = create_bone(f'handle_head_{bone.name}',
                                              vert_head.co,
                                              vert_head.co + vec,
@@ -340,7 +355,7 @@ def createBonesFromSelectedEdges(meshObj,
                     else:
                         # 終了ハンドルの作成
                         vec = vert_tail.co - vert_head.co
-                        vec = vec.normalized() * handle_vector.length
+                        vec = vec.normalized() * handle_length
                         handle = create_bone(f'handle_{bone.name}',
                                              vert_tail.co,
                                              vert_tail.co + vec,
@@ -356,9 +371,6 @@ def createBonesFromSelectedEdges(meshObj,
 
             strip_bones.append(bones)
             strip_handles.append(handles)
-
-        bm.free()
-        print(vert_to_boneNames)
 
 
     # ハンドル絡みのコンストレイントの設定
@@ -377,7 +389,6 @@ def createBonesFromSelectedEdges(meshObj,
 
                 # 全てのボーンに stretch-to コンストレイントを追加
                 for bn, hn in zip(bones, handles):
-                    print(bn, hn)
                     bone = arma.obj.pose.bones[bn]
                     cst = bone.constraints.new('STRETCH_TO')
                     cst.target = arma.obj
@@ -388,18 +399,23 @@ def createBonesFromSelectedEdges(meshObj,
     # FIXME サイズを指定できるようにする？
     adjust_bendy_bone_size(arma.obj, created_bones, 0.1, 0.1)
 
+    # 既存のアーマチュアにマージする
+    if existing_arma:
+        merge_armatures(existing_arma.name, arma.name)
+        arma = existing_arma
+
     # 頂点ウェイトの設定
     if set_weight:
         with iu.mode_context(meshObj.obj, 'OBJECT'):
             obj = meshObj.obj
 
-            # 対象の頂点のウェイトをまずは全て削除
+            # # 対象の頂点のウェイトをまずは全て削除
             # verts = list(vert_to_boneNames.keys())
             # for vertex_group in obj.vertex_groups:
             #     vertex_group.remove(verts)
 
             # 新しい頂点グループの作成とリセット
-            all_verts = list(range(len(mesh.vertices)))
+            all_verts = list(range(len(obj.data.vertices)))
             for bn in created_deform_bones:
                 vertex_group = obj.vertex_groups.get(bn)
                 if not vertex_group:
@@ -408,7 +424,7 @@ def createBonesFromSelectedEdges(meshObj,
 
             # 対象の頂点のウェイトを設定
             for v_idx, bone_names in vert_to_boneNames.items():
-                print(f'v[{v_idx}] -> {bone_names}')
+                # print(f'v[{v_idx}] -> {bone_names}')
                 weight = 1 / len(bone_names)
                 for bn in bone_names:
                     vertex_group = obj.vertex_groups[bn]
@@ -1297,3 +1313,32 @@ def rename_bones_for_symmetry(arma, bone_names, epsilon=None):
         pass
 
     return result
+
+################
+def merge_armatures(armature_name0, armature_name1):
+    #print(f'Merge {armature_name0} + {armature_name1}')
+
+    arma_0 = iu.ObjectWrapper(armature_name0)
+    arma_1 = iu.ObjectWrapper(armature_name1)
+    with iu.mode_context(arma_0.obj, 'OBJECT'):
+        # Store original names and rename bones of arma_0 using UUID
+        original_names = dict()
+        for bone in arma_0.obj.data.bones:
+            new_name = str(uuid.uuid4())
+            original_names[new_name] = bone.name
+            #print(f'{new_name} <- {bone.name}')
+            bone.name = new_name
+
+        # Join armatures
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.context.view_layer.objects.active = arma_0.obj
+        arma_0.select_set(True)
+        arma_1.select_set(True)
+        bpy.ops.object.join()
+
+        # Rename bones of merged armature back to original names
+        for bone in arma_0.obj.data.bones:
+            original_name = original_names.get(bone.name)
+            if original_name:
+                #print(f'{bone.name} -> {original_name}')
+                bone.name = original_name
