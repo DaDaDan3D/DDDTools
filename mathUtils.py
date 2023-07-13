@@ -735,3 +735,32 @@ def distances_to_edges(verts, point):
     )
 
     return distances
+
+################
+def closest_axis(vector):
+    """
+    Given a vector in 'n' dimensions, find the axis (positive or negative direction)
+    that makes the smallest angle with the vector.
+
+    Parameters
+    ----------
+    vector : numpy.ndarray
+        The input vector.
+
+    Returns
+    -------
+    numpy.ndarray
+        The axis that makes the smallest angle with the input vector.
+
+    """
+    # 基準となる軸 (正方向と負方向)
+    dim = vector.shape[0]
+    axes = np.vstack((np.eye(dim), -np.eye(dim)))
+    
+    # 各軸とのコサイン類似度を計算
+    cosine_similarity = np.dot(axes, vector)
+    
+    # 最も類似度が高い（角度が小さい）軸を返す
+    closest = axes[np.argmax(cosine_similarity)]
+    
+    return closest
