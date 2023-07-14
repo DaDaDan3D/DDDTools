@@ -805,58 +805,118 @@ def getDirection(axis, length=1):
         raise ValueError(f'Illegal axis: {axis}')
 
 ################
-def buildHandleFromVertices(bone_length=0.1,
-                            set_parent=False,
-                            axis='NEG_Y',
-                            basename='handle'):
-    selected_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
-    created_bones = []
+def buildHandleFromVertices(prefix='handle',
+                            handle_factor=0.1,
+                            handle_align_axis=True,
+                            use_existing_armature=True,
+                            set_weight=True):
+    selected_objects = [iu.ObjectWrapper(o) for o in bpy.context.selected_objects if o.type == 'MESH']
 
-    # Create new armature
+    # 頂点情報
+    @dataclass
+    class VertInfo:
+        v_idx : int
+        location : Vector       # 座標(ワールド)
+        normal : Vector         # 法線(ワールド)
+        bone_name : str
+
+    # ボーンを作成すべき頂点のリストを作成する
+    vert_infos = dict()
+    for mo in selected_objects:
+        # オブジェクトモードにすることでメッシュを確定する
+        with iu.mode_context(mo.obj, 'OBJECT'):
+            mesh = mo.data
+            mtx = mo.obj.matrix_world
+            mtx_rot = mtx.to_3x3().normalized()
+            vis = [
+                VertInfo(v.index, mtx @ v.co, mtx_rot @ v.normal, '') \
+                for v in mesh.vertices if v.select]
+            if vis:
+                vert_infos[mo.name] = vis
+    if not vert_infos:
+        return None, None
+
+    # ポリゴン面積の中央値からハンドルの長さを計算
+    areas = np.array([
+        p.area for mo in selected_objects for p in mo.data.polygons])
+    handle_length = math.sqrt(np.median(areas)) * handle_factor
+
+    # アーマチュアを作成
+    # Blender のバグで、メッシュが EDIT モードの時に、
+    # 既存のアーマチュアを EDIT モードにしてボーンを追加すると
+    # Undo ができなくなってしまう(おそらくメモリリークしている)
+    # そのため、まず強制的に新規アーマチュアを作る
     arm_data = bpy.data.armatures.new('Armature')
     armature = bpy.data.objects.new('Armature', arm_data)
     iu.setupObject(armature, None, 'OBJECT', '', Matrix())
     bpy.context.collection.objects.link(armature)
+    arma = iu.ObjectWrapper(armature)
 
-    with iu.mode_context(armature, 'EDIT'):
-        for obj in selected_objects:
-            with iu.mode_context(obj, 'OBJECT'):
+    # ボーンを作成
+    created_bones = []
+    with iu.mode_context(arma.obj, 'EDIT'):
+        edit_bones = arma.data.edit_bones
+        for obj_name, vis in vert_infos.items():
+            for vi in vis:
                 # For each vertex, create a new bone
-                for vertex in obj.data.vertices:
-                    if vertex.select:
-                        new_bone = armature.data.edit_bones.new(f"{basename}_{obj.name}_{vertex.index}")
-                        new_bone.head = obj.matrix_world @ vertex.co
-                        new_bone.tail = new_bone.head + getDirection(axis, length=bone_length)
-                        created_bones.append(new_bone.name)
-
-    if not created_bones:
-        # When no bones are created, remove armature
-        iu.removeObject(armature)
-        return None
-
-    if set_parent:
-        for obj in selected_objects:
-            with iu.mode_context(obj, 'OBJECT'):
-                # Parent the mesh to the armature
-                obj.parent = armature
-
-                # Add armature modifier to the object
-                armature_mod = obj.modifiers.new(name="ArmatureMod", type='ARMATURE')
-                armature_mod.object = armature
-
-                # Add new bone to vertex group and set the weight to 1
-                for vertex in obj.data.vertices:
-                    if vertex.select:
-                        group_name = f"{basename}_{obj.name}_{vertex.index}"
-                        if group_name not in obj.vertex_groups:
-                            obj.vertex_groups.new(name=group_name)
-                        obj.vertex_groups[group_name].add([vertex.index], 1.0, 'REPLACE')
+                if handle_align_axis:
+                    vec = Vector(mu.closest_axis(np.array(vi.normal)))
+                else:
+                    vec = vi.normal
+                new_name = f"{prefix}_{obj_name}_{vi.v_idx}"
+                new_bone = edit_bones.new(new_name)
+                new_bone.head = vi.location
+                new_bone.tail = vi.location + vec * handle_length
+                created_bones.append(new_bone.name)
+                vi.bone_name = new_bone.name
 
     # ベンディボーンのサイズを自動調整
     # FIXME サイズを指定できるようにする？
-    adjust_bendy_bone_size(armature, created_bones, 0.1, 0.1)
+    adjust_bendy_bone_size(arma.obj, created_bones, 0.1, 0.1)
 
-    return armature
+    # 既存のアーマチュアを検索してマージ
+    if use_existing_armature:
+        for obj_name in vert_infos.keys():
+            obj = bpy.data.objects[obj_name]
+            existing_armature = find_existing_armature(obj)
+            if existing_armature:
+                merge_armatures(existing_armature.name, arma.name)
+                arma = iu.ObjectWrapper(existing_armature)
+                break
+
+    # 頂点ウェイトを設定
+    if set_weight:
+        for obj_name, vis in vert_infos.items():
+            obj = bpy.data.objects[obj_name]
+            with iu.mode_context(obj, 'OBJECT'):
+                # Parent the mesh to the armature
+                obj.parent = arma.obj
+
+                all_verts = list(range(len(obj.data.vertices)))
+                for vi in vis:
+                    # 新しい頂点グループの作成とリセット
+                    vertex_group = obj.vertex_groups.get(vi.bone_name)
+                    if not vertex_group:
+                        vertex_group = obj.vertex_groups.new(name=vi.bone_name)
+                    vertex_group.remove(all_verts)
+                
+                    # 対象の頂点のウェイトを設定
+                    vertex_group.add([vi.v_idx], 1, 'REPLACE')
+
+                # アーマチュアモディファイアの設定
+                for mod in obj.modifiers:
+                    if mod.type == 'ARMATURE':
+                        break
+                else:
+                    # Add armature modifier to the object
+                    mod = obj.modifiers.new(name="Armature", type='ARMATURE')
+                mod.object = arma.obj
+
+    # メッシュを選択状態にする
+    for mo in selected_objects:
+        mo.select_set(True)
+
+    return arma, created_bones
 
 ################
 def buildHandleFromBones(bone_length=0.1, axis='NEG_Y', pre='handle'):
@@ -1324,10 +1384,11 @@ def merge_armatures(armature_name0, armature_name1):
         # Store original names and rename bones of arma_0 using UUID
         original_names = dict()
         for bone in arma_0.obj.data.bones:
-            new_name = str(uuid.uuid4())
-            original_names[new_name] = bone.name
-            #print(f'{new_name} <- {bone.name}')
-            bone.name = new_name
+            if bone.name in arma_1.obj.data.bones:
+                new_name = str(uuid.uuid4())
+                original_names[new_name] = bone.name
+                #print(f'{new_name} <- {bone.name}')
+                bone.name = new_name
 
         # Join armatures
         bpy.ops.object.select_all(action='DESELECT')

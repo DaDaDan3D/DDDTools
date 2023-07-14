@@ -178,33 +178,37 @@ class DDDBT_createBonesFromSelectedEdges_propertyGroup(PropertyGroup):
 
 ################
 class DDDBT_buildHandleFromVertices_propertyGroup(PropertyGroup):
-    bone_length: FloatProperty(
-        name=_('Bone Length'),
+    handle_factor: FloatProperty(
+        name=_('Bone Length'),  # FIXME
         description=_('Specify the length of the handle bone (m).'),
-        subtype='DISTANCE',
+        subtype='FACTOR',
         default=0.1,
-        min=0.001,
+        min=0.01,
+        max=2.00,
         precision=2,
         step=1,
-        unit='LENGTH',
     )
-    set_parent: BoolProperty(
-        name=_('Set Parent'),
+    handle_align_axis: BoolProperty(
+        name=_('ハンドルを軸方向に'),
+        description=_('ハンドルを軸の方向に揃えるかどうかを指定します'),
+        default=True,
+    )
+    set_weight: BoolProperty(
+        name=_('Set Parent'),   # FIXME
         description=_('Make the created armature the parent of the mesh and set the vertex group and armature deformation modifier.'),
         default=True,
     )
-    axis: get_axis_enum()
 
     def draw(self, layout):
         col = layout.column(align=True)
-        col.prop(self, 'axis')
-        col.prop(self, 'bone_length')
-        col.prop(self, 'set_parent')
+        col.prop(self, 'handle_factor')
+        col.prop(self, 'handle_align_axis')
+        col.prop(self, 'set_weight')
 
     def copy_from(self, src):
-        self.bone_length = src.bone_length
-        self.set_parent = src.set_parent
-        self.axis = src.axis
+        self.handle_factor = src.handle_factor
+        self.handle_align_axis = src.handle_align_axis
+        self.set_weight = src.set_weight
 
 ################
 class DDDBT_buildHandleFromBones_propertyGroup(PropertyGroup):
@@ -521,7 +525,6 @@ class DDDBT_OT_createBonesFromSelectedEdges(Operator):
     def invoke(self, context, event):
         prop = context.scene.dddtools_bt_prop
         self.m_prop.copy_from(prop.createBonesFromSelectedEdgesProp)
-        bpy.ops.ed.undo_push(message='Create Bones From Selected Edges')
         return self.execute(context)
 
     def draw(self, context):
@@ -648,13 +651,18 @@ class DDDBT_OT_buildHandleFromVertices(Operator):
     def execute(self, context):
         prop = context.scene.dddtools_bt_prop
         prop.buildHandleFromVerticesProp.copy_from(self.m_prop)
-        arma = bt.buildHandleFromVertices(bone_length=self.m_prop.bone_length,
-                                          set_parent=self.m_prop.set_parent,
-                                          axis=self.m_prop.axis)
+        arma, created_bones = bt.buildHandleFromVertices(
+            handle_factor=self.m_prop.handle_factor,
+            handle_align_axis=self.m_prop.handle_align_axis,
+            use_existing_armature=True,
+            set_weight=self.m_prop.set_weight)
+            
         if arma:
             self.report({'INFO'},
-                        iface_('Created {arma_name}').format(
-                            arma_name=arma.name))
+                        iface_('アーマチュア({arma_name})にボーン({created_bones})を作成しました。').\
+                        format(arma_name=arma.name,
+                               created_bones=sorted(created_bones)))
+            bt.select_bones(arma, created_bones)
             return {'FINISHED'}
         else:
             self.report({'WARNING'},
@@ -699,7 +707,7 @@ class DDDBT_OT_buildHandleFromBones(Operator):
 
     def invoke(self, context, event):
         prop = context.scene.dddtools_bt_prop
-        self.m_prop.copy_from(prop.buildHandleFromVerticesProp)
+        self.m_prop.copy_from(prop.buildHandleFromBonesProp)
         return self.execute(context)
 
     def draw(self, context):
