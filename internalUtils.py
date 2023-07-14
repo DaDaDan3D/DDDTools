@@ -41,6 +41,16 @@ class ObjectWrapper:
     def obj(self):
         return bpy.data.objects.get(self._name)
 
+    @property
+    def data(self):
+        obj = self.obj
+        return obj.data if obj else None
+
+    @property
+    def type(self):
+        obj = self.obj
+        return obj.type if obj else None
+
     def __repr__(self):
         return '<ObjectWrapper {0}>'.format(self._name)
 
