@@ -134,25 +134,25 @@ class DDDBT_createBonesFromSelectedEdges_propertyGroup(PropertyGroup):
         default='Lip',
     )
     suffix: StringProperty(
-        name=_('接尾辞'),
-        description=_('接尾辞を指定します'),
+        name=_('Suffix'),
+        description=_('Specify a suffix.'),
         default='L',
     )
     create_handle: BoolProperty(
-        name=_('リグにする'),
-        description=_('チェックすると、リグとして使えるようにハンドルを作成します。また、Stretch-to コンストレイントやトランスフォームコピーコンストレイントなどが自動的に作成されます。これにより、ボーンの前後に作成されたハンドルを使ってリグとして操作できます'),
+        name=_('To Rig'),
+        description=_('If checked, handles are created for use as rigs. It also automatically creates Stretch-to-constraints, transform copy-constraints, etc. This allows the handles created before and after the bones to be manipulated as a rig.'),
         default=False,
     )
     bbone_segments: IntProperty(
-        name=_('ベンディボーンの分割数'),
-        description=_('ベンディボーンの分割数を指定します。2以上を設定するとベンディボーンになります'),
+        name=_('Number of Bendy Bone segments'),
+        description=_('Specifies the number of bendy bone segments; if set to 2 or more, the bones will become bendy bones.'),
         min=1,
         max=32,
         default=1,
     )
     set_weight: BoolProperty(
-        name=_('頂点ウェイトを付ける'),
-        description=_('エッジの頂点に、作成したボーンに対応する頂点ウェイトを設定します'),
+        name=_('Add vertex weights'),
+        description=_('Add vertex weights to the edge vertices, corresponding to the bones created.'),
         default=True,
     )
 
@@ -179,23 +179,23 @@ class DDDBT_createBonesFromSelectedEdges_propertyGroup(PropertyGroup):
 ################
 class DDDBT_buildHandleFromVertices_propertyGroup(PropertyGroup):
     handle_factor: FloatProperty(
-        name=_('Bone Length'),  # FIXME
-        description=_('Specify the length of the handle bone (m).'),
+        name=_('Handle Length'),
+        description=_('Specifies the approximate length of the handle. The length is automatically calculated from the median of the area of the polygons.'),
         subtype='FACTOR',
-        default=0.1,
+        default=0.5,
         min=0.01,
         max=2.00,
         precision=2,
         step=1,
     )
     handle_align_axis: BoolProperty(
-        name=_('ハンドルを軸方向に'),
-        description=_('ハンドルを軸の方向に揃えるかどうかを指定します'),
+        name=_('Axial direction'),
+        description=_('Specifies whether the handles to be aligned in the direction of the axis.'),
         default=True,
     )
     set_weight: BoolProperty(
-        name=_('Set Parent'),   # FIXME
-        description=_('Make the created armature the parent of the mesh and set the vertex group and armature deformation modifier.'),
+        name=_('Add vertex weights'),
+        description=_('Add vertex weights to the edge vertices, corresponding to the bones created.'),
         default=True,
     )
 
@@ -268,7 +268,7 @@ class DDDBT_changeBoneLengthDirection_propertyGroup(PropertyGroup):
 class DDDBT_adjustBendyBoneSize_propertyGroup(PropertyGroup):
     ratio_z: FloatProperty(
         name=_('Ratio Z'),
-        description=_('Z 方向のサイズ'),
+        description=_('Sets the ratio of the bendy bone size to the length of the bone in the Z direction.'),
         subtype='FACTOR',
         default=0.1,
         min=0.01,
@@ -278,7 +278,7 @@ class DDDBT_adjustBendyBoneSize_propertyGroup(PropertyGroup):
     )
     ratio_x: FloatProperty(
         name=_('Ratio X'),
-        description=_('X 方向のサイズ'),
+        description=_('Sets the ratio of the bendy bone size to the length of the bone in the X direction.'),
         subtype='FACTOR',
         default=0.1,
         min=0.01,
@@ -396,7 +396,7 @@ class DDDBT_propertyGroup(PropertyGroup):
 class DDDBT_OT_renameChildBonesWithNumber(Operator):
     bl_idname = 'dddbt.rename_child_bones_with_number'
     bl_label = _('Rename Child Bones')
-    bl_description = _('Rename all child bones with numbers.')
+    bl_description = _('Renames all child bones of the active bone with a number.')
     bl_options = {'REGISTER', 'UNDO'}
 
     baseName: StringProperty(
@@ -420,7 +420,7 @@ class DDDBT_OT_renameChildBonesWithNumber(Operator):
 class DDDBT_OT_renameBonesForSymmetry(Operator):
     bl_idname = 'armature.dddbt_rename_bones_for_symmetry'
     bl_label = _('Rename Symmetry')
-    bl_description = _('左右対称を考慮してボーンの名前を変えます')
+    bl_description = _('Rename the selected bones to account for left-right symmetry.')
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -433,11 +433,11 @@ class DDDBT_OT_renameBonesForSymmetry(Operator):
         renamed_bones = bt.rename_bones_for_symmetry(arma, selected_bones)
         if renamed_bones:
             self.report({'INFO'},
-                        iface_('{len_renamed_bones} 個の骨をリネームしました。').format(len_renamed_bones=len(renamed_bones)))
+                        iface_('Renamed {len_renamed_bones} bones.').format(len_renamed_bones=len(renamed_bones)))
             bt.select_bones(iu.ObjectWrapper(arma), renamed_bones)
             return {'FINISHED'}
         else:
-            self.report({'INFO'}, iface_('リネームされた骨はありません。'))
+            self.report({'INFO'}, iface_('No bones renamed.'))
             return {'CANCELLED'}
 
 ################
@@ -482,7 +482,7 @@ class DDDBT_OT_createBonesFromSelectedEdges(Operator):
     bl_idname = 'dddbt.create_armature_from_selected_edges'
     bl_label = _('Edges to Bones')
     # FIXME
-    bl_description = _('Creates an armature such that the currently selected edge of the active mesh is the bone. The orientation and connections of the bones are automatically set by the distance from the 3D cursor.')
+    bl_description = _('Creates bones based on the currently selected edges of the active mesh. The orientation of the bone is automatically set by the distance from the 3D cursor. Searches for an armature by looking at the parent and armature modifiers and creates a new armature if there is none.')
     bl_options = {'REGISTER', 'UNDO'}
 
     m_prop: PointerProperty(type=DDDBT_createBonesFromSelectedEdges_propertyGroup)
@@ -513,13 +513,13 @@ class DDDBT_OT_createBonesFromSelectedEdges(Operator):
         
         if arma:
             self.report({'INFO'},
-                        iface_('アーマチュア({arma_name})にボーン({created_bones})を作成しました。').\
+                        iface_('Created bones ({created_bones}) on armature ({arma_name}).').\
                         format(arma_name=arma.name,
                                created_bones=sorted(created_bones)))
             bt.select_bones(arma, created_bones)
             return {'FINISHED'}
         else:
-            self.report({'WARNING'}, iface_('ボーンは作成されませんでした'))
+            self.report({'WARNING'}, iface_('No bones were created.'))
             return {'CANCELLED'}
 
     def invoke(self, context, event):
@@ -639,7 +639,7 @@ class DDDBT_OT_createEncasedSkin(Operator):
 class DDDBT_OT_buildHandleFromVertices(Operator):
     bl_idname = 'dddbt.build_handle_from_vertices'
     bl_label = _('Create vertex handles')
-    bl_description = _('Creates the rig handles from the selected vertices of the selected objects.')
+    bl_description = _('Creates a rig handle from selected vertices of the selected object. Searches for parent and armature modifiers and creates a new armature if there is none.')
     bl_options = {'REGISTER', 'UNDO'}
 
     m_prop: PointerProperty(type=DDDBT_buildHandleFromVertices_propertyGroup)
@@ -659,14 +659,14 @@ class DDDBT_OT_buildHandleFromVertices(Operator):
             
         if arma:
             self.report({'INFO'},
-                        iface_('アーマチュア({arma_name})にボーン({created_bones})を作成しました。').\
+                        iface_('Created bones ({created_bones}) on armature ({arma_name}).').\
                         format(arma_name=arma.name,
                                created_bones=sorted(created_bones)))
             bt.select_bones(arma, created_bones)
             return {'FINISHED'}
         else:
             self.report({'WARNING'},
-                        iface_('Failed to build armature.'))
+                        iface_('No bones were created.'))
             return {'CANCELLED'}
 
     def invoke(self, context, event):
@@ -746,8 +746,8 @@ class DDDBT_OT_changeBoneLengthDirection(Operator):
 ################
 class DDDBT_OT_adjustBendyBoneSize(Operator):
     bl_idname = 'armature.dddbt_adjust_bendy_bone_size'
-    bl_label = _('ベンディボーンサイズ調整')
-    bl_description = _('ベンディボーンのサイズを調整します')
+    bl_label = _('Adjust Bendy Bone Size')
+    bl_description = _('Adjusts the size of the selected bone when it is displayed as a B-bone.')
     bl_options = {'REGISTER', 'UNDO'}
 
     m_prop: PointerProperty(type=DDDBT_adjustBendyBoneSize_propertyGroup)
@@ -1444,32 +1444,10 @@ class DDDBT_PT_BoneTool(Panel):
         col.operator(DDDBT_OT_printSelectedBoneNamess.bl_idname)
         col.operator(DDDBT_OT_renameChildBonesWithNumber.bl_idname)
         col.operator(DDDBT_OT_renameBonesForSymmetry.bl_idname)
+
+        col.separator()
+
         col.operator(DDDBT_OT_resetStretchTo.bl_idname)
-        col.operator(DDDBT_OT_applyArmatureToRestPose.bl_idname)
-        col.operator(DDDBT_OT_createMeshFromSelectedBones.bl_idname)
-        display, split = ui.splitSwitch(col, prop, 'display_createBonesFromSelectedEdges')
-        split.operator(DDDBT_OT_createBonesFromSelectedEdges.bl_idname)
-        if display:
-            box = col.box().column()
-            prop.createBonesFromSelectedEdgesProp.draw(box)
-    
-        display, split = ui.splitSwitch(col, prop, 'display_createEncasedSkin')
-        split.operator(DDDBT_OT_createEncasedSkin.bl_idname)
-        if display:
-            box = col.box()
-            prop.createEncasedSkinProp.draw(box)
-
-        display, split = ui.splitSwitch(col, prop, 'display_buildHandleFromVertices')
-        split.operator(DDDBT_OT_buildHandleFromVertices.bl_idname)
-        if display:
-            box = col.box()
-            prop.buildHandleFromVerticesProp.draw(box)
-
-        display, split = ui.splitSwitch(col, prop, 'display_buildHandleFromBones')
-        split.operator(DDDBT_OT_buildHandleFromBones.bl_idname)
-        if display:
-            box = col.box()
-            prop.buildHandleFromBonesProp.draw(box)
 
         display, split = ui.splitSwitch(col, prop, 'display_changeBoneLengthDirection')
         split.operator(DDDBT_OT_changeBoneLengthDirection.bl_idname)
@@ -1483,11 +1461,43 @@ class DDDBT_PT_BoneTool(Panel):
             box = col.box()
             prop.adjustBendyBoneSizeProp.draw(box)
 
+        col.operator(DDDBT_OT_applyArmatureToRestPose.bl_idname)
+
         display, split = ui.splitSwitch(col, prop, 'display_poseProportionalMove')
         split.operator(DDDBT_OT_poseProportionalMove.bl_idname)
         if display:
             box = col.box()
             prop.poseProportionalMoveProp.draw(context, box)
+
+        col.separator()
+
+        display, split = ui.splitSwitch(col, prop, 'display_createBonesFromSelectedEdges')
+        split.operator(DDDBT_OT_createBonesFromSelectedEdges.bl_idname)
+        if display:
+            box = col.box().column()
+            prop.createBonesFromSelectedEdgesProp.draw(box)
+    
+        display, split = ui.splitSwitch(col, prop, 'display_buildHandleFromVertices')
+        split.operator(DDDBT_OT_buildHandleFromVertices.bl_idname)
+        if display:
+            box = col.box()
+            prop.buildHandleFromVerticesProp.draw(box)
+
+        display, split = ui.splitSwitch(col, prop, 'display_buildHandleFromBones')
+        split.operator(DDDBT_OT_buildHandleFromBones.bl_idname)
+        if display:
+            box = col.box()
+            prop.buildHandleFromBonesProp.draw(box)
+
+        col.separator()
+
+        display, split = ui.splitSwitch(col, prop, 'display_createEncasedSkin')
+        split.operator(DDDBT_OT_createEncasedSkin.bl_idname)
+        if display:
+            box = col.box()
+            prop.createEncasedSkinProp.draw(box)
+
+        col.operator(DDDBT_OT_createMeshFromSelectedBones.bl_idname)
 
 ################
 def draw_pose_menu(self, context):
