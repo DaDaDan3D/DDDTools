@@ -497,10 +497,11 @@ class DDDBT_OT_createBonesFromSelectedEdges(Operator):
         obj = iu.ObjectWrapper(bpy.context.active_object)
         if self.m_prop.obj_name_to_basename:
             basename = obj.name
+            suffix = ''
         else:
             basename = self.m_prop.basename
-        suffix = self.m_prop.suffix
-        if suffix: suffix = f'.{suffix}'
+            suffix = self.m_prop.suffix
+            if suffix: suffix = f'.{suffix}'
 
         arma, created_bones = bt.createBonesFromSelectedEdges(
             obj,
