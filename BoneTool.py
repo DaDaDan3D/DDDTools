@@ -211,6 +211,9 @@ def createBonesFromSelectedEdges(meshObj,
 
     if use_existing_armature:
         existing_arma = iu.ObjectWrapper(find_existing_armature(meshObj.obj))
+        if existing_arma and existing_arma.obj not in bpy.context.selectable_objects:
+            print(f'Warning: Armature({existing_arma.name}) is not selectable.')
+            existing_arma = None
     else:
         existing_arma = None
 
@@ -880,9 +883,12 @@ def buildHandleFromVertices(prefix='handle',
             obj = bpy.data.objects[obj_name]
             existing_armature = find_existing_armature(obj)
             if existing_armature:
-                merge_armatures(existing_armature.name, arma.name)
-                arma = iu.ObjectWrapper(existing_armature)
-                break
+                if existing_armature not in bpy.context.selectable_objects:
+                    print(f'Warning: Armature({existing_armature.name}) is not selectable.')
+                else:
+                    merge_armatures(existing_armature.name, arma.name)
+                    arma = iu.ObjectWrapper(existing_armature)
+                    break
 
     # 頂点ウェイトを設定
     if set_weight:
