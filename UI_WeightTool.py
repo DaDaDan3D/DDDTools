@@ -456,11 +456,11 @@ class DDDWT_PT_WeightTool(bpy.types.Panel):
             col = layout.box().column(align=True)
             prop.smooth_vertex_weights_falloff_prop.draw(col)
 
-        display, split = ui.splitSwitch(layout, prop, 'display_smooth_vertex_weights_least_square')
-        split.operator(DDDWT_OT_smoothVertexWeightLeastSquare.bl_idname)
-        if display:
-            col = layout.box().column(align=True)
-            prop.smooth_vertex_weights_least_square_prop.draw(col)
+        # display, split = ui.splitSwitch(layout, prop, 'display_smooth_vertex_weights_least_square')
+        # split.operator(DDDWT_OT_smoothVertexWeightLeastSquare.bl_idname)
+        # if display:
+        #     col = layout.box().column(align=True)
+        #     prop.smooth_vertex_weights_least_square_prop.draw(col)
 
 ################################################################
 classes = (
