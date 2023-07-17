@@ -6,6 +6,7 @@ import bmesh
 import numpy as np
 from . import internalUtils as iu
 from . import mathUtils as mu
+from . import BoneTool as bt
 
 _ = lambda s: s
 from bpy.app.translations import pgettext_iface as iface_
@@ -525,9 +526,7 @@ def set_weight_for_selected_bones(mesh_object, armature_object, weight):
     vg_indices = []
     bone_names = []
     for bone in armature_object.data.bones:
-        if bone.select:
-            if not bone.use_deform:
-                return 0, None, iface_('{bone_name} is not a deform bone.').format(bone_name=bone.name)
+        if bone.select and bt.is_bone_visible(bone, armature_object.data) and bone.use_deform:
             vg = mesh_object.vertex_groups.get(bone.name)
             if not vg:
                 vg = mesh_object.vertex_groups.new(name=bone.name)
