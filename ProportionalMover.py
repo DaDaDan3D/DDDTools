@@ -480,7 +480,7 @@ class MeshSnapModifier(ProportionalMoverModifier):
     
     def modify(self, pm, new_locations, which_to_move):
         mesh = bpy.data.objects.get(self.m_prop.target_mesh_name)
-        if not mesh or mesh.type != 'MESH':
+        if not mesh or mesh.type != 'MESH' or not mesh.visible_get():
             return new_locations, which_to_move
 
         hits, new_locations = mu.project_onto_mesh(
@@ -521,7 +521,7 @@ class MeshBlockModifier(ProportionalMoverModifier):
     
     def modify(self, pm, new_locations, which_to_move):
         mesh = bpy.data.objects.get(self.m_prop.target_mesh_name)
-        if not mesh or mesh.type != 'MESH':
+        if not mesh or mesh.type != 'MESH' or not mesh.visible_get():
             return new_locations, which_to_move
 
         hits, new_locations = mu.block_with_mesh(

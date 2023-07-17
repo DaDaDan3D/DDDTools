@@ -1154,9 +1154,6 @@ class DDDBT_OT_poseProportionalMove(Operator):
             self.report({'WARNING'}, 'No bones selected')
             return {'CANCELLED'}
 
-        # Start a new Undo step
-        bpy.ops.ed.undo_push(message='Proportional Pose Editing')
-        
         # Setup
         prop = context.scene.dddtools_bt_prop
         self.m_prop.copy_from(prop.poseProportionalMoveProp)
@@ -1164,6 +1161,29 @@ class DDDBT_OT_poseProportionalMove(Operator):
         self.number_input.set_expression('')
         self.save_move_vector = None
 
+        # Setup proportional mover param
+        mesh = iu.findfirst_selected_object('MESH')
+        if mesh:
+            self.m_prop.block_with_mesh_prop.target_mesh_name = mesh.name
+            self.m_prop.snap_onto_mesh_prop.target_mesh_name = mesh.name
+        hidden_meshes = []
+        if self.m_prop.use_block_with_mesh:
+            mesh = bpy.data.objects.get(self.m_prop.block_with_mesh_prop.target_mesh_name)
+            if mesh and mesh.type == 'MESH' and not mesh.visible_get():
+                hidden_meshes.append(mesh.name)
+        if self.m_prop.use_snap_onto_mesh:
+            mesh = bpy.data.objects.get(self.m_prop.snap_onto_mesh_prop.target_mesh_name)
+            if mesh and mesh.type == 'MESH' and not mesh.visible_get():
+                hidden_meshes.append(mesh.name)
+        if hidden_meshes:
+            self.report({'ERROR'},
+                        iface_('Meshes ({hidden_meshes}) are not visible.')\
+                        .format(hidden_meshes=str(hidden_meshes)))
+            return {'CANCELLED'}
+
+        # Start a new Undo step
+        bpy.ops.ed.undo_push(message='Proportional Pose Editing')
+        
         # Set mouse cursor
         self.set_cursor(context)
 
@@ -1180,10 +1200,6 @@ class DDDBT_OT_poseProportionalMove(Operator):
             (bone_translations_homo @ np.array(armature.matrix_world).T)[:, :3]
         
         # setup ProportionalMover
-        mesh = iu.findfirst_selected_object('MESH')
-        if mesh:
-            self.m_prop.block_with_mesh_prop.target_mesh_name = mesh.name
-            self.m_prop.snap_onto_mesh_prop.target_mesh_name = mesh.name
         self.pm.setup(context.space_data, locations, is_selected_bones)
         self.reset_movement(context)
 
