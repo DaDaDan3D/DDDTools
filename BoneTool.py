@@ -525,7 +525,7 @@ Vertex weights are also set appropriately.
         armature = armaObj.obj
 
         # 選択されたボーンを取得
-        bones = [bone for bone in armature.data.bones if bone.select]
+        bones = [pb.bone for pb in bpy.context.selected_pose_bones]
         if not bones:
             print('No bones are selected.')
             return None
@@ -592,9 +592,9 @@ def get_selected_bone_names():
         return None
 
     if armature.mode == 'POSE':
-        return [b.name for b in armature.data.bones if b.select]
+        return [b.name for b in bpy.context.selected_pose_bones]
     elif armature.mode == 'EDIT':
-        return [b.name for b in armature.data.edit_bones if b.select]
+        return [b.name for b in bpy.context.selected_bones]
     else:
         return None
 
@@ -1008,20 +1008,24 @@ def buildHandleFromBones(bone_length=0.1, axis='NEG_Y', pre='handle'):
 def changeBoneLengthDirection(armature, length, local_direction):
     with iu.mode_context(armature, 'EDIT'):
         direction = Vector(local_direction).normalized() * length
-        selected_bones = [b for b in armature.data.edit_bones if b.select]
-        for bone in selected_bones:
+        for bone in bpy.context.selected_editable_bones:
             bone.tail = bone.head + direction
 
 ################
-def is_bone_visible(bone, armature):
+def is_bone_visible(bone):
     if bone.hide or bone.hide_select:
         return False
 
+    armature = bone.id_data
     for layer_visible, layer_belongs in zip(armature.layers, bone.layers):
         if layer_visible and layer_belongs:
             return True    
 
     return False
+
+################
+def is_bone_selected(bone):
+    return bone.select and is_bone_visible(bone)
 
 ################
 def find_flip_side_bone_name(arma, bone_name):
@@ -1135,7 +1139,7 @@ def pose_mirror_x_translations(arma, translations, selection):
     mirror_bones[mirror_indices] = True
 
     # 見えている骨のみ移動する
-    visible_bones = np.array([is_bone_visible(b.bone, arma.data)
+    visible_bones = np.array([is_bone_visible(b.bone)
                               for b in arma.pose.bones], dtype=bool)
     mirror_bones &= visible_bones
     new_translations = np.where(mirror_bones[:, np.newaxis],

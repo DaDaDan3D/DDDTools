@@ -526,7 +526,7 @@ def set_weight_for_selected_bones(mesh_object, armature_object, weight):
     vg_indices = []
     bone_names = []
     for bone in armature_object.data.bones:
-        if bone.select and bt.is_bone_visible(bone, armature_object.data) and bone.use_deform:
+        if bt.is_bone_selected(bone) and bone.use_deform:
             vg = mesh_object.vertex_groups.get(bone.name)
             if not vg:
                 vg = mesh_object.vertex_groups.new(name=bone.name)

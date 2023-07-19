@@ -1125,7 +1125,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
     ################
     def get_which_to_move(self, context):
         armature = context.active_object
-        visible_bones = np.array([bt.is_bone_visible(b.bone, armature.data)
+        visible_bones = np.array([bt.is_bone_visible(b.bone)
                                   for b in armature.pose.bones], dtype=bool)
         if self.m_prop.use_proportional:
            which_to_move = visible_bones
@@ -1148,7 +1148,7 @@ class DDDBT_OT_poseProportionalMove(Operator):
 
         # Get if bone is selected
         is_selected_bones = np.array(
-            [b.bone.select and bt.is_bone_visible(b.bone, armature.data)
+            [b.bone.select and bt.is_bone_visible(b.bone)
              for b in armature.pose.bones], dtype=bool)
         if not np.any(is_selected_bones):
             self.report({'WARNING'}, 'No bones selected')
