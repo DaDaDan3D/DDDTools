@@ -326,6 +326,13 @@ def createBonesFromSelectedEdges(meshObj,
                                    use_connect = (bone_count > 0),
                                    use_deform = True)
                 bone.bbone_segments = bbone_segments
+                bone.bbone_handle_use_scale_start[0] = True
+                bone.bbone_handle_use_scale_start[2] = True
+                bone.bbone_handle_use_scale_end[0] = True
+                bone.bbone_handle_use_scale_end[2] = True
+                bone.use_inherit_rotation = False
+                bone.inherit_scale = 'NONE'
+
                 bones.append(bone.name)
 
                 # ウェイトを乗せる頂点を設定
@@ -380,23 +387,52 @@ def createBonesFromSelectedEdges(meshObj,
     if create_handle:
         with iu.mode_context(arma.obj, 'POSE'):
             for bones, handles in zip(strip_bones, strip_handles):
-                # 最初のボーンにコピートランスフォームコンストレイントを追加
-                # 開始ハンドルのトランスフォームをコピー
                 bone = arma.obj.pose.bones[bones[0]]
-                handle_name = bone.bbone_custom_handle_start.name
-                cst = bone.constraints.new('COPY_TRANSFORMS')
-                cst.target = arma.obj
-                cst.subtarget = handle_name
-                cst.target_space = 'POSE'
-                cst.owner_space = 'POSE'
 
-                # 全てのボーンに stretch-to コンストレイントを追加
+                # 最初のボーンの前のハンドルを取得
+                prev_hn = bone.bbone_custom_handle_start.name
+
+                first_bone = True
                 for bn, hn in zip(bones, handles):
                     bone = arma.obj.pose.bones[bn]
+
+                    # 位置に応じてコピーコンストレイントを追加
+                    if first_bone:
+                        cst = bone.constraints.new('COPY_TRANSFORMS')
+                        cst.target = arma.obj
+                        cst.subtarget = prev_hn
+                        cst.target_space = 'POSE'
+                        cst.owner_space = 'POSE'
+
+                    else:
+                        cst = bone.constraints.new('COPY_SCALE')
+                        cst.target = arma.obj
+                        cst.subtarget = prev_hn
+                        cst.use_x = True
+                        cst.use_y = False
+                        cst.use_z = True
+                        cst.target_space = 'LOCAL'
+                        cst.owner_space = 'LOCAL'
+
+                        cst = bone.constraints.new('COPY_ROTATION')
+                        cst.target = arma.obj
+                        cst.subtarget = prev_hn
+                        cst.use_x = False
+                        cst.use_y = True
+                        cst.use_z = False
+                        cst.mix_mode = 'ADD'
+                        cst.target_space = 'LOCAL'
+                        cst.owner_space = 'LOCAL'
+                        
+                    # stretch-to コンストレイントを追加
                     cst = bone.constraints.new('STRETCH_TO')
                     cst.target = arma.obj
                     cst.subtarget = hn
                     cst.volume = 'NO_VOLUME'
+
+                    # 次へ
+                    first_bone = False
+                    prev_hn = hn
 
     # ベンディボーンのサイズを自動調整
     # FIXME サイズを指定できるようにする？
