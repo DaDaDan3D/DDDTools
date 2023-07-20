@@ -154,7 +154,9 @@ def createBonesFromSelectedEdges(meshObj,
                                  create_handle=False,
                                  bbone_segments=1,
                                  use_existing_armature=True,
-                                 set_weight=True):
+                                 set_weight=True,
+                                 handle_layer=24,
+                                 deform_layer=25):
     """
     Create bones such that the selected edge of the object is the bone. The bone's orientation and connections are automatically calculated based on its distance from the 3D cursor.
 
@@ -261,19 +263,15 @@ def createBonesFromSelectedEdges(meshObj,
             created_bones.append(new_bone.name)
             if use_deform:
                 created_deform_bones.append(new_bone.name)
+                new_bone.layers[deform_layer] = True
+            else:
+                new_bone.layers[handle_layer] = True
+
             return new_bone
 
         # メッシュローカル座標での 3D カーソルの位置を計算
         mtx = meshObj.obj.matrix_world.inverted()
         cursor_loc = mtx @ bpy.context.scene.cursor.location
-
-        # 3D カーソルの位置にルートボーンを作成
-        if create_root:
-            root_bone = create_bone(f'{basename}_Root{suffix}',
-                                    cursor_loc,
-                                    cursor_loc + handle_vector)
-        else:
-            root_bone = None
 
         # 辺ストリップからハンドルの長さと向きを計算する
         if create_root or create_handle:
@@ -295,6 +293,14 @@ def createBonesFromSelectedEdges(meshObj,
             normal = np.mean(normals, axis=0)
             handle_vector = Vector(mu.closest_axis(normal) * handle_length)
 
+        # 3D カーソルの位置にルートボーンを作成
+        if create_root:
+            root_bone = create_bone(f'{basename}_Root{suffix}',
+                                    cursor_loc,
+                                    cursor_loc + handle_vector)
+        else:
+            root_bone = None
+
         # 頂点インデックス→頂点グループ のリスト
         vert_to_boneNames = dict()
         def vert_to_boneNames_add(vert, bone):
@@ -304,7 +310,6 @@ def createBonesFromSelectedEdges(meshObj,
             vert_to_boneNames[vert.index] = lst
 
         strip_bones = []
-        strip_handles = []
 
         # strip に基づいてボーンを作成
         for strip_count, strip in enumerate(strips):
@@ -316,9 +321,11 @@ def createBonesFromSelectedEdges(meshObj,
             parent = root_bone
             vert_head = mesh.vertices[strip[0]]
             bones = []
-            handles = []
-            for bone_count, vert_idx in enumerate(strip[1:]):
+            strip_next = strip[1:]
+            for bone_count, vert_idx in enumerate(strip_next):
                 vert_tail = mesh.vertices[vert_idx]
+
+                # 変形用のボーンの作成
                 bone = create_bone(f'{basename}_{strip_count}.{bone_count}{suffix}',
                                    vert_head.co,
                                    vert_tail.co,
@@ -341,73 +348,68 @@ def createBonesFromSelectedEdges(meshObj,
                     vert_to_boneNames_add(vert_head, bone)
                 vert_to_boneNames_add(vert_tail, bone)
 
-                # ハンドルの作成
                 if create_handle:
+                    curr_vec = vert_tail.co - vert_head.co
+
+                    # 開始ハンドルの作成
                     if bone_count == 0:
-                        # 開始ハンドルの作成
-                        vec = (vert_tail.co - vert_head.co) * 0.5
-                        handle = create_bone(f'handle_head_{bone.name}',
-                                             vert_head.co,
-                                             vert_head.co + vec,
-                                             parent = root_bone)
-                        bone.bbone_custom_handle_start = handle
-                        bone.bbone_handle_type_start = 'TANGENT'
+                        vec = curr_vec.normalized() * handle_length
+                        handle_start = create_bone(f'handle_head_{bone.name}',
+                                                   vert_head.co,
+                                                   vert_head.co + vec,
+                                                   parent = root_bone)
+                        # 最初のボーンの親を開始ハンドルにする
+                        bone.parent = handle_start
 
-                        # 開始ハンドルは handles に保存せず、
-                        # bbone_custom_handle_start から参照する
-
-                    if bone_count < len(strip) - 2:
-                        # 途中ハンドルの作成
-                        handle = create_bone(f'handle_{bone.name}',
-                                             vert_tail.co,
-                                             vert_tail.co + handle_vector,
-                                             parent = root_bone)
+                    # 終了ハンドルの作成
+                    if bone_count == len(strip_next) - 1:
+                        vec = curr_vec.normalized() * handle_length
                     else:
-                        # 終了ハンドルの作成
-                        vec = vert_tail.co - vert_head.co
-                        vec = vec.normalized() * handle_length
-                        handle = create_bone(f'handle_{bone.name}',
+                        vert_next = mesh.vertices[strip_next[bone_count + 1]]
+                        next_vec = vert_next.co - vert_tail.co
+                        vec = (curr_vec + next_vec).normalized() * handle_length
+                    handle_end = create_bone(f'handle_{bone.name}',
                                              vert_tail.co,
                                              vert_tail.co + vec,
                                              parent = root_bone)
-                        bone.bbone_custom_handle_end = handle
-                        bone.bbone_handle_type_end = 'TANGENT'
 
-                    handles.append(handle.name)
+                    # ボーンへのハンドル設定
+                    bone.bbone_custom_handle_start = handle_start
+                    bone.bbone_handle_type_start = 'TANGENT'
+                    bone.bbone_custom_handle_end = handle_end
+                    bone.bbone_handle_type_end = 'TANGENT'
+
+                    # 次のボーン用に情報を保存
+                    handle_start = handle_end
 
                 # 次へ
                 vert_head = vert_tail
                 parent = bone
 
             strip_bones.append(bones)
-            strip_handles.append(handles)
 
 
     # ハンドル絡みのコンストレイントの設定
     if create_handle:
         with iu.mode_context(arma.obj, 'POSE'):
-            for bones, handles in zip(strip_bones, strip_handles):
-                bone = arma.obj.pose.bones[bones[0]]
-
-                # 最初のボーンの前のハンドルを取得
-                prev_hn = bone.bbone_custom_handle_start.name
-
-                first_bone = True
-                for bn, hn in zip(bones, handles):
+            for bones in strip_bones:
+                for idx, bn in enumerate(bones):
                     bone = arma.obj.pose.bones[bn]
+                    handle_start = bone.bbone_custom_handle_start.name
+                    handle_end = bone.bbone_custom_handle_end.name
 
                     # 位置に応じてコピーコンストレイントを追加
-                    if first_bone:
+                    if idx == 0:
                         cst = bone.constraints.new('COPY_TRANSFORMS')
                         cst.target = arma.obj
-                        cst.subtarget = prev_hn
+                        cst.subtarget = handle_start
                         cst.target_space = 'POSE'
                         cst.owner_space = 'POSE'
 
                     else:
                         cst = bone.constraints.new('COPY_SCALE')
                         cst.target = arma.obj
-                        cst.subtarget = prev_hn
+                        cst.subtarget = handle_start
                         cst.use_x = True
                         cst.use_y = False
                         cst.use_z = True
@@ -416,7 +418,7 @@ def createBonesFromSelectedEdges(meshObj,
 
                         cst = bone.constraints.new('COPY_ROTATION')
                         cst.target = arma.obj
-                        cst.subtarget = prev_hn
+                        cst.subtarget = handle_start
                         cst.use_x = False
                         cst.use_y = True
                         cst.use_z = False
@@ -427,12 +429,8 @@ def createBonesFromSelectedEdges(meshObj,
                     # stretch-to コンストレイントを追加
                     cst = bone.constraints.new('STRETCH_TO')
                     cst.target = arma.obj
-                    cst.subtarget = hn
+                    cst.subtarget = handle_end
                     cst.volume = 'NO_VOLUME'
-
-                    # 次へ
-                    first_bone = False
-                    prev_hn = hn
 
     # ベンディボーンのサイズを自動調整
     # FIXME サイズを指定できるようにする？
@@ -848,7 +846,8 @@ def buildHandleFromVertices(prefix='handle',
                             handle_factor=0.1,
                             handle_align_axis=True,
                             use_existing_armature=True,
-                            set_weight=True):
+                            set_weight=True,
+                            handle_layer=24):
     selected_objects = [iu.ObjectWrapper(o) for o in bpy.context.selected_objects if o.type == 'MESH']
 
     # 頂点情報
@@ -906,6 +905,7 @@ def buildHandleFromVertices(prefix='handle',
                 new_bone = edit_bones.new(new_name)
                 new_bone.head = vi.location
                 new_bone.tail = vi.location + vec * handle_length
+                new_bone.layers[handle_layer] = True
                 created_bones.append(new_bone.name)
                 vi.bone_name = new_bone.name
 
@@ -961,7 +961,8 @@ def buildHandleFromVertices(prefix='handle',
     return arma, created_bones
 
 ################
-def buildHandleFromBones(bone_length=0.1, axis='NEG_Y', pre='handle'):
+def buildHandleFromBones(bone_length=0.1, axis='NEG_Y', pre='handle',
+                         handle_layer=24):
     armature = bpy.context.object
     selected_bones = get_selected_bone_names()
     if not selected_bones:
@@ -986,7 +987,9 @@ def buildHandleFromBones(bone_length=0.1, axis='NEG_Y', pre='handle'):
             new_bone.tail = bone.tail + getDirection(axis, length=bone_length)
             new_bone.parent = parent
             new_bone.use_connect = False
+            new_bone.use_deform = False
             new_bone.select = True
+            new_bone.layers[handle_layer] = True
             created_bones.append(new_bone.name)
     
     # Add 'stretch-to' modifier
@@ -1257,11 +1260,14 @@ def set_translations(arma, translations, which_to_move):
             bone_data[bn] = BoneData(moving, new_matrix, bone.bone.matrix_local)
 
 ################
-def adjust_bendy_bone_size(arma, bone_names, ratio_z, ratio_x):
+def adjust_bendy_bone_size(arma, bone_names, ratio_z, ratio_x,
+                           use_segments=True):
     with iu.mode_context(arma, 'OBJECT'):
         for bn in bone_names:
             bone = arma.data.bones[bn]
             size = bone.vector.length
+            if use_segments:
+                size /= bone.bbone_segments
             bone.bbone_z = size * ratio_z
             bone.bbone_x = size * ratio_x
         

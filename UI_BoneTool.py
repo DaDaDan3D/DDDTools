@@ -286,15 +286,22 @@ class DDDBT_adjustBendyBoneSize_propertyGroup(PropertyGroup):
         precision=2,
         step=1,
     )
+    use_segments: BoolProperty(
+        name=_('Use Segments'),
+        description=_('Specifies that the size of the display should change according to the number of segments in the bendy bone.'),
+        default=True,
+    )
 
     def draw(self, layout):
         col = layout.column(align=False)
         col.prop(self, 'ratio_x')
         col.prop(self, 'ratio_z')
+        col.prop(self, 'use_segments')
 
     def copy_from(self, src):
         self.ratio_z = src.ratio_z
         self.ratio_x = src.ratio_x
+        self.use_segments = src.use_segments
 
 ################
 class DDDBT_poseProportionalMove_propertyGroup(PropertyGroup):
@@ -765,7 +772,8 @@ class DDDBT_OT_adjustBendyBoneSize(Operator):
         bt.adjust_bendy_bone_size(arma,
                                   bone_names,
                                   self.m_prop.ratio_z,
-                                  self.m_prop.ratio_x)
+                                  self.m_prop.ratio_x,
+                                  use_segments=self.m_prop.use_segments)
         return {'FINISHED'}
 
     def invoke(self, context, event):
