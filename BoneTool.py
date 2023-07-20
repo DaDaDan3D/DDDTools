@@ -479,6 +479,194 @@ def createBonesFromSelectedEdges(meshObj,
     return arma, created_bones
 
 ################
+def create_bones_from_curve(curveObj,
+                            basename='bone',
+                            suffix='',
+                            handle_layer=24,
+                            deform_layer=25):
+    """
+    Create bones along the curve.
+
+    Parameters
+    ----------------
+    curveObj: ObjectWrapper
+      Curve object
+
+    basename: string
+      Base name of bones.
+      Bone names will be like these: Bone_Root, Bone_2.2, Bone_12.5, ...
+
+    suffix: string
+      Suffix to be added to the name.
+
+    handle_layer: int
+      The number of the layer on which to create the handle.
+
+    deform_layer: int
+      The number of the layer on which to create the deform bone.
+
+    Returns
+    ----------------
+    ObjectWrapper, list of string
+      Armature object and list of names of created bones.
+    """
+
+    # カーブが選択されていることを確認
+    if curveObj.obj.type != 'CURVE':
+        print(f'{curveObj.obj} is not a curve.')
+        return None, None
+
+    beziers = [spl for spl in curveObj.data.splines if spl.type == 'BEZIER']
+    if not beziers:
+        print(f'{curveObj.obj} has no bezier splines.')
+        return None, None
+
+    # アーマチュアの作成
+    an = f'Armature_{curveObj.name}'
+    arm_data = bpy.data.armatures.new(an)
+    armature = bpy.data.objects.new(an, arm_data)
+    armature.data.display_type = 'BBONE'
+    iu.setupObject(armature, None, 'OBJECT', '', curveObj.obj.matrix_world)
+    bpy.context.collection.objects.link(armature)
+    arma = iu.ObjectWrapper(armature)
+
+    # ボーンを作成するために編集モードにする
+    with iu.mode_context(arma.obj, 'EDIT'):
+        curve = curveObj.data
+
+        # 新規作成したボーン
+        created_bones = []
+
+        # 新規作成した変形ボーン
+        created_deform_bones = []
+
+        # カーブローカル座標 head, tail の位置に new_name で骨を作成する
+        def create_bone(new_name, head, tail,
+                        parent=None,
+                        use_connect=False,
+                        use_deform=False,
+                        bone_length=0):
+            nonlocal arma, created_bones, created_deform_bones
+            new_bone = arma.data.edit_bones.new(new_name)
+            new_bone.head = head
+            if bone_length <= 0:
+                new_bone.tail = tail
+            else:
+                new_bone.tail = head + (tail - head).normalized() * bone_length
+            new_bone.parent = parent
+            new_bone.use_connect = use_connect
+            new_bone.use_deform = use_deform
+            created_bones.append(new_bone.name)
+            if use_deform:
+                created_deform_bones.append(new_bone.name)
+                new_bone.layers[deform_layer] = True
+            else:
+                new_bone.layers[handle_layer] = True
+
+            return new_bone
+
+        strip_bones = []
+
+        # スプラインに沿ってボーンを作成する
+        for ii, bezier in enumerate(beziers):
+            num_segments = len(bezier.bezier_points) - 1
+            handle_length = bezier.calc_length() / num_segments * 0.5
+            parent = None
+            bones = []
+            for jj in range(num_segments):
+                point_0, point_1 = bezier.bezier_points[jj:jj + 2]
+
+                # ベンディボーンを作成
+                bone = create_bone(f'{basename}_{ii}_{jj}{suffix}',
+                                   point_0.co,
+                                   point_1.co,
+                                   parent = parent,
+                                   use_connect = (jj > 0),
+                                   use_deform = True)
+                bone.bbone_segments = curve.resolution_u
+                bone.bbone_handle_use_scale_start[0] = True
+                bone.bbone_handle_use_scale_start[2] = True
+                bone.bbone_handle_use_scale_end[0] = True
+                bone.bbone_handle_use_scale_end[2] = True
+                bone.use_inherit_rotation = False
+                bone.inherit_scale = 'NONE'
+
+                bones.append(bone.name)
+
+                # 開始ハンドルを作成
+                if jj == 0:
+                    handle_start = create_bone(f'handle_head_{bone.name}',
+                                               point_0.co,
+                                               point_0.handle_right,
+                                               bone_length = handle_length)
+
+                # 終了ハンドルを作成
+                handle_end = create_bone(f'handle_{bone.name}',
+                                         point_1.co,
+                                         point_1.handle_right,
+                                         bone_length = handle_length)
+
+                # ボーンへのハンドル設定
+                bone.bbone_custom_handle_start = handle_start
+                bone.bbone_handle_type_start = 'TANGENT'
+                bone.bbone_custom_handle_end = handle_end
+                bone.bbone_handle_type_end = 'TANGENT'
+
+                # 次へ
+                handle_start = handle_end
+                parent = bone
+
+            strip_bones.append(bones)
+
+    # ハンドル絡みのコンストレイントの設定
+    with iu.mode_context(arma.obj, 'POSE'):
+        for bones in strip_bones:
+            for idx, bn in enumerate(bones):
+                bone = arma.obj.pose.bones[bn]
+                handle_start = bone.bbone_custom_handle_start.name
+                handle_end = bone.bbone_custom_handle_end.name
+
+                # 位置に応じてコピーコンストレイントを追加
+                if idx == 0:
+                    cst = bone.constraints.new('COPY_TRANSFORMS')
+                    cst.target = arma.obj
+                    cst.subtarget = handle_start
+                    cst.target_space = 'POSE'
+                    cst.owner_space = 'POSE'
+
+                else:
+                    cst = bone.constraints.new('COPY_SCALE')
+                    cst.target = arma.obj
+                    cst.subtarget = handle_start
+                    cst.use_x = True
+                    cst.use_y = False
+                    cst.use_z = True
+                    cst.target_space = 'LOCAL'
+                    cst.owner_space = 'LOCAL'
+
+                    cst = bone.constraints.new('COPY_ROTATION')
+                    cst.target = arma.obj
+                    cst.subtarget = handle_start
+                    cst.use_x = False
+                    cst.use_y = True
+                    cst.use_z = False
+                    cst.mix_mode = 'ADD'
+                    cst.target_space = 'LOCAL'
+                    cst.owner_space = 'LOCAL'
+
+                # stretch-to コンストレイントを追加
+                cst = bone.constraints.new('STRETCH_TO')
+                cst.target = arma.obj
+                cst.subtarget = handle_end
+                cst.volume = 'NO_VOLUME'
+
+    # ベンディボーンのサイズを自動調整
+    # FIXME サイズを指定できるようにする？
+    adjust_bendy_bone_size(arma.obj, created_bones, 0.1, 0.1)
+
+    return arma, created_bones
+
+################
 # ボーンのツリーごとの、ルートを 0 としたインデックスを取得する
 # インデックスは親より子が必ず大きいことが保証されている
 def getBoneIndexDictionary(arma):

@@ -43,6 +43,8 @@ translations_dict = {
         ('*', 'No bones were created.'): "ボーンは作成されませんでした",
         ('Operator', 'Bones to Edges'): "ボーンをエッジに",
         ('*', 'A mesh is created as a child of the armature such that the bones in the active armature selection are the edges. Vertex weights are also set appropriately.'): "アクティブなアーマチュアの選択中のボーンをエッジとするようなメッシュを、アーマチュアの子として作成します。頂点ウェイトも適切に設定されます",
+        ('Operator', 'Curve to Bones'): "カーブをボーンに",
+        ('*', 'Create bones that follow the active curve.'): "アクティブなカーブに沿うようなボーンを作成します",
         ('Operator', 'Select Ancestral Bones'): "祖先に近いボーンの選択",
         ('*', 'Select bones that are not related to each other by parent-child relationship. In other words, select only the bones that are closest to the ancestors of the selected bones.'): "選択している骨同士が親子関係にならないようにします。つまり、選択している骨の中で一番先祖に近いボーン達だけを選択します。",
         ('Operator', 'Print Selected Bone Names'): "選択中の骨を列挙",

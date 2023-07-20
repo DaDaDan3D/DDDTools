@@ -177,6 +177,37 @@ class DDDBT_createBonesFromSelectedEdges_propertyGroup(PropertyGroup):
         self.set_weight = src.set_weight
 
 ################
+class DDDBT_createBonesFromCurve_propertyGroup(PropertyGroup):
+    obj_name_to_basename: BoolProperty(
+        name=_('Object Name to Bone Name'),
+        description=_('The object name is automatically set as the bone name.'),
+        default=True,
+    )
+    basename: StringProperty(
+        name=_('Bone Name'),
+        description=_('The name of the bone to be created.'),
+        default='Lip',
+    )
+    suffix: StringProperty(
+        name=_('Suffix'),
+        description=_('Specify a suffix.'),
+        default='L',
+    )
+
+    def draw(self, layout):
+        col = layout.column(align=True)
+        col.prop(self, 'obj_name_to_basename')
+        col2 = col.box().column(align=True)
+        col2.enabled = not self.obj_name_to_basename
+        col2.prop(self, 'basename')
+        col2.prop(self, 'suffix')
+
+    def copy_from(self, src):
+        self.obj_name_to_basename = src.obj_name_to_basename
+        self.basename = src.basename
+        self.suffix = src.suffix
+
+################
 class DDDBT_buildHandleFromVertices_propertyGroup(PropertyGroup):
     handle_factor: FloatProperty(
         name=_('Handle Length'),
@@ -375,6 +406,10 @@ class DDDBT_propertyGroup(PropertyGroup):
     createBonesFromSelectedEdgesProp: PointerProperty(
         type=DDDBT_createBonesFromSelectedEdges_propertyGroup)
 
+    display_createBonesFromCurve: BoolProperty(default=False)
+    createBonesFromCurveProp: PointerProperty(
+        type=DDDBT_createBonesFromCurve_propertyGroup)
+
     display_createEncasedSkin: BoolProperty(default=False)
     createEncasedSkinProp: PointerProperty(
         type=DDDBT_createEncasedSkin_propertyGroup)
@@ -488,7 +523,6 @@ class DDDBT_OT_applyArmatureToRestPose(Operator):
 class DDDBT_OT_createBonesFromSelectedEdges(Operator):
     bl_idname = 'dddbt.create_armature_from_selected_edges'
     bl_label = _('Edges to Bones')
-    # FIXME
     bl_description = _('Creates bones based on the currently selected edges of the active mesh. The orientation of the bone is automatically set by the distance from the 3D cursor. Searches for an armature by looking at the parent and armature modifiers and creates a new armature if there is none.')
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -533,6 +567,56 @@ class DDDBT_OT_createBonesFromSelectedEdges(Operator):
     def invoke(self, context, event):
         prop = context.scene.dddtools_bt_prop
         self.m_prop.copy_from(prop.createBonesFromSelectedEdgesProp)
+        return self.execute(context)
+
+    def draw(self, context):
+        self.m_prop.draw(self.layout)
+
+################
+class DDDBT_OT_createBonesFromCurve(Operator):
+    bl_idname = 'object.dddbt_create_bones_from_curve'
+    bl_label = _('Curve to Bones')
+    bl_description = _('Create bones that follow the active curve.')
+    bl_options = {'UNDO'}
+
+    m_prop: PointerProperty(type=DDDBT_createBonesFromCurve_propertyGroup)
+
+    @classmethod
+    def poll(self, context):
+        obj = bpy.context.active_object
+        return obj and obj.type == 'CURVE'
+
+    def execute(self, context):
+        prop = context.scene.dddtools_bt_prop
+        prop.createBonesFromCurveProp.copy_from(self.m_prop)
+        obj = iu.ObjectWrapper(bpy.context.active_object)
+        if self.m_prop.obj_name_to_basename:
+            basename = obj.name
+            suffix = ''
+        else:
+            basename = self.m_prop.basename
+            suffix = self.m_prop.suffix
+            if suffix: suffix = f'.{suffix}'
+
+        arma, created_bones = bt.create_bones_from_curve(
+            obj,
+            basename=basename,
+            suffix=suffix)
+        
+        if arma:
+            self.report({'INFO'},
+                        iface_('Created bones ({created_bones}) on armature ({arma_name}).').\
+                        format(arma_name=arma.name,
+                               created_bones=sorted(created_bones)))
+            bt.select_bones(arma, created_bones)
+            return {'FINISHED'}
+        else:
+            self.report({'WARNING'}, iface_('No bones were created.'))
+            return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        prop = context.scene.dddtools_bt_prop
+        self.m_prop.copy_from(prop.createBonesFromCurveProp)
         return self.execute(context)
 
     def draw(self, context):
@@ -1508,6 +1592,12 @@ class DDDBT_PT_BoneTool(Panel):
             box = col.box()
             prop.buildHandleFromVerticesProp.draw(box)
 
+        display, split = ui.splitSwitch(col, prop, 'display_createBonesFromCurve')
+        split.operator(DDDBT_OT_createBonesFromCurve.bl_idname)
+        if display:
+            box = col.box().column()
+            prop.createBonesFromCurveProp.draw(box)
+    
         display, split = ui.splitSwitch(col, prop, 'display_buildHandleFromBones')
         split.operator(DDDBT_OT_buildHandleFromBones.bl_idname)
         if display:
@@ -1532,6 +1622,7 @@ def draw_pose_menu(self, context):
 ################################################################
 classes = (
     DDDBT_createBonesFromSelectedEdges_propertyGroup,
+    DDDBT_createBonesFromCurve_propertyGroup,
     DDDBT_createEncasedSkin_propertyGroup,
     DDDBT_buildHandleFromVertices_propertyGroup,
     DDDBT_buildHandleFromBones_propertyGroup,
@@ -1544,6 +1635,7 @@ classes = (
     DDDBT_OT_resetStretchTo,
     DDDBT_OT_applyArmatureToRestPose,
     DDDBT_OT_createBonesFromSelectedEdges,
+    DDDBT_OT_createBonesFromCurve,
     DDDBT_OT_createMeshFromSelectedBones,
     DDDBT_OT_selectAncestralBones,
     DDDBT_OT_printSelectedBoneNamess,
