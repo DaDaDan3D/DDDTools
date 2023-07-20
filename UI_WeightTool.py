@@ -401,6 +401,26 @@ class DDDWT_OT_smoothVertexWeightLeastSquare(Operator):
         self.m_prop.draw(self.layout)
 
 ################################################################
+class DDDWT_OT_selectNonweightedVertices(Operator):
+    bl_idname = 'paint.dddwt_select_nonweighted_vertices'
+    bl_label = _('Select non-weighted vertices')
+    bl_description = _('Select vertices that are not weighted.')
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        obj = bpy.context.active_object
+        return obj and obj.type == 'MESH' and obj.mode == 'EDIT'
+
+    def execute(self, context):
+        obj = bpy.context.active_object
+        nonweighted_verts = wt.select_nonweighted_vertices(obj, epsilon=0)
+        self.report({'INFO'},
+                    iface_('{len_verts} vertices selected.').format(
+                        len_verts=len(nonweighted_verts)))
+        return {'FINISHED'}
+
+################################################################
 class DDDWT_PT_WeightTool(bpy.types.Panel):
     bl_idname = 'WT_PT_WeightTool'
     bl_label = 'WeightTool'
@@ -450,6 +470,8 @@ class DDDWT_PT_WeightTool(bpy.types.Panel):
             col = layout.box().column(align=True)
             col.prop(prop, 'weight')
 
+        layout.operator(DDDWT_OT_selectNonweightedVertices.bl_idname)
+
         display, split = ui.splitSwitch(layout, prop, 'display_smooth_vertex_weights_falloff')
         split.operator(DDDWT_OT_smoothVertexWeightFalloff.bl_idname)
         if display:
@@ -475,6 +497,7 @@ classes = (
     DDDWT_OT_setWeightForSelectedBones,
     DDDWT_OT_smoothVertexWeightFalloff,
     DDDWT_OT_smoothVertexWeightLeastSquare,
+    DDDWT_OT_selectNonweightedVertices,
     DDDWT_PT_WeightTool,
 )
 

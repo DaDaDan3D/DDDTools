@@ -806,3 +806,33 @@ def smooth_vertex_weights_least_square(mesh_obj,
                        epsilon=epsilon)
 
     bm.free()
+
+################
+def select_nonweighted_vertices(mesh, epsilon=1e-10):
+    with iu.mode_context(mesh, 'EDIT'):
+        nonweighted_verts = []
+
+        bpy.ops.mesh.select_mode(type='VERT')
+
+        bm = bmesh.from_edit_mesh(mesh.data)
+        bm.verts.ensure_lookup_table()
+        deform = bm.verts.layers.deform.verify()
+
+        for vtx in bm.verts:
+            dv = vtx[deform]
+            if sum(dv.values()) <= epsilon:
+                vtx.select_set(True)
+                nonweighted_verts.append(vtx.index)
+            else:
+                vtx.select_set(False)
+
+        bm.select_flush_mode()
+
+        for vtx in bm.verts:
+            if vtx.select != (vtx.index in nonweighted_verts):
+                print(idx)
+
+        bmesh.update_edit_mesh(mesh.data)
+                
+    return nonweighted_verts
+    
