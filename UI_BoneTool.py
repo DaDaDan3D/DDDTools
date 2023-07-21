@@ -558,7 +558,6 @@ class DDDBT_OT_createBonesFromSelectedEdges(Operator):
                         iface_('Created bones ({created_bones}) on armature ({arma_name}).').\
                         format(arma_name=arma.name,
                                created_bones=sorted(created_bones)))
-            bt.select_bones(arma, created_bones)
             return {'FINISHED'}
         else:
             self.report({'WARNING'}, iface_('No bones were created.'))
@@ -608,7 +607,6 @@ class DDDBT_OT_createBonesFromCurve(Operator):
                         iface_('Created bones ({created_bones}) on armature ({arma_name}).').\
                         format(arma_name=arma.name,
                                created_bones=sorted(created_bones)))
-            bt.select_bones(arma, created_bones)
             return {'FINISHED'}
         else:
             self.report({'WARNING'}, iface_('No bones were created.'))
@@ -754,7 +752,6 @@ class DDDBT_OT_buildHandleFromVertices(Operator):
                         iface_('Created bones ({created_bones}) on armature ({arma_name}).').\
                         format(arma_name=arma.name,
                                created_bones=sorted(created_bones)))
-            bt.select_bones(arma, created_bones)
             return {'FINISHED'}
         else:
             self.report({'WARNING'},

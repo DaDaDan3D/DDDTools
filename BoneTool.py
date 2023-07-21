@@ -333,12 +333,6 @@ def createBonesFromSelectedEdges(meshObj,
                                    use_connect = (bone_count > 0),
                                    use_deform = True)
                 bone.bbone_segments = bbone_segments
-                bone.bbone_handle_use_scale_start[0] = True
-                bone.bbone_handle_use_scale_start[2] = True
-                bone.bbone_handle_use_scale_end[0] = True
-                bone.bbone_handle_use_scale_end[2] = True
-                bone.use_inherit_rotation = False
-                bone.inherit_scale = 'NONE'
 
                 bones.append(bone.name)
 
@@ -376,8 +370,16 @@ def createBonesFromSelectedEdges(meshObj,
                     # ボーンへのハンドル設定
                     bone.bbone_custom_handle_start = handle_start
                     bone.bbone_handle_type_start = 'TANGENT'
+                    bone.bbone_handle_use_scale_start[0] = True
+                    bone.bbone_handle_use_scale_start[2] = True
+
                     bone.bbone_custom_handle_end = handle_end
                     bone.bbone_handle_type_end = 'TANGENT'
+                    bone.bbone_handle_use_scale_end[0] = True
+                    bone.bbone_handle_use_scale_end[2] = True
+
+                    bone.use_inherit_rotation = False
+                    bone.inherit_scale = 'NONE'
 
                     # 次のボーン用に情報を保存
                     handle_start = handle_end
@@ -388,6 +390,9 @@ def createBonesFromSelectedEdges(meshObj,
 
             strip_bones.append(bones)
 
+        # ベンディボーンのロールの自動計算
+        select_bones(arma, created_deform_bones)
+        bpy.ops.armature.calculate_roll(type='CURSOR')
 
     # ハンドル絡みのコンストレイントの設定
     if create_handle:
@@ -475,6 +480,9 @@ def createBonesFromSelectedEdges(meshObj,
                 # Add armature modifier to the object
                 mod = obj.modifiers.new(name="Armature", type='ARMATURE')
             mod.object = arma.obj
+
+    # 作成した骨を選択状態にする
+    select_bones(arma, created_bones)
 
     return arma, created_bones
 
@@ -663,6 +671,9 @@ def create_bones_from_curve(curveObj,
     # ベンディボーンのサイズを自動調整
     # FIXME サイズを指定できるようにする？
     adjust_bendy_bone_size(arma.obj, created_bones, 0.1, 0.1)
+
+    # 作成した骨を選択状態にする
+    select_bones(arma, created_bones)
 
     return arma, created_bones
 
@@ -1145,6 +1156,9 @@ def buildHandleFromVertices(prefix='handle',
     # メッシュを選択状態にする
     for mo in selected_objects:
         mo.select_set(True)
+
+    # 作成した骨を選択状態にする
+    select_bones(arma, created_bones)
 
     return arma, created_bones
 
