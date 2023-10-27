@@ -518,12 +518,16 @@ def mergeMeshes(arma, bs_dic, triangulate=True, removeMatDic=None):
     anim = arma.obj.animation_data_create()
     for mn, actions in meshToActions.items():
         #print(f'mesh: {mn}')
-        mesh = result[mn]
+        mesh = result.get(mn)
+        if not mesh:
+            print(f'Warning! Mesh {mn} is not merged')
+            continue
+
         for an in sorted(actions):
             #print(f'action: {an}')
             action = bpy.data.actions.get(an)
             if not action:
-                #print('Warning! Cannot find action {an}')
+                print(f'Warning! Cannot find action {an}')
                 continue
 
             bpy.context.view_layer.objects.active = mesh.obj
@@ -622,7 +626,59 @@ def migrateSpringBone(arma, sb_json, removeEmpty):
     va.editor.vrm0.migration.migrate_vrm0_secondary_animation(
         ext.vrm0.secondary_animation,
         sb_dic,
-        arma.obj)
+        arma.obj,
+        arma.obj.data)
+
+################################################################
+def checkBrendShape(bs_dic):
+    has_error = False
+    meshes = set()
+    for bs in bs_dic:
+        binds = bs.get('binds')
+        if binds:
+            for bind in binds:
+                mesh = bind.get('mesh')
+                index = bind.get('index')
+                if mesh:
+                    meshes.add(mesh)
+                    mesh_obj = bpy.data.objects.get(mesh)
+                    if mesh_obj and mesh_obj.type == 'MESH' and\
+                       mesh_obj.data.shape_keys and\
+                       index not in mesh_obj.data.shape_keys.key_blocks:
+                        has_error = True
+                        print(f'Warning! Cannot find shapekey({index}) in mesh({mesh}).')
+
+    for mesh in meshes:
+        mesh_obj = bpy.data.objects.get(mesh)
+        if not mesh_obj:
+            has_error = True
+            print(f'Warning! Cannot find object({mesh}).')
+        elif mesh_obj.type != 'MESH':
+            has_error = True
+            print(f'Warning! Object({mesh}) is not a mesh.')
+        elif not mesh_obj.data.shape_keys:
+            has_error = True
+            print(f'Warning! Object({mesh}) does not have shepe_keys')
+
+    return not has_error
+
+################################################################
+def migrateBlendShape(armature, bs_json):
+    va = getAddon()
+    if not va:
+        raise ValueError('VRM addon is not found')
+
+    ext = armature.data.vrm_addon_extension
+
+    # clear old data
+    ext.vrm0.blend_shape_master.blend_shape_groups.clear()
+    bs_dic = json.loads(textblock2str(bpy.data.texts[bs_json]),object_pairs_hook=OrderedDict)
+    
+    # migrate blendshape_group.json
+    if checkBrendShape(bs_dic):
+        va.editor.vrm0.migration.migrate_vrm0_blend_shape_groups(
+            ext.vrm0.blend_shape_master,
+            bs_dic)
 
 ################################################################
 def prepareToExportVRM(skeleton='skeleton',
@@ -697,9 +753,10 @@ def prepareToExportVRM(skeleton='skeleton',
             mt.sort_material_slots(obj.obj, materialOrderList)
 
     # migrate blendshape_group.json
-    va.editor.vrm0.migration.migrate_vrm0_blend_shape_groups(
-        ext.vrm0.blend_shape_master.blend_shape_groups,
-        bs_dic)
+    if checkBrendShape(bs_dic):
+        va.editor.vrm0.migration.migrate_vrm0_blend_shape_groups(
+            ext.vrm0.blend_shape_master,
+            bs_dic)
 
     # migrate spring_bone.json
     if sb_json:
