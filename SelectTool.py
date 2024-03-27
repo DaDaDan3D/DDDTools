@@ -174,11 +174,9 @@ class DividingLoopFinder:
         bm.edges.ensure_lookup_table()
 
         # Ensure custom data exists.
-        bm.edges.layers.bevel_weight.verify()
-        self._bevel_weight = bm.edges.layers.bevel_weight.active
+        self._bevel_weight = bm.edges.layers.float.get('bevel_weight_edge')
 
-        bm.edges.layers.crease.verify()
-        self._crease = bm.edges.layers.crease.active
+        self._crease = bm.edges.layers.float.get('crease_edge')
 
         # scan all edges
         edgeTotal = len(bm.edges)
