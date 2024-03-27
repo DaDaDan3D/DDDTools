@@ -522,9 +522,9 @@ class DDDVT_PT_VRMTool(Panel):
             col = layout.box().column(align=True)
             if vt.getAddon():
                 col.prop_search(prop, 'bs_json', context.blend_data, 'texts')
-                if prop.skeleton:
-                    col.prop_search(prop, 'notExportBoneGroup', prop.skeleton.pose,
-                                    'bone_groups')
+                if prop.skeleton and prop.skeleton.mode != 'EDIT':
+                    col.prop_search(prop, 'notExportBoneGroup', prop.skeleton.data,
+                                    'collections')
                 col.prop(prop, 'mergedName')
                 col.prop(prop, 'triangulate')
                 col.prop(prop, 'saveAsExport')

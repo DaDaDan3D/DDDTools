@@ -558,14 +558,17 @@ def deleteBones(arma, boneGroupName):
     Deletes all bones which belongs to bone_groups[boneGroupName].
     """
 
-    #print('---------------- deleteBones')
+    print('---------------- deleteBones')
 
     # listup all bones to be deleted
     with iu.mode_context(arma.obj, 'POSE'):
-        bones = []
-        for bone in arma.obj.pose.bones:
-            if bone.bone_group and bone.bone_group.name == boneGroupName:
-                bones.append(bone.name)
+        bc = arma.data.collections.get(boneGroupName)
+        if not bc:
+            print(f'Warning! Armature({arma.name}) does not have collection({boneGroupName})')
+            return
+
+        bones = [b.name for b in bc.bones]
+        print(bones)
 
     wt.dissolveWeightedBones(arma, bones)
 
