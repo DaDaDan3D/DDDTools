@@ -147,6 +147,25 @@ def find_existing_armature(obj):
     return None
 
 ################
+def assignBoneToCollection(bone, collection_name):
+    """
+    Assign a bone to a collection of armatures.
+
+    Parameters:
+    -----------
+    bone: any type of bone
+      Bone to assign.
+
+    collection: string
+      Name of the collection to assign.
+    """
+    armature = bone.id_data
+    bcoll = armature.collections.get(collection_name)
+    if not bcoll:
+        bcoll = armature.collections.new(collection_name)
+    bcoll.assign(bone)
+
+################
 def createBonesFromSelectedEdges(meshObj,
                                  basename='Bone',
                                  suffix='',
@@ -155,8 +174,8 @@ def createBonesFromSelectedEdges(meshObj,
                                  bbone_segments=1,
                                  use_existing_armature=True,
                                  set_weight=True,
-                                 handle_layer=24,
-                                 deform_layer=25):
+                                 handle_collection='Handle',
+                                 deform_collection='Deform'):
     """
     Create bones such that the selected edge of the object is the bone. The bone's orientation and connections are automatically calculated based on its distance from the 3D cursor.
 
@@ -263,9 +282,9 @@ def createBonesFromSelectedEdges(meshObj,
             created_bones.append(new_bone.name)
             if use_deform:
                 created_deform_bones.append(new_bone.name)
-                new_bone.layers[deform_layer] = True
+                assignBoneToCollection(new_bone, deform_collection)
             else:
-                new_bone.layers[handle_layer] = True
+                assignBoneToCollection(new_bone, handle_collection)
 
             return new_bone
 
@@ -490,8 +509,8 @@ def createBonesFromSelectedEdges(meshObj,
 def create_bones_from_curve(curveObj,
                             basename='bone',
                             suffix='',
-                            handle_layer=24,
-                            deform_layer=25):
+                            handle_collection='Handle',
+                            deform_collection='Deform'):
     """
     Create bones along the curve.
 
@@ -507,11 +526,11 @@ def create_bones_from_curve(curveObj,
     suffix: string
       Suffix to be added to the name.
 
-    handle_layer: int
-      The number of the layer on which to create the handle.
+    handle_collection: string
+      The name of the collection on which to create the handle.
 
-    deform_layer: int
-      The number of the layer on which to create the deform bone.
+    deform_collection: string
+      The name of the collection on which to create the deform bone.
 
     Returns
     ----------------
@@ -567,9 +586,9 @@ def create_bones_from_curve(curveObj,
             created_bones.append(new_bone.name)
             if use_deform:
                 created_deform_bones.append(new_bone.name)
-                new_bone.layers[deform_layer] = True
+                assignBoneToCollection(new_bone, deform_collection)
             else:
-                new_bone.layers[handle_layer] = True
+                assignBoneToCollection(new_bone, handle_collection)
 
             return new_bone
 
@@ -1046,7 +1065,7 @@ def buildHandleFromVertices(prefix='handle',
                             handle_align_axis=True,
                             use_existing_armature=True,
                             set_weight=True,
-                            handle_layer=24):
+                            handle_collection='Handle'):
     selected_objects = [iu.ObjectWrapper(o) for o in bpy.context.selected_objects if o.type == 'MESH']
 
     # 頂点情報
@@ -1104,7 +1123,7 @@ def buildHandleFromVertices(prefix='handle',
                 new_bone = edit_bones.new(new_name)
                 new_bone.head = vi.location
                 new_bone.tail = vi.location + vec * handle_length
-                new_bone.layers[handle_layer] = True
+                assignBoneToCollection(new_bone, handle_collection)
                 created_bones.append(new_bone.name)
                 vi.bone_name = new_bone.name
 
@@ -1164,7 +1183,7 @@ def buildHandleFromVertices(prefix='handle',
 
 ################
 def buildHandleFromBones(bone_length=0.1, axis='NEG_Y', pre='handle',
-                         handle_layer=24):
+                         handle_collection='Handle'):
     armature = bpy.context.object
     selected_bones = get_selected_bone_names()
     if not selected_bones:
@@ -1191,7 +1210,7 @@ def buildHandleFromBones(bone_length=0.1, axis='NEG_Y', pre='handle',
             new_bone.use_connect = False
             new_bone.use_deform = False
             new_bone.select = True
-            new_bone.layers[handle_layer] = True
+            assignBoneToCollection(new_bone, handle_collection)
             created_bones.append(new_bone.name)
     
     # Add 'stretch-to' modifier
@@ -1221,10 +1240,9 @@ def is_bone_visible(bone):
     if bone.hide or bone.hide_select:
         return False
 
-    armature = bone.id_data
-    for layer_visible, layer_belongs in zip(armature.layers, bone.layers):
-        if layer_visible and layer_belongs:
-            return True    
+    for bcoll in bone.collections:
+        if bcoll.is_visible:
+            return True
 
     return False
 
