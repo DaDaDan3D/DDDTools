@@ -3,65 +3,59 @@ name: Release
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
+
+env:
+  ZIP_NAME: DDDTools.zip
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Check out code
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.9
-
-      - name: Install dependencies
+      - name: Create ${{ env.ZIP_NAME }}
         run: |
-          python -m pip install --upgrade pip
-          pip install zipfile36
-
-      - name: Create .zip
-        run: |
-          python -c "
+          python - << 'PY'
           import os
           import zipfile
-          
-          exclude_top_dirs = set(['images', 'movies'])
-          exclude_files = set(['.gitignore', 'README.md'])
-          def zipdir(path, ziph):
-              is_first_dirs = True
-              for root, dirs, files in os.walk(path):
-                  if dirs and is_first_dirs:
-                      dirs[:] = set(dirs) - exclude_top_dirs
-                      is_first_dirs = False
-                  for file in files:
-                      if file not in exclude_files:
-                          ziph.write(os.path.join(root, file))
-          
-          with zipfile.ZipFile('DDDTools.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
-              zipdir('.', zipf)
-          "
 
-      - name: Create Release
+          # Workflow の env から取得（なければデフォルト）
+          OUTPUT_ZIP = os.environ.get('ZIP_NAME', 'DDDTools.zip')
+
+          EXCLUDED_DIRS = {'.git', '.github', 'images', 'sample', '__pycache__'}
+          EXCLUDED_FILES = {'.gitignore', 'README.md', OUTPUT_ZIP}
+
+          with zipfile.ZipFile(OUTPUT_ZIP, 'w', zipfile.ZIP_DEFLATED) as z:
+              for root, dirs, files in os.walk('.'):
+                  dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
+
+                  for name in files:
+                      if name in EXCLUDED_FILES:
+                          continue
+
+                      fullpath = os.path.join(root, name)
+                      relpath = os.path.relpath(fullpath, '.')
+
+                      z.write(fullpath, relpath)
+          PY
+
+      - name: Create release
         id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
+          release_name: ${{ github.ref }}
 
-      - name: Upload Release Asset
-        id: upload-release-asset 
+      - name: Upload release asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./DDDTools.zip
-          asset_name: DDDTools.zip
+          asset_path: ./${{ env.ZIP_NAME }}
+          asset_name: ${{ env.ZIP_NAME }}
           asset_content_type: application/zip
