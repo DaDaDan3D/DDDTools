@@ -832,7 +832,10 @@ def draw_circle_2d(context, center, radius, color):
         radius_2D * np.sin(angles) + center_location_2D.y], axis=-1)
 
     # Define the shader
-    shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
+    if bpy.app.version < (4, 0, 0):
+        shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
+    else:
+        shader = gpu.shader.from_builtin('UNIFORM_COLOR')
     shader.bind()
     shader.uniform_float('color', color)
 
@@ -844,7 +847,10 @@ def draw_circle_2d(context, center, radius, color):
 ################
 def draw_line_2d(context, point, direction, color):
     # Define the shader
-    shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
+    if bpy.app.version < (4, 0, 0):
+        shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
+    else:
+        shader = gpu.shader.from_builtin('UNIFORM_COLOR')
     shader.bind()
     shader.uniform_float('color', color)
 

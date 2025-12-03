@@ -887,7 +887,9 @@ class DDDBT_OT_poseProportionalMove(Operator):
     direction: pm.get_direction_enum()
 
     ################
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
         # プロポーショナル移動するクラス
         self.pm = pm.ProportionalMover()
 
@@ -1011,7 +1013,10 @@ class DDDBT_OT_poseProportionalMove(Operator):
         context.area.tag_redraw()
 
         # Define the shader
-        shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+        if bpy.app.version < (4, 0, 0):
+            shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+        else:
+            shader = gpu.shader.from_builtin('UNIFORM_COLOR')
         shader.bind()
 
         if not self.number_input.is_processing():
